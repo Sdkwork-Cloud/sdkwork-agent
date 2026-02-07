@@ -1,0 +1,127 @@
+/**
+ * SDKWork Agent Configuration Example
+ * 
+ * 配置文件路径:
+ * - 全局配置: ~/.sdkwork/agent.conf
+ * - 项目配置: <project>/.sdkwork/agent.conf
+ * 
+ * 优先级: 环境变量 > 项目配置 > 全局配置 > 默认配置
+ */
+
+{
+  "version": "2.0.0",
+  "environment": "development",
+  
+  "logging": {
+    "level": "info",
+    "format": "text",
+    "output": "console"
+  },
+  
+  "compatibility": {
+    "openclaw": {
+      "enabled": true,
+      "skillsDir": "~/.openclaw/skills",
+      "commandMapping": {
+        "git-status": "oc-git-status",
+        "file-search": "oc-file-search"
+      }
+    },
+    "claude": {
+      "enabled": true,
+      "settings": {
+        "allowedTools": ["read_file", "write_file", "execute_command"],
+        "maxIterations": 10
+      }
+    },
+    "codex": {
+      "enabled": false,
+      "settings": {
+        "model": "gpt-4",
+        "temperature": 0.7
+      }
+    },
+    "opencode": {
+      "enabled": false,
+      "settings": {
+        "registry": "https://registry.opencode.ai",
+        "autoUpdate": true
+      }
+    }
+  },
+  
+  "skills": {
+    "enabled": true,
+    "load": {
+      "extraDirs": [
+        "./custom-skills",
+        "~/my-skills"
+      ],
+      "watch": true,
+      "watchDebounceMs": 250,
+      "maxConcurrentLoads": 5
+    },
+    "eligibility": {
+      "checkOS": true,
+      "checkBinaries": true,
+      "checkEnvVars": true
+    },
+    "selection": {
+      "enabled": true,
+      "confidenceThreshold": 0.6,
+      "maxSelectedSkills": 3,
+      "enablePreload": true,
+      "useLLM": true
+    },
+    "snapshot": {
+      "enableCache": true,
+      "cacheTTL": 3600000
+    }
+  },
+  
+  "llm": {
+    "defaultProvider": "openai",
+    "providers": {
+      "openai": {
+        "apiKey": "${OPENAI_API_KEY}",
+        "model": "gpt-4",
+        "temperature": 0.7,
+        "maxTokens": 4000,
+        "timeout": 30000
+      },
+      "anthropic": {
+        "apiKey": "${ANTHROPIC_API_KEY}",
+        "model": "claude-3-opus-20240229",
+        "temperature": 0.7,
+        "maxTokens": 4000
+      }
+    },
+    "routing": {
+      "enabled": true,
+      "taskRouting": {
+        "code": "openai",
+        "analysis": "anthropic",
+        "chat": "openai"
+      }
+    }
+  },
+  
+  "memory": {
+    "enabled": true,
+    "type": "hybrid",
+    "maxSize": 1000000
+  },
+  
+  "security": {
+    "enableSandbox": true,
+    "allowedCommands": ["git", "npm", "node"],
+    "blockedCommands": ["rm -rf /", "format", "del /f /s /q"],
+    "maxExecutionTime": 30000
+  },
+  
+  "experimental": {
+    "enableStreaming": true,
+    "enableMultiAgent": false,
+    "enableReflection": true
+  }
+}
