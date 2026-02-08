@@ -248,8 +248,8 @@ console.log('Registered Tools:', agent.tools.list().map(t => t.id));
 如果以上解决方案无法解决你的问题：
 
 1. **查看文档**: [完整文档](https://sdkwork-agent.vercel.app)
-2. **GitHub Issues**: [提交问题](https://github.com/sdkwork/agent/issues)
-3. **社区讨论**: [GitHub Discussions](https://github.com/sdkwork/agent/discussions)
+2. **GitHub Issues**: [提交问题](https://github.com/Sdkwork-Cloud/sdkwork-agent/issues)
+3. **社区讨论**: [GitHub Discussions](https://github.com/Sdkwork-Cloud/sdkwork-agent/discussions)
 
 ## 报告问题
 

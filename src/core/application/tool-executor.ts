@@ -9,7 +9,7 @@
  * @standard Industry Leading
  */
 
-import { EventEmitter } from '../../utils/event-emitter';
+import { EventEmitter } from '../../utils/event-emitter.js';
 import type {
   Tool,
   ToolExecutionContext,

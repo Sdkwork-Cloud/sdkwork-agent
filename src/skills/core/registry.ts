@@ -4,7 +4,7 @@
  * Single implementation replacing the duplicate registry.ts and skill-registry.ts
  */
 
-import { EventEmitter } from '../../utils/event-emitter';
+import { EventEmitter } from '../../utils/event-emitter.js';
 import {
   Skill,
   ISkillRegistry,

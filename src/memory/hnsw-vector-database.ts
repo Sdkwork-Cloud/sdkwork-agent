@@ -242,7 +242,7 @@ export class HNSWVectorDatabase extends VectorDatabase {
     const hnswResults = this.index.search(vector, limit * 2); // 搜索更多结果以支持过滤
 
     // 转换为 SearchResult 格式并应用过滤
-    let results: SearchResult[] = [];
+    const results: SearchResult[] = [];
 
     for (const hnswResult of hnswResults) {
       // 获取完整文档

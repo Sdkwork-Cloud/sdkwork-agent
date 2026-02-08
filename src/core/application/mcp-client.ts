@@ -4,17 +4,19 @@
  * Supports stdio, SSE, HTTP, WebSocket transports
  */
 
-import { EventEmitter } from '../../utils/event-emitter';
-import { Logger, createLogger } from '../../utils/logger';
+import { EventEmitter } from '../../utils/event-emitter.js';
+import { Logger, createLogger } from '../../utils/logger.js';
 
 // Node.js specific imports - only available in Node environment
 let spawn: typeof import('child_process')['spawn'] | undefined;
+let processEnv: NodeJS.ProcessEnv | undefined;
 
 if (typeof window === 'undefined') {
   // Node.js environment
   try {
     const childProcess = require('child_process');
     spawn = childProcess.spawn;
+    processEnv = process.env;
   } catch {
     // Ignore
   }
@@ -83,7 +85,7 @@ class StdioTransport implements MCPTransportHandler {
       }
 
       this._process = spawn!(this._config.command, this._config.args || [], {
-        env: { ...process.env, ...this._config.env },
+        env: { ...processEnv, ...this._config.env },
         stdio: ['pipe', 'pipe', 'pipe'],
       });
 

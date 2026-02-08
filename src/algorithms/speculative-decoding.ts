@@ -221,7 +221,7 @@ export class SpeculativeDecoder {
     gamma: number
   ): Promise<number[]> {
     const draftTokens: number[] = [];
-    let currentInput = [...prefix];
+    const currentInput = [...prefix];
 
     for (let i = 0; i < gamma; i++) {
       const logits = await this.draftModel.generateLogits(currentInput);
@@ -248,7 +248,7 @@ export class SpeculativeDecoder {
     shouldStop: boolean;
   }> {
     let acceptedCount = 0;
-    let currentInput = [...prefix];
+    const currentInput = [...prefix];
 
     for (let i = 0; i < draftTokens.length; i++) {
       // 获取 target model 的分布

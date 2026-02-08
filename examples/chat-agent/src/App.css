@@ -186,6 +186,12 @@
   padding: 16px 0 24px;
 }
 
+.skill-selector-container {
+  max-width: 800px;
+  margin: 0 auto 12px;
+  padding: 0 20px;
+}
+
 .selected-skills-bar {
   max-width: 800px;
   margin: 0 auto 12px;

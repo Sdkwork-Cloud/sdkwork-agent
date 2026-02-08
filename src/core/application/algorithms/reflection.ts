@@ -205,7 +205,7 @@ export class ReflectionEngine extends EventEmitter {
     let currentInput: unknown = input;
     let currentOutput: unknown;
     let iteration = 0;
-    let allImprovements: string[] = [];
+    const allImprovements: string[] = [];
 
     this.emit('execution:started', { task, input });
 

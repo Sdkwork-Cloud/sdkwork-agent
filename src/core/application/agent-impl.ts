@@ -9,8 +9,8 @@
  * @architecture Microkernel
  */
 
-import { EventEmitter } from '../../utils/event-emitter';
-import { Logger, createLogger } from '../../utils/logger';
+import { EventEmitter } from '../../utils/event-emitter.js';
+import { Logger, createLogger } from '../../utils/logger.js';
 import type {
   Agent,
   AgentConfig,
@@ -47,6 +47,7 @@ import { MCPManagerImpl } from './mcp-client';
 import { PluginManagerImpl, createPluginManager } from './plugin-manager';
 import { Microkernel, createMicrokernel } from '../microkernel';
 import { ExecutionEngineImpl } from './execution-engine';
+import { createMemoryAdapter } from './memory-adapter';
 
 
 // ============================================
@@ -69,7 +70,7 @@ export class AgentImpl extends EventEmitter implements Agent {
   private _llm!: LLMProvider;
   private _skills: Map<string, Skill> = new Map();
   private _tools: Map<string, Tool> = new Map();
-  private _memory?: unknown;
+  private _memory?: MemoryStore;
 
   // Cached registry instances (lazy initialization)
   private _skillsRegistry?: import('../domain/skill').SkillRegistry;
@@ -192,7 +193,7 @@ export class AgentImpl extends EventEmitter implements Agent {
         this._skillExecutor = new SkillExecutorImpl({
           llm: this._llm,
           toolRegistry: this.tools,
-          memory: this._memory as import('../domain/skill').SkillMemoryAPI,
+          memory: this._memory ? createMemoryAdapter(this._memory) : undefined,
         });
       },
       destroy: async () => {
@@ -640,7 +641,7 @@ export class AgentImpl extends EventEmitter implements Agent {
         success: result.success,
       });
 
-      return result as SkillResult;
+      return result;
     } catch (error) {
       this._emitEvent('skill:failed', {
         skillId,

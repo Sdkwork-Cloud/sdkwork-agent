@@ -918,7 +918,7 @@ export class HTNPlanner {
     }
 
     // 标记并行任务组
-    let result: PrimitiveTask[] = [];
+    const result: PrimitiveTask[] = [];
     for (const group of parallelGroups) {
       if (group.length > 1) {
         // 为组中的每个任务添加并行标记

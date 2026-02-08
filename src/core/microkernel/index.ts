@@ -16,7 +16,7 @@
  * @standard Netflix/Google Level
  */
 
-import { Logger, createLogger } from '../../utils/logger';
+import { Logger, createLogger } from '../../utils/logger.js';
 
 // ============================================================================
 // Types

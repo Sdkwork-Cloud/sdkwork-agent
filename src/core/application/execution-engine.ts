@@ -4,7 +4,7 @@
  * Reference: Temporal, AWS Step Functions, LangGraph
  */
 
-import { EventEmitter } from '../../utils/event-emitter';
+import { EventEmitter } from '../../utils/event-emitter.js';
 import { v4 as uuidv4 } from 'uuid';
 
 // ============================================================================

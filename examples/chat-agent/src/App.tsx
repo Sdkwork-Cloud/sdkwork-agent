@@ -1,35 +1,112 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { Sidebar } from './components/Sidebar'
 import { ChatMessage } from './components/ChatMessage'
 import { ChatInput } from './components/ChatInput'
-import { SkillPanel } from './components/SkillPanel'
 import { AgentConfig } from './components/AgentConfig'
 import { TypingIndicator } from './components/TypingIndicator'
 import { ExportDialog } from './components/ExportDialog'
-import { SmartChat } from './components/SmartChat'
+import { SkillSelector } from './components/SkillSelector'
 import { useAgent } from './hooks/useAgent'
 import { useConversations } from './hooks/useConversations'
 import { useTheme } from './hooks/useTheme'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
-import { Brain, MessageSquare, Sparkles } from 'lucide-react'
+import { useSmartSkills } from './hooks/useSmartSkills'
+import { 
+  emitSkillStart,
+  emitSkillComplete,
+} from './agent/events'
 import type { Message, Skill } from './types'
 import './App.css'
 
-/**
- * 应用模式
- */
-type AppMode = 'standard' | 'smart'
+// Detect which skills were actually used based on user input and response content
+function detectUsedSkills(
+  userInput: string,
+  _responseContent: string,
+  availableSkills: Skill[]
+): string[] {
+  const usedSkills: string[] = []
+  const inputLower = userInput.toLowerCase()
+  
+  for (const skill of availableSkills) {
+    let shouldInclude = false
+    
+    // Check skill-specific keywords in user input
+    switch (skill.name) {
+      case 'math':
+        // Math: check for calculation patterns
+        if (/\d+\s*[+\-*/]\s*\d+/.test(userInput) || 
+            /计算|calculat|math|等于|多少|结果/.test(inputLower)) {
+          shouldInclude = true
+        }
+        break
+      case 'translate':
+        // Translate: check for translation requests
+        if (/翻译|translate|中文|英文|english|chinese|日文|韩文/.test(inputLower)) {
+          shouldInclude = true
+        }
+        break
+      case 'time':
+        // Time: check for time/date queries
+        if (/时间|日期|time|date|几点|今天|现在/.test(inputLower)) {
+          shouldInclude = true
+        }
+        break
+      case 'weather':
+        // Weather: check for weather queries
+        if (/天气|weather|温度|下雨|forecast/.test(inputLower)) {
+          shouldInclude = true
+        }
+        break
+      case 'code-assistant':
+        // Code: check for code-related queries
+        if (/代码|code|编程|program|bug|debug|error|function/.test(inputLower)) {
+          shouldInclude = true
+        }
+        break
+      case 'summarize':
+        // Summarize: check for summary requests
+        if (/总结|summar|摘要|概括|summary/.test(inputLower)) {
+          shouldInclude = true
+        }
+        break
+      case 'web-search':
+        // Web search: check for search queries
+        if (/搜索|search|查询|查找|google|百度/.test(inputLower)) {
+          shouldInclude = true
+        }
+        break
+      default:
+        // For other skills, check if skill name or keywords appear in input
+        if (inputLower.includes(skill.name.toLowerCase())) {
+          shouldInclude = true
+        }
+        // Check tags
+        if (skill.metadata?.tags?.some(tag => inputLower.includes(tag.toLowerCase()))) {
+          shouldInclude = true
+        }
+    }
+    
+    if (shouldInclude) {
+      usedSkills.push(skill.name)
+    }
+  }
+  
+  return [...new Set(usedSkills)]
+}
+
+// Track processed message IDs to prevent duplicates in StrictMode
+const processedMessageIds = new Set<string>()
 
 function App() {
   const [inputValue, setInputValue] = useState('')
-  const [showSkillPanel, setShowSkillPanel] = useState(false)
   const [showConfig, setShowConfig] = useState(false)
-  const [selectedSkills, setSelectedSkills] = useState<string[]>([])
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [showExport, setShowExport] = useState(false)
-  const [appMode, setAppMode] = useState<AppMode>('standard')
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  
+  // Use state to track if we're currently processing a message (for UI updates)
+  const [isSending, setIsSending] = useState(false)
 
   const { theme, resolvedTheme, toggleTheme, isDark } = useTheme()
 
@@ -42,23 +119,31 @@ function App() {
     deleteConversation,
     addMessage,
     updateMessage,
-    regenerateMessage,
     setCurrentConversationId,
   } = useConversations()
 
   const {
     isReady,
     isProcessing,
-    availableSkills,
     config,
     updateConfig,
     initializeAgent,
     streamMessage,
     stopProcessing,
     clearConfig,
-    switchConversation,
-    syncConversationContext,
   } = useAgent()
+
+  const {
+    config: smartSkillConfig,
+    toggleEnabled: toggleSmartMode,
+    availableSkills,
+    selectedSkills,
+    toggleSkill,
+    clearSelection,
+    matchedSkills,
+    refreshMatches,
+    getActiveSkills,
+  } = useSmartSkills()
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -72,15 +157,6 @@ function App() {
     }
   }, [isLoaded, conversations.length, createConversation])
 
-  // Sync conversation context when switching conversations
-  useEffect(() => {
-    if (currentConversationId && currentConversation) {
-      switchConversation(currentConversationId)
-      // Sync context from existing messages
-      syncConversationContext(currentConversationId, currentConversation.messages)
-    }
-  }, [currentConversationId, currentConversation, switchConversation, syncConversationContext])
-
   const handleNewChat = () => {
     createConversation()
     setSidebarOpen(false)
@@ -93,23 +169,79 @@ function App() {
     onToggleSidebar: () => setSidebarOpen(prev => !prev),
     onToggleTheme: toggleTheme,
     onEscape: () => {
-      setShowSkillPanel(false)
       setShowConfig(false)
     },
   })
 
-  const handleSendMessage = async (content: string) => {
-    if (!content.trim() || isProcessing || !currentConversationId) return
+  const handleSendMessage = useCallback(async (content: string) => {
+    // Prevent any processing if already processing
+    if (isSending) {
+      console.log('[App] Already processing, skipping duplicate')
+      return
+    }
+    
+    if (!content.trim() || !currentConversationId) return
 
     if (!isReady) {
       setShowConfig(true)
       return
     }
 
-    // Generate unique IDs using timestamp + random suffix
+    // Set processing flag
+    setIsSending(true)
+    
+    // Generate unique IDs
     const timestamp = Date.now()
     const userMessageId = `user-${timestamp}-${Math.random().toString(36).substr(2, 9)}`
     const assistantMessageId = `assistant-${timestamp + 1}-${Math.random().toString(36).substr(2, 9)}`
+    
+    // Check if we've already processed this exact content in this conversation
+    const messageKey = `${currentConversationId}-${content}-${timestamp}`
+    if (processedMessageIds.has(messageKey)) {
+      console.log('[App] Duplicate message detected, skipping')
+      setIsSending(false)
+      return
+    }
+    processedMessageIds.add(messageKey)
+    
+    // Clean up old processed IDs (keep last 100)
+    if (processedMessageIds.size > 100) {
+      const iterator = processedMessageIds.values()
+      const firstValue = iterator.next().value
+      if (firstValue) {
+        processedMessageIds.delete(firstValue)
+      }
+    }
+
+    // Refresh smart skill matches based on user input
+    refreshMatches(content)
+    
+    // Build system prompt with active skills (manual + smart matched)
+    const activeSkillObjects = getActiveSkills()
+    let systemPrompt = 'You are a helpful AI assistant.'
+    
+    if (activeSkillObjects.length > 0) {
+      systemPrompt += '\n\nYou have access to the following capabilities:\n'
+      activeSkillObjects.forEach(skill => {
+        systemPrompt += `- ${skill.description}\n`
+      })
+      systemPrompt += '\nUse these capabilities naturally in your responses without explicitly mentioning you are using them. Just provide helpful answers as if these are your inherent abilities.'
+      
+      // Add instruction for skill calling format
+      systemPrompt += '\n\nWhen you need to use a capability, you can call it using this format: [[skill_name|{"param": "value"}]]'
+      systemPrompt += '\nFor example: [[math|{"expression": "2+2"}]] or [[time|{"timezone": "UTC"}]]'
+    }
+
+    // Build messages array BEFORE adding new messages to state
+    const currentMessages = currentConversation?.messages || []
+    const messages = [
+      { role: 'system', content: systemPrompt },
+      ...currentMessages.slice(-10).map(m => ({
+        role: m.role,
+        content: m.content,
+      })),
+      { role: 'user', content },
+    ]
 
     // Add user message
     const userMessage: Message = {
@@ -133,18 +265,29 @@ function App() {
 
     // Stream response
     try {
-      const response = await streamMessage(content, selectedSkills, (chunk) => {
+      const response = await streamMessage(messages, (chunk) => {
         updateMessage(currentConversationId, assistantMessageId, {
           content: chunk,
         })
-      }, currentConversationId)
+      })
 
-      // Update final message
+      // Detect which skills were actually used based on user input and response
+      const usedSkillNames = detectUsedSkills(content, response.content, activeSkillObjects)
+      
+      // Emit events for detected skills
+      usedSkillNames.forEach(skillName => {
+        emitSkillStart(assistantMessageId, currentConversationId, skillName, {})
+        // Emit complete event after a short delay to simulate execution
+        setTimeout(() => {
+          emitSkillComplete(assistantMessageId, currentConversationId, skillName, { success: true }, 100)
+        }, 500)
+      })
+
+      // Update final message with skills used
       updateMessage(currentConversationId, assistantMessageId, {
         content: response.content,
-        skillsUsed: response.skillsUsed,
-        evaluation: response.evaluation,
         isStreaming: false,
+        skillsUsed: usedSkillNames.length > 0 ? usedSkillNames : undefined,
       })
     } catch (error) {
       updateMessage(currentConversationId, assistantMessageId, {
@@ -152,34 +295,41 @@ function App() {
         isError: true,
         isStreaming: false,
       })
+    } finally {
+      // Reset processing flag
+      setIsSending(false)
     }
-  }
+  }, [currentConversationId, currentConversation?.messages, isReady, isSending, addMessage, updateMessage, streamMessage, refreshMatches, getActiveSkills])
 
-  const handleInputChange = (value: string) => {
-    setInputValue(value)
-    if (value === '/') {
-      setShowSkillPanel(true)
-    } else if (!value.startsWith('/')) {
-      setShowSkillPanel(false)
+  const handleRegenerate = useCallback(async (messageId: string) => {
+    if (isSending || !currentConversationId || !currentConversation) return
+
+    setIsSending(true)
+
+    // Find the user message before this assistant message
+    const messageIndex = currentConversation.messages.findIndex(m => m.id === messageId)
+    if (messageIndex <= 0) {
+      setIsSending(false)
+      return
     }
-  }
 
-  const handleSkillSelect = (skill: Skill) => {
-    setSelectedSkills((prev) =>
-      prev.includes(skill.name)
-        ? prev.filter((s) => s !== skill.name)
-        : [...prev, skill.name]
-    )
-    setShowSkillPanel(false)
-    setInputValue('')
-  }
+    const userMessage = currentConversation.messages[messageIndex - 1]
+    if (userMessage.role !== 'user') {
+      setIsSending(false)
+      return
+    }
 
-  const handleRegenerate = async (messageId: string) => {
-    if (!currentConversationId || isProcessing) return
-
-    // Get the user message content for regeneration
-    const userContent = regenerateMessage(currentConversationId, messageId)
-    if (!userContent) return
+    // Build messages array BEFORE adding new message
+    const messages = [
+      { role: 'system', content: 'You are a helpful AI assistant.' },
+      ...currentConversation.messages
+        .slice(0, messageIndex)
+        .slice(-10)
+        .map(m => ({
+          role: m.role,
+          content: m.content,
+        })),
+    ]
 
     // Create new assistant message placeholder with unique ID
     const timestamp = Date.now()
@@ -195,16 +345,14 @@ function App() {
 
     // Stream response
     try {
-      const response = await streamMessage(userContent, selectedSkills, (chunk) => {
+      const response = await streamMessage(messages, (chunk) => {
         updateMessage(currentConversationId, assistantMessageId, {
           content: chunk,
         })
-      }, currentConversationId)
+      })
 
       updateMessage(currentConversationId, assistantMessageId, {
         content: response.content,
-        skillsUsed: response.skillsUsed,
-        evaluation: response.evaluation,
         isStreaming: false,
       })
     } catch (error) {
@@ -213,25 +361,10 @@ function App() {
         isError: true,
         isStreaming: false,
       })
+    } finally {
+      setIsSending(false)
     }
-  }
-
-  // 渲染智能模式
-  if (appMode === 'smart') {
-    return (
-      <div className="app smart-mode">
-        <SmartChat />
-        <button
-          className="mode-switcher"
-          onClick={() => setAppMode('standard')}
-          title="切换到标准模式"
-        >
-          <MessageSquare size={18} />
-          <span>标准模式</span>
-        </button>
-      </div>
-    )
-  }
+  }, [currentConversationId, currentConversation, isSending, addMessage, updateMessage, streamMessage])
 
   return (
     <div className="app">
@@ -268,17 +401,6 @@ function App() {
             </h1>
           </div>
           <div className="header-actions">
-            {/* 智能模式切换按钮 */}
-            <button
-              className="smart-mode-btn"
-              onClick={() => setAppMode('smart')}
-              title="切换到智能模式 (MCTS + 向量记忆)"
-            >
-              <Brain size={18} />
-              <span>智能模式</span>
-              <Sparkles size={14} className="sparkle" />
-            </button>
-
             <button
               className={`status-indicator ${isReady ? 'ready' : 'not-ready'}`}
               onClick={() => setShowConfig(true)}
@@ -344,21 +466,6 @@ function App() {
                 <h2>How can I help you today?</h2>
                 <p>Type a message to start a conversation</p>
                 
-                {/* 智能模式推广 */}
-                <div className="smart-mode-promo">
-                  <button
-                    className="promo-btn"
-                    onClick={() => setAppMode('smart')}
-                  >
-                    <Brain size={24} />
-                    <div className="promo-text">
-                      <strong>尝试智能模式</strong>
-                      <span>体验 MCTS 决策 + 向量记忆 + 安全检测</span>
-                    </div>
-                    <Sparkles size={16} />
-                  </button>
-                </div>
-
                 <div className="quick-actions">
                   <button onClick={() => handleSendMessage('Hello!')}>
                     👋 Say hello
@@ -381,10 +488,12 @@ function App() {
                 <ChatMessage 
                   key={message.id} 
                   message={message} 
+                  conversationId={currentConversationId || ''}
                   onRegenerate={message.role === 'assistant' ? () => handleRegenerate(message.id) : undefined}
                 />
               ))}
-              {isProcessing && <TypingIndicator />}
+              {/* Only show TypingIndicator when there's no streaming message in the list */}
+              {isProcessing && !currentConversation?.messages.some(m => m.isStreaming) && <TypingIndicator />}
               <div ref={messagesEndRef} />
             </>
           )}
@@ -392,41 +501,27 @@ function App() {
 
         {/* Input Area */}
         <div className="input-area">
-          {selectedSkills.length > 0 && (
-            <div className="selected-skills-bar">
-              <span className="skills-label">Skills:</span>
-              {selectedSkills.map((skill) => (
-                <span key={skill} className="skill-tag-mini">
-                  {skill}
-                  <button onClick={() => handleSkillSelect({ name: skill } as Skill)}>
-                    ×
-                  </button>
-                </span>
-              ))}
-              <button className="clear-skills-btn" onClick={() => setSelectedSkills([])}>
-                Clear all
-              </button>
-            </div>
-          )}
-
+          {/* Skill Selector */}
+          <div className="skill-selector-container">
+            <SkillSelector
+              availableSkills={availableSkills}
+              selectedSkills={selectedSkills}
+              matchedSkills={matchedSkills}
+              isSmartMode={smartSkillConfig.enabled}
+              onToggleSmartMode={toggleSmartMode}
+              onToggleSkill={toggleSkill}
+              onClearSelection={clearSelection}
+            />
+          </div>
           <ChatInput
             value={inputValue}
-            onChange={handleInputChange}
+            onChange={setInputValue}
             onSend={handleSendMessage}
-            disabled={!isReady}
+            disabled={!isReady || isSending}
             placeholder={isReady ? 'Message...' : 'Please configure API key first...'}
-            isProcessing={isProcessing}
+            isProcessing={isProcessing || isSending}
             onStop={stopProcessing}
           />
-
-          {showSkillPanel && (
-            <SkillPanel
-              skills={availableSkills}
-              selectedSkills={selectedSkills}
-              onSelect={handleSkillSelect}
-              onClose={() => setShowSkillPanel(false)}
-            />
-          )}
         </div>
       </main>
 

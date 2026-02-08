@@ -99,4 +99,4 @@ SDKWork Agent 1.0.0 正式发布！这是一个基于 DDD 领域驱动设计的�
 
 感谢所有为 SDKWork Agent 做出贡献的开发者！
 
-[查看贡献者列表](https://github.com/sdkwork/agent/graphs/contributors)
+[查看贡献者列表](https://github.com/Sdkwork-Cloud/sdkwork-agent/graphs/contributors)

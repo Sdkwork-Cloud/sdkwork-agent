@@ -86,8 +86,10 @@ export interface AgentConfigType {
   apiKey: string
   model?: string
   baseUrl?: string
-  evaluationEnabled: boolean
-  evaluationLevel: 'none' | 'basic' | 'standard' | 'strict'
+  temperature?: number
+  maxTokens?: number
+  evaluationEnabled?: boolean
+  evaluationLevel?: 'none' | 'basic' | 'standard' | 'strict'
 }
 
 export interface AgentResponse {
@@ -101,3 +103,10 @@ export interface AgentResponse {
 }
 
 export type Theme = 'light' | 'dark' | 'system'
+
+// Skill match result for smart skill selection
+export interface SkillMatch {
+  skill: Skill
+  score: number
+  matchedKeywords: string[]
+}

@@ -657,7 +657,7 @@ export class GraphMemory extends EventEmitter implements MemoryService {
   }
 
   async set(key: string, value: unknown): Promise<void> {
-    let node = this.findNodeByName(key);
+    const node = this.findNodeByName(key);
     if (node) {
       this.updateNode(node.id, { properties: { ...node.properties, value } });
     } else {

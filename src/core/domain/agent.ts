@@ -16,6 +16,7 @@ import type { MemoryStore } from './memory';
 import type { SkillRegistry } from './skill';
 import type { ToolRegistry } from './tool';
 import type { LLMProvider } from '../../llm/provider';
+import type { ExecutionEngine } from '../application/execution-engine';
 
 
 // ============================================
@@ -393,7 +394,7 @@ export interface Agent {
   readonly skills: SkillRegistry;
   readonly tools: ToolRegistry;
   readonly memory: MemoryStore;
-  readonly execution: unknown; // ExecutionEngine - 避免循环依赖，使用时需类型断言
+  readonly execution: ExecutionEngine;
   
   // 生命周期
   initialize(): Promise<void>;

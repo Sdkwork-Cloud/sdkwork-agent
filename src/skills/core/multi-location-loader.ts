@@ -343,7 +343,7 @@ export class MultiLocationSkillLoader extends EventEmitter {
    */
   private parseJSON5(json5: string): unknown {
     // 移除注释
-    let cleaned = json5
+    const cleaned = json5
       .replace(/\/\/.*$/gm, '') // 单行注释
       .replace(/\/\*[\s\S]*?\*\//g, '') // 多行注释
       .replace(/,\s*([}\]])/g, '$1'); // 尾随逗号

@@ -1,120 +1,109 @@
-import { defineConfig } from 'vitepress';
+import { defineConfig } from 'vitepress'
 
 // https://vitepress.dev/reference/site-config
 export default defineConfig({
-  title: 'SDKWork Agent',
-  titleTemplate: ':title | SDKWork Agent',
-  description: '统一智能体架构 - DDD Domain-Driven Design，行业领先的 Skill/Tool/MCP/Plugin 执行标准',
-  
+  title: "SDKWork Agent",
+  description: "AI 智能体开发套件",
   lang: 'zh-CN',
+  base: '/sdkwork-browser-agent/',
+  lastUpdated: true,
   
   head: [
     ['link', { rel: 'icon', href: '/favicon.ico' }],
-    ['meta', { name: 'theme-color', content: '#646cff' }],
-    ['meta', { name: 'keywords', content: 'AI Agent, LLM, Skill, Tool, MCP, Plugin, DDD, TypeScript' }],
-    ['meta', { property: 'og:title', content: 'SDKWork Agent' }],
-    ['meta', { property: 'og:description', content: '统一智能体架构 - DDD Domain-Driven Design' }],
-    ['meta', { property: 'og:type', content: 'website' }],
+    ['meta', { name: 'theme-color', content: '#5f67ee' }],
   ],
 
-  lastUpdated: true,
-  cleanUrls: true,
-  
   themeConfig: {
     // https://vitepress.dev/reference/default-theme-config
-    logo: '/logo.svg',
-    
     nav: [
-      { text: '指南', link: '/guide/what-is', activeMatch: '/guide/' },
-      { text: '架构', link: '/architecture/overview', activeMatch: '/architecture/' },
-      { text: 'API', link: '/api/agent', activeMatch: '/api/' },
-      { text: '示例', link: '/examples/basic', activeMatch: '/examples/' },
-      {
-        text: 'v1.0.0',
-        items: [
-          { text: '更新日志', link: '/changelog' },
-          { text: '贡献指南', link: '/contributing' },
-          { text: '路线图', link: '/roadmap' },
-        ],
-      },
+      { text: '指南', link: '/guide/' },
+      { text: 'API', link: '/api/' },
+      { text: '示例', link: '/examples/' },
+      { text: '服务端', link: '/server/getting-started' },
     ],
 
     sidebar: {
       '/guide/': [
         {
           text: '开始',
-          collapsed: false,
           items: [
-            { text: '什么是 SDKWork?', link: '/guide/what-is' },
-            { text: '快速开始', link: '/guide/quick-start' },
-            { text: '安装', link: '/guide/installation' },
+            { text: '简介', link: '/guide/' },
+            { text: '快速开始', link: '/guide/getting-started' },
             { text: '核心概念', link: '/guide/concepts' },
-          ],
+          ]
         },
         {
-          text: '参考',
-          collapsed: false,
+          text: '基础',
           items: [
-            { text: '故障排除', link: '/guide/troubleshooting' },
-          ],
+            { text: '智能体', link: '/guide/agent' },
+            { text: '任务', link: '/guide/task' },
+            { text: '能力', link: '/guide/capability' },
+            { text: '内存', link: '/guide/memory' },
+            { text: '工具', link: '/guide/tools' },
+          ]
         },
-      ],
-      '/architecture/': [
         {
-          text: '架构概览',
-          collapsed: false,
+          text: '高级',
           items: [
-            { text: '总览', link: '/architecture/overview' },
-            { text: 'DDD 分层架构', link: '/architecture/ddd' },
-            { text: '微内核架构', link: '/architecture/microkernel' },
-          ],
+            { text: '工作流', link: '/guide/workflow' },
+            { text: '多智能体', link: '/guide/multi-agent' },
+            { text: '自定义扩展', link: '/guide/extensions' },
+          ]
         },
+        {
+          text: '部署',
+          items: [
+            { text: '生产环境', link: '/guide/production' },
+            { text: '性能优化', link: '/guide/performance' },
+            { text: '监控', link: '/guide/monitoring' },
+          ]
+        }
       ],
       '/api/': [
         {
-          text: 'Core API',
-          collapsed: false,
+          text: 'API 参考',
           items: [
+            { text: '概述', link: '/api/' },
             { text: 'Agent', link: '/api/agent' },
-          ],
-        },
-        {
-          text: 'Domain',
-          collapsed: false,
-          items: [
-            { text: 'Skill', link: '/api/skill' },
-            { text: 'Tool', link: '/api/tool' },
+            { text: 'Task', link: '/api/task' },
+            { text: 'Capability', link: '/api/capability' },
             { text: 'Memory', link: '/api/memory' },
-            { text: 'Events', link: '/api/events' },
-          ],
-        },
+            { text: 'Tools', link: '/api/tools' },
+          ]
+        }
       ],
       '/examples/': [
         {
-          text: '基础示例',
-          collapsed: false,
+          text: '示例',
           items: [
-            { text: 'Hello World', link: '/examples/basic' },
-            { text: '流式对话', link: '/examples/streaming' },
-          ],
-        },
+            { text: '概述', link: '/examples/' },
+            { text: '聊天助手', link: '/examples/chat-agent' },
+            { text: '代码助手', link: '/examples/code-agent' },
+            { text: '数据分析', link: '/examples/data-analysis' },
+            { text: '自动化工作流', link: '/examples/workflow' },
+          ]
+        }
+      ],
+      '/server/': [
         {
-          text: '高级示例',
-          collapsed: false,
+          text: '服务端',
           items: [
-            { text: '实战场景', link: '/examples/advanced' },
-          ],
-        },
+            { text: '快速开始', link: '/server/getting-started' },
+            { text: '架构设计', link: '/server/architecture' },
+            { text: 'API Reference', link: '/server/api-reference' },
+            { text: '模块开发', link: '/server/module-development' },
+          ]
+        }
       ],
     },
 
     socialLinks: [
-      { icon: 'github', link: 'https://github.com/sdkwork/agent' },
+      { icon: 'github', link: 'https://github.com/Sdkwork-Cloud/sdkwork-agent' }
     ],
 
     footer: {
       message: 'Released under the MIT License.',
-      copyright: 'Copyright © 2024 SDKWork Team',
+      copyright: 'Copyright © 2024 SDKWork'
     },
 
     search: {
@@ -123,7 +112,7 @@ export default defineConfig({
         translations: {
           button: {
             buttonText: '搜索文档',
-            buttonAriaLabel: '搜索文档',
+            buttonAriaLabel: '搜索文档'
           },
           modal: {
             noResultsText: '无法找到相关结果',
@@ -131,36 +120,27 @@ export default defineConfig({
             footer: {
               selectText: '选择',
               navigateText: '切换',
-              closeText: '关闭',
-            },
-          },
-        },
-      },
+              closeText: '关闭'
+            }
+          }
+        }
+      }
     },
 
-    editLink: {
-      pattern: 'https://github.com/sdkwork/agent/edit/main/docs/:path',
-      text: '在 GitHub 上编辑此页',
-    },
-
-    lastUpdated: {
-      text: '最后更新于',
-      formatOptions: {
-        dateStyle: 'short',
-        timeStyle: 'short',
-      },
+    outline: {
+      label: '页面导航'
     },
 
     docFooter: {
       prev: '上一页',
-      next: '下一页',
+      next: '下一页'
     },
 
-    outline: {
-      label: '本页目录',
-      level: [2, 3],
+    lastUpdated: {
+      text: '最后更新于'
     },
 
+    langMenuLabel: '多语言',
     returnToTopLabel: '回到顶部',
     sidebarMenuLabel: '菜单',
     darkModeSwitchLabel: '主题',
@@ -169,17 +149,12 @@ export default defineConfig({
   },
 
   markdown: {
-    theme: {
-      light: 'github-light',
-      dark: 'github-dark',
-    },
     lineNumbers: true,
     config: (md) => {
-      // 可以在这里添加自定义 markdown 插件
-    },
-  },
-
-  sitemap: {
-    hostname: 'https://sdkwork-agent.vercel.app',
-  },
-});
+      // 添加代码块复制按钮
+      md.use(() => {
+        // 代码块配置
+      })
+    }
+  }
+})

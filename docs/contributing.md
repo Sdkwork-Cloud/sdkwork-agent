@@ -8,7 +8,7 @@
 
 如果你发现了 bug 或有功能建议：
 
-1. 先搜索 [Issues](https://github.com/sdkwork/agent/issues) 看是否已存在
+1. 先搜索 [Issues](https://github.com/Sdkwork-Cloud/sdkwork-agent/issues) 看是否已存在
 2. 如果没有，创建一个新的 Issue
 3. 使用相应的模板（Bug 报告或功能请求）
 4. 提供尽可能详细的信息
@@ -181,7 +181,7 @@ sdkwork-agent/
 
 ```bash
 # 克隆仓库
-git clone https://github.com/sdkwork/agent.git
+git clone https://github.com/Sdkwork-Cloud/sdkwork-agent.git
 cd agent
 
 # 安装依赖
@@ -279,7 +279,7 @@ npm run lint:fix
 
 ## 获取帮助
 
-- [GitHub Discussions](https://github.com/sdkwork/agent/discussions)
+- [GitHub Discussions](https://github.com/Sdkwork-Cloud/sdkwork-agent/discussions)
 - [Discord 社区](https://discord.gg/sdkwork)
 - [邮件联系](mailto:team@sdkwork.io)
 

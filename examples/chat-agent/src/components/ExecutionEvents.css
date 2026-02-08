@@ -1,0 +1,243 @@
+.execution-events {
+  margin-top: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-secondary);
+  overflow: hidden;
+}
+
+.events-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  cursor: pointer;
+  background: var(--bg-tertiary);
+  transition: background 0.2s;
+}
+
+.events-header:hover {
+  background: var(--bg-hover);
+}
+
+.events-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.events-icon {
+  font-size: 14px;
+}
+
+.events-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.events-count {
+  display: flex;
+  gap: 8px;
+  font-size: 11px;
+}
+
+.count-running {
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.1);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.count-completed {
+  color: #10b981;
+  background: rgba(16, 185, 129, 0.1);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.count-error {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.expand-icon {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  transition: transform 0.2s;
+}
+
+.expand-icon.expanded {
+  transform: rotate(180deg);
+}
+
+.events-list {
+  max-height: 400px;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.event-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 6px;
+  margin-bottom: 6px;
+  background: var(--bg-primary);
+  border-left: 3px solid transparent;
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.event-item:last-child {
+  margin-bottom: 0;
+}
+
+.event-item.running {
+  border-left-color: #f59e0b;
+  background: rgba(245, 158, 11, 0.05);
+}
+
+.event-item.completed {
+  border-left-color: #10b981;
+}
+
+.event-item.error {
+  border-left-color: #ef4444;
+  background: rgba(239, 68, 68, 0.05);
+}
+
+.event-item.pending {
+  border-left-color: #6b7280;
+}
+
+.event-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.event-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.event-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.event-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.event-status {
+  font-size: 14px;
+}
+
+.status-spinner {
+  display: inline-block;
+  animation: spin 1s linear infinite;
+  color: #f59e0b;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.status-success {
+  color: #10b981;
+}
+
+.status-error {
+  color: #ef4444;
+}
+
+.status-pending {
+  color: #6b7280;
+}
+
+.event-description {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.event-duration {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  margin-top: 4px;
+}
+
+.event-details {
+  margin-top: 8px;
+}
+
+.event-details summary {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  user-select: none;
+}
+
+.event-details summary:hover {
+  color: var(--text-secondary);
+}
+
+.event-details pre {
+  margin-top: 6px;
+  padding: 8px;
+  background: var(--bg-code);
+  border-radius: 4px;
+  font-size: 11px;
+  overflow-x: auto;
+  max-height: 150px;
+  overflow-y: auto;
+}
+
+.event-time {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* Dark mode adjustments */
+[data-theme="dark"] .execution-events {
+  border-color: var(--border-color-dark);
+  background: var(--bg-secondary-dark);
+}
+
+[data-theme="dark"] .events-header {
+  background: var(--bg-tertiary-dark);
+}
+
+[data-theme="dark"] .events-header:hover {
+  background: var(--bg-hover-dark);
+}
+
+[data-theme="dark"] .event-item {
+  background: var(--bg-primary-dark);
+}
+
+[data-theme="dark"] .event-details pre {
+  background: var(--bg-code-dark);
+}

@@ -4,8 +4,8 @@
  * Reference: VSCode Extension Host, Rollup Plugin System
  */
 
-import { EventEmitter } from '../../utils/event-emitter';
-import { Logger, createLogger } from '../../utils/logger';
+import { EventEmitter } from '../../utils/event-emitter.js';
+import { Logger, createLogger } from '../../utils/logger.js';
 import {
   Plugin,
   PluginConfig,

@@ -2,15 +2,19 @@ import { useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { CodeBlock } from './CodeBlock'
-import type { Message } from '../types'
+import { ExecutionEvents } from './ExecutionEvents'
+import { SkillCardsList } from './SkillCard'
+import type { Message, Skill } from '../types'
+import { skillRegistry } from '../skills'
 import './ChatMessage.css'
 
 interface ChatMessageProps {
   message: Message
+  conversationId: string
   onRegenerate?: () => void
 }
 
-export function ChatMessage({ message, onRegenerate }: ChatMessageProps) {
+export function ChatMessage({ message, conversationId, onRegenerate }: ChatMessageProps) {
   const [isCopied, setIsCopied] = useState(false)
 
   const handleCopy = async () => {
@@ -77,14 +81,14 @@ export function ChatMessage({ message, onRegenerate }: ChatMessageProps) {
               {message.isStreaming && <span className="cursor">▋</span>}
             </div>
             
+            {/* Skills Used */}
             {message.skillsUsed && message.skillsUsed.length > 0 && (
-              <div className="message-skills">
-                {message.skillsUsed.map((skill) => (
-                  <span key={skill} className="skill-badge">
-                    {skill}
-                  </span>
-                ))}
-              </div>
+              <SkillCardsList 
+                skills={message.skillsUsed
+                  .map(name => skillRegistry.get(name))
+                  .filter((skill): skill is Skill => skill !== undefined)
+                } 
+              />
             )}
             
             {message.evaluation && (
@@ -94,6 +98,14 @@ export function ChatMessage({ message, onRegenerate }: ChatMessageProps) {
                 </div>
                 <div className="evaluation-feedback">{message.evaluation.feedback}</div>
               </div>
+            )}
+            
+            {/* Execution Events */}
+            {message.role === 'assistant' && (
+              <ExecutionEvents 
+                messageId={message.id} 
+                conversationId={conversationId} 
+              />
             )}
           </div>
           

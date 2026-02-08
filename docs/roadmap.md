@@ -121,7 +121,7 @@ SDKWork Agent 的发展计划和未来方向。
 
 ### 如何提议
 
-1. 在 [GitHub Discussions](https://github.com/sdkwork/agent/discussions) 发起讨论
+1. 在 [GitHub Discussions](https://github.com/Sdkwork-Cloud/sdkwork-agent/discussions) 发起讨论
 2. 描述你的使用场景
 3. 解释为什么这个功能重要
 4. 如果可能，提供实现思路
@@ -181,6 +181,6 @@ SDKWork Agent 的发展计划和未来方向。
 
 路线图会定期更新，请关注我们的发布计划。
 
-- 查看 [GitHub Projects](https://github.com/sdkwork/agent/projects) 了解当前进展
-- 订阅 [Release 通知](https://github.com/sdkwork/agent/releases) 获取最新版本
+- 查看 [GitHub Projects](https://github.com/Sdkwork-Cloud/sdkwork-agent/projects) 了解当前进展
+- 订阅 [Release 通知](https://github.com/Sdkwork-Cloud/sdkwork-agent/releases) 获取最新版本
 - 加入 [Discord](https://discord.gg/sdkwork) 参与讨论

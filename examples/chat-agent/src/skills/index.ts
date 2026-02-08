@@ -484,3 +484,45 @@ export {
   loadSkillFromModule,
 } from './loader'
 export type { SkillLoadResult, SkillSource } from './loader'
+
+// Re-export loading strategies
+export {
+  KeywordStrategy,
+  RuleStrategy,
+  HybridStrategy,
+  AdaptiveStrategy,
+  StrategyFactory,
+  createStrategyFactory,
+  getStrategyFactory,
+  resetStrategyFactory,
+  DEFAULT_SKILL_LOADING_CONFIG,
+} from './loading-strategies'
+export type {
+  SkillLoadingStrategyType,
+  SkillLoadingContext,
+  SkillLoadingResult,
+  ISkillLoadingStrategy,
+  IStrategyFactory,
+  SkillLoadingConfig,
+  StrategyConfig,
+  KeywordStrategyOptions,
+  SemanticStrategyOptions,
+  LLMStrategyOptions,
+  RuleStrategyOptions,
+  HybridStrategyOptions,
+  MCTSStrategyOptions,
+  AdaptiveStrategyOptions,
+  EnvironmentType,
+  PerformanceMetrics,
+  StrategyPerformance,
+  AdaptiveConfig,
+} from './loading-strategies'
+
+// Re-export cache
+export {
+  SkillCache,
+  createSkillCache,
+  getSkillCache,
+  resetSkillCache,
+} from './skill-cache'
+export type { CacheEntry, SkillCacheConfig } from './skill-cache'

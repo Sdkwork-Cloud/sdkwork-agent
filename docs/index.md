@@ -18,7 +18,7 @@ hero:
       link: /guide/what-is
     - theme: alt
       text: GitHub
-      link: https://github.com/sdkwork/agent
+      link: https://github.com/Sdkwork-Cloud/sdkwork-agent
 
 features:
   - icon: 🎯

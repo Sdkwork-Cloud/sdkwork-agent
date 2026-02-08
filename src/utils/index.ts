@@ -167,4 +167,22 @@ export type {
 
 export { noop } from './noop.js';
 
+// Error Boundary
+export {
+  ErrorBoundary,
+  createErrorBoundary,
+  getGlobalErrorBoundary,
+  setGlobalErrorBoundary,
+  withErrorBoundary,
+  isBoundaryResult,
+} from './error-boundary.js';
+export type {
+  ErrorSeverity,
+  ErrorContext,
+  ErrorHandler,
+  ErrorRecoveryStrategy,
+  ErrorBoundaryConfig,
+  BoundaryResult,
+} from './error-boundary.js';
+
 // Re-exports are handled above with export type

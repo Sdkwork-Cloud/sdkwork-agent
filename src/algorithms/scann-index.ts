@@ -186,7 +186,7 @@ export class ScannIndex {
     const dimension = vectors[0].length;
 
     // k-means++ 初始化
-    let centroids: number[][] = [vectors[Math.floor(Math.random() * vectors.length)]];
+    const centroids: number[][] = [vectors[Math.floor(Math.random() * vectors.length)]];
 
     while (centroids.length < k) {
       const distances = vectors.map(v => {

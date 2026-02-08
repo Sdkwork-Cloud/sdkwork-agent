@@ -22,15 +22,14 @@ import type {
 import type { ToolRegistry } from '../domain/tool';
 import type { LLMProvider } from '../../llm/provider';
 import type {
-  Result,
   ExecutionId,
   AgentId,
   UnifiedLogger,
   SkillId,
 } from '../domain/unified';
-import { ok, err, createExecutionId } from '../domain/unified';
-import { AgentEventEmitter } from '../../utils/typed-event-emitter';
-import { createLogger } from '../../utils/logger';
+import { createExecutionId } from '../domain/unified';
+import { AgentEventEmitter } from '../../utils/typed-event-emitter.js';
+import { createLogger } from '../../utils/logger.js';
 
 // ============================================
 // Skill Executor Config
@@ -104,7 +103,7 @@ export class SkillExecutorImpl {
       sessionId?: string;
       parentExecutionId?: ExecutionId;
     };
-  }): Promise<Result<SkillResult, SkillError>> {
+  }): Promise<SkillResult> {
     const { skill, input, context } = params;
     const executionId = createExecutionId(this.generateId());
     const abortController = new AbortController();
@@ -148,7 +147,7 @@ export class SkillExecutorImpl {
         result,
       });
 
-      return ok(result);
+      return result;
     } catch (error) {
       const skillError = this.createSkillError(error, skill.id);
 
@@ -159,7 +158,19 @@ export class SkillExecutorImpl {
         error: skillError,
       });
 
-      return err(skillError);
+      // 返回失败的 SkillResult
+      return {
+        success: false,
+        error: skillError,
+        meta: {
+          executionId,
+          skillId: skill.id,
+          skillName: skill.name,
+          startTime: Date.now(),
+          endTime: Date.now(),
+          duration: 0,
+        },
+      };
     } finally {
       this.abortControllers.delete(executionId);
     }
