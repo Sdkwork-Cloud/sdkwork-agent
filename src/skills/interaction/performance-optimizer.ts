@@ -902,12 +902,4 @@ export function createRateLimiter(config?: Partial<RateLimitConfig>): RateLimite
   return new RateLimiter(config);
 }
 
-// Export types
-export type {
-  PerformanceConfig,
-  PerformanceMetrics,
-  BatchConfig,
-  DeduplicationConfig,
-  ConnectionPoolConfig,
-  RateLimitConfig,
-};
+// Types are exported from index.ts

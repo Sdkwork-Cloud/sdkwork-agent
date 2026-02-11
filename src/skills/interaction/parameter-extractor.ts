@@ -36,11 +36,15 @@ interface Logger {
 export interface ParameterDefinition {
   name: string;
   description: string;
-  type: 'string' | 'number' | 'boolean' | 'array' | 'object' | 'file' | 'url';
+  type: 'string' | 'number' | 'boolean' | 'array' | 'object' | 'file' | 'url' | 'integer' | 'email' | 'date';
   required?: boolean;
   default?: unknown;
   enum?: unknown[];
   examples?: unknown[];
+  minimum?: number;
+  maximum?: number;
+  items?: ParameterDefinition;
+  properties?: Record<string, ParameterDefinition>;
 }
 
 /**
@@ -265,10 +269,10 @@ export class IntelligentParameterExtractor {
         confidence: 0.5,
         reasoning: 'JSON parsed but schema validation failed',
         source: 'structured',
-        errors: validation.errors.map(e => ({
+        errors: (validation.errors?.map((e: any) => ({
           param: e.path,
           error: e.message,
-        })),
+        })) ?? []),
       };
     } catch (error) {
       return {
@@ -707,11 +711,11 @@ export class IntelligentParameterExtractor {
       if (error instanceof z.ZodError) {
         return {
           valid: false,
-          errors: error.errors.map(e => ({
+          errors: ((error as any).issues?.map((e: any) => ({
             path: e.path.join('.'),
             message: e.message,
             code: e.code,
-          })),
+          })) ?? []),
         };
       }
       return {
@@ -912,10 +916,4 @@ export function createParameterExtractor(
   return new IntelligentParameterExtractor(config);
 }
 
-// Export types
-export type {
-  ParameterDefinition,
-  ExtractionContext,
-  ExtractionResult,
-  ValidationResult,
-};
+// Types are exported from index.ts

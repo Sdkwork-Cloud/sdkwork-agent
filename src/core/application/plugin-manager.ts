@@ -23,7 +23,7 @@ import {
   CommandContext,
   HookResult,
   PluginValidationResult,
-} from '../domain/plugin';
+} from '../domain/plugin.js';
 
 // ============================================================================
 // Plugin Storage Implementation

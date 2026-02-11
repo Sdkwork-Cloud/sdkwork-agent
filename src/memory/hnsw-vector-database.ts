@@ -517,13 +517,8 @@ export class HNSWVectorDatabase extends VectorDatabase {
     };
 
     // 在 Node.js 环境中使用 fs
-    if (typeof window === 'undefined') {
-      const fs = await import('fs/promises');
-      await fs.writeFile(this.persistencePath, JSON.stringify(data, null, 2));
-    } else {
-      // 在浏览器环境中使用 localStorage
-      localStorage.setItem(`hnsw-db-${this.config.collection}`, JSON.stringify(data));
-    }
+    const fs = await import('fs/promises');
+    await fs.writeFile(this.persistencePath, JSON.stringify(data, null, 2));
 
     this.pendingSave = false;
   }
@@ -537,12 +532,9 @@ export class HNSWVectorDatabase extends VectorDatabase {
     try {
       let data: string;
 
-      if (typeof window === 'undefined') {
-        const fs = await import('fs/promises');
-        data = await fs.readFile(this.persistencePath, 'utf-8');
-      } else {
-        data = localStorage.getItem(`hnsw-db-${this.config.collection}`) || '';
-      }
+      // Node.js 环境 - 使用文件系统
+      const fs = await import('fs/promises');
+      data = await fs.readFile(this.persistencePath, 'utf-8');
 
       if (!data) return;
 

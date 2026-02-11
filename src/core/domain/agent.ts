@@ -13,10 +13,10 @@
  */
 
 import type { MemoryStore } from './memory';
-import type { SkillRegistry } from './skill';
-import type { ToolRegistry } from './tool';
-import type { LLMProvider } from '../../llm/provider';
-import type { ExecutionEngine } from '../application/execution-engine';
+import type { SkillRegistry } from './skill.js';
+import type { ToolRegistry } from './tool.js';
+import type { LLMProvider } from '../../llm/provider.js';
+import type { ExecutionEngine } from '../application/execution-engine.js';
 
 
 // ============================================
@@ -271,17 +271,17 @@ export interface ToolDefinition {
 }
 
 // 其他 Tool 相关定义从 tool.ts 导入
-export type { 
-  ToolExecutionContext as ToolContext, 
-  ToolResult 
-} from './tool';
+export type {
+  ToolExecutionContext as ToolContext,
+  ToolResult
+} from './tool.js';
 
 // ============================================
 // Skill Domain - 技能领域
 // ============================================
 
 // Skill 定义从 skill.ts 导入，避免重复定义
-export type { Skill } from './skill';
+export type { Skill } from './skill.js';
 
 // ============================================
 // Execution Domain - 执行领域

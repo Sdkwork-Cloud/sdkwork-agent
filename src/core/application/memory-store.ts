@@ -16,8 +16,8 @@ import type {
   AdvancedMemoryStore,
   MemoryType,
   MemorySource,
-} from '../domain/memory';
-import type { MemoryConfig } from '../domain/memory';
+} from '../domain/memory.js';
+import type { MemoryConfig } from '../domain/memory.js';
 
 /**
  * 创建内存存储

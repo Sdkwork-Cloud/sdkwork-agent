@@ -21,7 +21,7 @@ export type {
   ChatMessage,
   SessionId,
   ExecutionId,
-} from './domain/agent';
+} from './domain/agent.js';
 
 // Skill Domain
 export type {
@@ -37,7 +37,7 @@ export type {
   SkillExecutor,
   SkillMemoryAPI,
   SkillLogger,
-} from './domain/skill';
+} from './domain/skill.js';
 
 // Tool Domain
 export type {
@@ -52,8 +52,8 @@ export type {
   ToolChainStrategy,
   ToolChainResult,
   BuiltInToolDefinition,
-} from './domain/tool';
-export { BUILT_IN_TOOLS } from './domain/tool';
+} from './domain/tool.js';
+export { BUILT_IN_TOOLS } from './domain/tool.js';
 
 // MCP Domain
 export type {
@@ -85,7 +85,7 @@ export type {
   MCPManager,
   MCPExecutionContext,
   MCPExecutionResult,
-} from './domain/mcp';
+} from './domain/mcp.js';
 
 // Plugin Domain
 export type {
@@ -110,7 +110,7 @@ export type {
   PluginLoader,
   PluginValidationResult,
   PluginValidator,
-} from './domain/plugin';
+} from './domain/plugin.js';
 
 // Memory Domain
 export type {
@@ -136,39 +136,39 @@ export type {
   DocumentMetadata,
   MemorySyncConfig,
   MemorySyncResult,
-} from './domain/memory';
+} from './domain/memory.js';
 
 // ============================================================================
 // Application Layer Exports
 // ============================================================================
 
 // Agent Implementation
-export { AgentImpl } from './application/agent-impl';
+export { AgentImpl } from './application/agent-impl.js';
 
 // Skill Executor
 export {
   SkillExecutorImpl,
   createSkillExecutor,
-} from './application/skill-executor';
+} from './application/skill-executor.js';
 
 // Tool Executor
 export {
   ToolExecutorImpl,
-} from './application/tool-executor';
+} from './application/tool-executor.js';
 
 // MCP Client
 export {
   MCPClientImpl,
   MCPRegistryImpl,
   MCPManagerImpl,
-} from './application/mcp-client';
+} from './application/mcp-client.js';
 
 // Plugin Manager
 export {
   PluginManagerImpl,
   PluginRegistryImpl,
   createPluginManager,
-} from './application/plugin-manager';
+} from './application/plugin-manager.js';
 
 // Memory System
 export {
@@ -223,7 +223,7 @@ export {
   type ExecutionContext,
   type ExecutionResult,
   type ExecutionStrategy,
-} from './application/execution-engine';
+} from './application/execution-engine.js';
 
 // ============================================================================
 // Algorithms Exports

@@ -32,9 +32,9 @@ export type {
   SkillEvent,
   SkillEventType,
   SkillEventListener,
-} from './types.js';
+} from './types';
 
-export { SkillError, isValidSkillName, validateSkillManifest } from './types.js';
+export { SkillError, isValidSkillName, validateSkillManifest } from './types';
 
 // ============================================================================
 // Original Components (保持向后兼容)

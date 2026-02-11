@@ -11,7 +11,7 @@
  * 适用于复杂多步任务规划场景
  */
 
-import { Logger, createLogger } from '../utils/logger';
+import { Logger, createLogger } from '../utils/logger.js';
 import { delay } from '../utils/environment.js';
 
 export interface PlanningConfig {

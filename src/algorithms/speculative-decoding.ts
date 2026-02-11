@@ -18,7 +18,7 @@
  * @advanced
  */
 
-import { Logger, createLogger } from '../utils/logger';
+import { Logger, createLogger } from '../utils/logger.js';
 
 /**
  * Token 概率分布

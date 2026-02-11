@@ -6,7 +6,7 @@
  * Compatible with both browser and Node.js environments.
  */
 
-import type { LLMProvider, LLMRequest } from '../llm/provider';
+import type { LLMProvider, LLMRequest } from '../llm/provider.js';
 
 // ============================================
 // Types

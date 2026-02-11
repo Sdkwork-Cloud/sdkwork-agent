@@ -1,34 +1,33 @@
 /**
  * Tool Core Types - 工具核心类型定义
  *
- * 统一 Tool 类型系统
+ * 统一 Tool 类型系统 - 插件化架构
  *
  * @module ToolTypes
- * @version 1.0.0
+ * @version 2.0.0
  */
 
-// ============================================================================
-// Tool Category
-// ============================================================================
-
-/**
- * Tool 分类
- */
-export type ToolCategory =
-  | 'file'      // 文件操作
-  | 'network'   // 网络请求
-  | 'system'    // 系统操作
-  | 'data'      // 数据处理
-  | 'llm'       // LLM 操作
-  | 'custom';   // 自定义
+import type { z } from 'zod';
 
 // ============================================================================
-// Tool Definition
+// Tool Identity
 // ============================================================================
 
-/**
- * Tool 输出内容项
- */
+export type ToolId = string;
+export type ToolName = string;
+export type ToolCategory = 
+  | 'filesystem'  // 文件操作
+  | 'network'     // 网络请求
+  | 'system'      // 系统操作
+  | 'data'        // 数据处理
+  | 'llm'         // LLM 操作
+  | 'browser'     // 浏览器操作
+  | 'custom';     // 自定义
+
+// ============================================================================
+// Tool Output
+// ============================================================================
+
 export interface ToolOutputContent {
   type: 'text' | 'error' | 'image' | 'json';
   text?: string;
@@ -36,77 +35,142 @@ export interface ToolOutputContent {
   data?: string;
 }
 
-/**
- * Tool 执行结果
- */
 export interface ToolOutput {
   content: ToolOutputContent[];
   isError?: boolean;
-  metadata?: Record<string, unknown>;
+  metadata?: {
+    duration?: number;
+    tokensUsed?: number;
+    [key: string]: unknown;
+  };
 }
 
-/**
- * 执行上下文
- */
+// ============================================================================
+// Tool Error
+// ============================================================================
+
+export interface ToolError {
+  code: string;
+  message: string;
+  recoverable: boolean;
+  details?: Record<string, unknown>;
+}
+
+// ============================================================================
+// Tool Result
+// ============================================================================
+
+export interface ToolResult<T = unknown> {
+  success: boolean;
+  data?: T;
+  output?: ToolOutput;
+  error?: ToolError;
+  metadata?: {
+    duration?: number;
+    attempts?: number;
+    [key: string]: unknown;
+  };
+}
+
+// ============================================================================
+// Execution Context
+// ============================================================================
+
 export interface ExecutionContext {
   agentId: string;
   sessionId?: string;
   executionId: string;
+  toolId: ToolId;
+  toolName: ToolName;
   logger: {
     debug: (message: string, meta?: Record<string, unknown>) => void;
     info: (message: string, meta?: Record<string, unknown>) => void;
     warn: (message: string, meta?: Record<string, unknown>) => void;
-    error: (message: string, error?: Error) => void;
+    error: (message: string, meta?: Record<string, unknown>, error?: Error) => void;
   };
+  signal?: AbortSignal;
 }
 
-/**
- * Tool 定义
- */
+// ============================================================================
+// Tool Definition
+// ============================================================================
+
 export interface Tool {
+  /** Tool ID */
+  id: ToolId;
   /** Tool 名称 */
-  name: string;
+  name: ToolName;
   /** 描述 */
   description: string;
-  /** 参数定义 */
-  parameters?: {
-    type: 'object';
-    properties?: Record<string, unknown>;
-    required?: string[];
-  };
+  /** 分类 */
+  category: ToolCategory;
+  /** 参数 Schema (zod) */
+  parameters: z.ZodType<unknown>;
   /** 执行函数 */
-  execute: (input: unknown, context: ExecutionContext) => Promise<ToolOutput>;
+  execute: (input: unknown, context: ExecutionContext) => Promise<ToolResult>;
   /** 元数据 */
   metadata?: {
-    category?: string;
-    tags?: string[];
     version?: string;
+    author?: string;
+    tags?: string[];
     requiresConfirmation?: boolean;
+    timeout?: number;
+    retries?: number;
   };
 }
 
 // ============================================================================
-// Tool Registry
+// Tool Registry Interface
 // ============================================================================
 
-/**
- * Tool 注册表接口
- */
-export interface ToolRegistry {
-  /** 注册 Tool */
+export interface IToolRegistry {
   register(tool: Tool): void;
-  /** 取消注册 */
-  unregister(name: string): boolean;
-  /** 获取 Tool */
-  get(name: string): Tool | undefined;
-  /** 是否存在 */
-  has(name: string): boolean;
-  /** 列出所有 */
+  unregister(toolId: ToolId): boolean;
+  get(toolId: ToolId): Tool | undefined;
+  getByName(name: ToolName): Tool | undefined;
+  has(toolId: ToolId): boolean;
   list(): Tool[];
-  /** 搜索 */
+  listByCategory(category: ToolCategory): Tool[];
   search(query: string): Tool[];
-  /** 清空 */
   clear(): void;
-  /** 执行 */
-  execute(name: string, input: unknown, context: ExecutionContext): Promise<ToolOutput>;
+  execute(
+    toolId: ToolId,
+    input: unknown,
+    context: ExecutionContext,
+    options?: ToolExecutionOptions
+  ): Promise<ToolResult>;
+  executeParallel(
+    calls: Array<{ toolId: ToolId; input: unknown }>,
+    context: ExecutionContext,
+    options?: ToolExecutionOptions
+  ): Promise<ToolResult[]>;
 }
+
+// ============================================================================
+// Execution Options
+// ============================================================================
+
+export interface ToolExecutionOptions {
+  timeout?: number;
+  retries?: number;
+  retryDelay?: number;
+  parallel?: boolean;
+}
+
+// ============================================================================
+// Tool Plugin Interface
+// ============================================================================
+
+export interface ToolPlugin {
+  name: string;
+  version: string;
+  tools: Tool[];
+  initialize?: (registry: IToolRegistry) => Promise<void> | void;
+  destroy?: () => Promise<void> | void;
+}
+
+// ============================================================================
+// Tool Factory
+// ============================================================================
+
+export type ToolFactory = (config?: Record<string, unknown>) => Tool;

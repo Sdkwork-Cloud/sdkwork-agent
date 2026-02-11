@@ -4,7 +4,7 @@
  * Provides standardized error types, codes, and handling utilities.
  */
 
-import { Logger, createLogger } from './logger';
+import { Logger, createLogger } from './logger.js';
 
 // ErrorCode type is defined below
 
@@ -270,7 +270,7 @@ export async function withAgentRetry<T>(
   config: AgentRetryConfig = {},
   operationName: string = 'operation'
 ): Promise<T> {
-  const { withRetry } = await import('./retry.js');
+  const { withRetry } = await import('./retry');
   
   return withRetry(
     operation,

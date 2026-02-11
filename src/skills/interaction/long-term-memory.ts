@@ -232,7 +232,7 @@ export class EmbeddingGenerator {
     // 如果缓存满了，删除最旧的条目
     if (this.cache.size >= this.cacheSize) {
       const oldestKey = this.cache.keys().next().value;
-      this.cache.delete(oldestKey);
+      if (oldestKey) this.cache.delete(oldestKey);
     }
     
     this.cache.set(text, { embedding, timestamp: Date.now() });
@@ -522,7 +522,7 @@ export class LongTermMemorySystem {
     // 如果缓存已满，删除最旧的条目
     while (this.queryCache.size >= this.maxQueryCacheSize) {
       const oldestKey = this.queryCache.keys().next().value;
-      this.queryCache.delete(oldestKey);
+      if (oldestKey) this.queryCache.delete(oldestKey);
     }
 
     this.queryCache.set(key, { results, timestamp: Date.now() });
@@ -869,13 +869,4 @@ export function createLongTermMemorySystem(
   return new LongTermMemorySystem(config);
 }
 
-// Export types
-export type {
-  MemoryLayer,
-  MemoryType,
-  MemoryEntry,
-  MemoryRetrieveOptions,
-  MemoryRetrieveResult,
-  MemoryStats,
-  LongTermMemoryConfig,
-};
+// Types are exported from index.ts

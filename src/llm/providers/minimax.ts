@@ -9,7 +9,7 @@ import {
   LLMRequest,
   LLMResponse,
   LLMStreamChunk,
-} from '../provider';
+} from '../provider.js';
 
 export interface MiniMaxConfig extends LLMProviderConfig {
   groupId?: string;
@@ -102,7 +102,7 @@ export class MiniMaxProvider implements LLMProvider {
   async complete(request: LLMRequest): Promise<LLMResponse> {
     const body = this.buildRequestBody(request);
     const response = await this.makeRequest('/text/chatcompletion_v2', body);
-    const data = await response.json();
+    const data = await response.json() as Record<string, unknown>;
 
     return this.parseResponse(data);
   }
@@ -189,7 +189,7 @@ export class MiniMaxProvider implements LLMProvider {
 }
 
 // Register provider
-import { globalProviderRegistry } from '../provider';
+import { globalProviderRegistry } from '../provider.js';
 globalProviderRegistry.register(
   'minimax',
   (config: LLMProviderConfig) => new MiniMaxProvider(config as MiniMaxConfig)

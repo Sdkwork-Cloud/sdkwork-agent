@@ -458,5 +458,4 @@ export function createCache<K extends string | number, V>(
   return new CacheManager<K, V>(config);
 }
 
-// 导出类型
-export type { CacheConfig, CacheStats, CacheEntry };
+// Types are exported from index.ts

@@ -13,10 +13,10 @@ import {
   ProcessingResult,
   MultiModalAnalysisResult,
 } from './types';
-import { createImageProcessor, ImageProcessor } from './image-processor';
-import { createAudioProcessor, AudioProcessor } from './audio-processor';
-import { createVideoProcessor, VideoProcessor } from './video-processor';
-import type { LLMProvider } from '../llm/provider';
+import { createImageProcessor, ImageProcessor } from './image-processor.js';
+import { createAudioProcessor, AudioProcessor } from './audio-processor.js';
+import { createVideoProcessor, VideoProcessor } from './video-processor.js';
+import type { LLMProvider } from '../llm/provider.js';
 
 // ============================================
 // Multi-Modal Processor Interface

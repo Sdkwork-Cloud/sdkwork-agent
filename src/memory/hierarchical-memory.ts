@@ -20,8 +20,8 @@
  * @advanced
  */
 
-import { EventEmitter } from '../utils/event-emitter';
-import { Logger, createLogger } from '../utils/logger';
+import { EventEmitter } from '../utils/event-emitter.js';
+import { Logger, createLogger } from '../utils/logger.js';
 
 /**
  * 记忆条目

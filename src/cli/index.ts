@@ -14,15 +14,15 @@
 // ============================================
 
 export * from './types';
-export * from './repl';
-export * from './renderer';
-export * from './history';
+export * from './repl.js';
+export * from './renderer.js';
+export * from './history.js';
 
 // ============================================
 // Command Exports
 // ============================================
 
-export * from './commands/chat';
+export * from './commands/chat.js';
 
 // ============================================
 // Factory Functions
@@ -30,10 +30,10 @@ export * from './commands/chat';
 
 import type { BaseAgent } from '../agent';
 import type { REPLConfig, ConversationContext } from './types';
-import { PerfectREPL } from './repl';
-import { PerfectRenderer } from './renderer';
-import { PerfectConversationHistory } from './history';
-import { ChatCommand } from './commands/chat';
+import { PerfectREPL } from './repl.js';
+import { PerfectRenderer } from './renderer.js';
+import { PerfectConversationHistory } from './history.js';
+import { ChatCommand } from './commands/chat.js';
 import { v4 as uuidv4 } from 'uuid';
 
 /**

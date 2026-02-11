@@ -90,7 +90,7 @@ export class UnifiedCompatibilityLayer {
 
     // 初始化 OpenClaw 适配器
     if (config.compatibility.openclaw?.enabled) {
-      const { createOpenClawAdapter } = await import('./openclaw-adapter.js');
+      const { createOpenClawAdapter } = await import('./openclaw-adapter');
       this.openclawAdapter = createOpenClawAdapter({
         skillsDir: config.compatibility.openclaw.skillsDir || '~/.openclaw/skills',
         enableCommandMapping: true,
@@ -112,7 +112,7 @@ export class UnifiedCompatibilityLayer {
       multiAgentConfig.codex?.enabled ||
       multiAgentConfig.opencode?.enabled
     ) {
-      const { createMultiAgentAdapter } = await import('./multi-agent-adapter.js');
+      const { createMultiAgentAdapter } = await import('./multi-agent-adapter');
       this.multiAgentAdapter = createMultiAgentAdapter(multiAgentConfig, this.logger);
       this.logger.info(
         `Multi-agent compatibility enabled: ${this.multiAgentAdapter.getEnabledAdapters().join(', ')}`

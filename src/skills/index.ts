@@ -1,86 +1,217 @@
 /**
- * SDKWork Skills - 完美 Skill 体系
+ * Skills Module - OpenClaw 兼容的 Skill 系统
  *
- * 参考业界最佳实践 (OpenCode / Codex / Claude Code / AgentSkills.io)
- * 构建业界领先的 Skill 生态系统
+ * 完整的 Skill 管理解决方案，支持动态按需加载和智能决策
  *
  * @module Skills
- * @version 3.0.0
- * @standard Industry Leading
+ * @version 5.0.0
  */
 
-// ============================================================================
-// Core System
-// ============================================================================
-
-export * from './core/types.js';
-export * from './core/registry.js';
-export * from './core/loader.js';
-export * from './core/scheduler.js';
-export * from './core/executor.js';
-
-// ============================================================================
-// Built-in Skills
-// ============================================================================
-
+// Core Registry
 export {
-  PromptOptimizationSkill,
-  createPromptOptimizationSkill,
-  promptOptimizationSkill,
-} from './prompt-optimization/index.js';
+  SkillRegistry,
+  createSkillRegistry,
+} from './registry.js';
 
-// ============================================================================
-// Factories
-// ============================================================================
+// Types
+export type {
+  // Value Objects
+  SkillId,
+  SkillName,
 
-import { SkillRegistry, createSkillRegistry } from './core/registry.js';
-import { SkillLoader, createSkillLoader } from './core/loader.js';
-import { SkillScheduler, createSkillScheduler } from './core/scheduler.js';
-import type { Logger } from './core/types.js';
+  // Core Interfaces
+  Skill,
+  SkillEntry,
+  SkillContext,
+  SkillResult,
+  SkillError,
+  ExecutionMetadata,
+  SkillMetadata,
+  SkillStreamChunk,
 
-/**
- * 创建完整的 Skill 系统
- *
- * 包含：
- * - Registry: Skill 注册表
- * - Loader: 动态加载器
- * - Scheduler: 调度器
- *
- * @example
- * ```typescript
- * const skills = createSkillSystem(logger);
- *
- * // 注册 Skill
- * await skills.registry.registerFromPath('./my-skill');
- *
- * // 调度执行
- * const result = await skills.scheduler.schedule({
- *   skillName: 'my-skill',
- *   input: { file: 'data.pdf' },
- * });
- * ```
- */
-export function createSkillSystem(logger: Logger) {
-  const registry = createSkillRegistry();
-  const loader = createSkillLoader({
-    enableCache: true,
-    enableLazyLoad: true,
-  });
-  const scheduler = createSkillScheduler(loader, logger, {
-    maxConcurrentExecutions: 5,
-    enableQueue: true,
-    enableExecutionCache: true,
-  });
+  // Frontmatter
+  ParsedSkillFrontmatter,
+  OpenClawSkillMetadata,
+  SkillInvocationPolicy,
+  SkillCommandDispatchSpec,
+  DispatchKind,
 
-  return {
-    registry,
-    loader,
-    scheduler,
-  };
-}
+  // Requirements & Install
+  SkillRequirements,
+  SkillInstallSpec,
+  InstallKind,
 
-// ============================================================================
-// Class Exports
-// ============================================================================
+  // Config
+  SkillConfig,
+  SkillsConfig,
 
-export { SkillRegistry, SkillLoader, SkillScheduler };
+  // Eligibility
+  EligibilityContext,
+  RemoteEligibility,
+  EligibilityResult,
+
+  // Security
+  SecurityRule,
+  SecurityWarning,
+  SecurityScanResult,
+
+  // Execution
+  SkillExecutionOptions,
+  LoadSkillOptions,
+
+  // Snapshot
+  SkillSnapshot,
+
+  // Source
+  SkillSource,
+
+  // Services
+  Logger,
+  LLMService,
+  MemoryService,
+  ToolRegistry,
+} from './types.js';
+
+// Loader
+export {
+  SkillLoader,
+  createSkillLoader,
+  loadSkillFile,
+  scanSkillFiles,
+  getSourcePriority,
+} from './loader.js';
+
+// Eligibility Checker
+export {
+  SkillEligibilityChecker,
+  createEligibilityChecker,
+  isEligible,
+  getCurrentPlatform,
+  checkRemoteEligibility,
+} from './eligibility.js';
+
+// Frontmatter Parser
+export {
+  FrontmatterParser,
+  createFrontmatterParser,
+  parseSkillContent,
+  extractFrontmatterRaw,
+  extractBody,
+  validateFrontmatter,
+} from './frontmatter.js';
+
+// Watcher
+export {
+  SkillWatcher,
+  createSkillWatcher,
+  watchSkills,
+  waitForFileStability,
+} from './watcher.js';
+
+// Security Scanner
+export {
+  SkillSecurityScanner,
+  createSecurityScanner,
+  quickScan,
+  isSafe,
+  formatScanResult,
+  getDefaultSecurityRules,
+} from './security.js';
+
+// Installer
+export {
+  SkillInstaller,
+  createSkillInstaller,
+  quickInstall,
+  checkDependencies,
+} from './installer.js';
+
+// Cache
+export {
+  SkillCache,
+  createSkillCache,
+  hashContext,
+  hashContent,
+} from './cache.js';
+
+// Config Manager
+export {
+  SkillConfigManager,
+  createSkillConfigManager,
+  getDefaultConfigPath,
+  configExists,
+  createDefaultConfig,
+} from './config.js';
+
+// Executor (高性能执行引擎)
+export {
+  ExecutionPool,
+  ExecutionMonitor,
+  createExecutionPool,
+  createExecutionMonitor,
+  calculateBackoffDelay,
+} from './executor.js';
+
+// Dynamic Loader (动态按需加载)
+export {
+  DynamicSkillLoader,
+  createDynamicLoader,
+} from './dynamic-loader.js';
+
+// Prompt Builder (Prompt 构建器)
+export {
+  SkillPromptBuilder,
+  createPromptBuilder,
+  buildLightweightSkillPrompt,
+  buildDetailedSkillPrompt,
+  estimatePromptTokens,
+} from './prompt-builder.js';
+
+// Decision Engine (决策引擎)
+export {
+  SkillDecisionEngine,
+  createDecisionEngine,
+  quickDecide,
+} from './decision-engine.js';
+
+// Re-export types from installer
+export type {
+  InstallResult,
+  InstallOptions,
+} from './installer.js';
+
+// Re-export types from watcher
+export type {
+  SkillChangeEvent,
+  WatcherState,
+} from './watcher.js';
+
+// Re-export types from executor
+export type {
+  ExecutionOptions,
+  ExecutionTask,
+  ExecutionStats,
+  RetryConfig,
+} from './executor.js';
+
+// Re-export types from dynamic-loader
+export type {
+  LazySkillEntry,
+  LoadContentOptions,
+  DynamicLoaderStats,
+} from './dynamic-loader.js';
+
+// Re-export types from prompt-builder
+export type {
+  PromptBuildOptions,
+  BuiltPrompt,
+  SkillContextPrompt,
+} from './prompt-builder.js';
+
+// Re-export types from decision-engine
+export type {
+  DecisionContext,
+  SkillDecision,
+  ExecutionPlan,
+  DecisionEngineConfig,
+} from './decision-engine.js';

@@ -11,7 +11,7 @@
  * 4. 搜索算法 - 使用 BFS/DFS/Beam Search 探索思维树
  */
 
-import { EventEmitter } from '../utils/event-emitter';
+import { EventEmitter } from '../utils/event-emitter.js';
 
 // ============================================
 // 类型定义

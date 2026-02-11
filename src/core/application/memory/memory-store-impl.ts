@@ -4,7 +4,7 @@
  * Reference: OpenClaw Memory System
  */
 
-import { EventEmitter } from '../../../utils/event-emitter';
+import { EventEmitter } from '../../../utils/event-emitter.js';
 import { v4 as uuidv4 } from 'uuid';
 import type {
   Memory,
@@ -17,7 +17,7 @@ import type {
   EmbeddingProvider,
   VectorStore,
   MemoryEvent,
-} from '../../domain/memory';
+} from '../../domain/memory.js';
 
 // ============================================================================
 // In-Memory Vector Store Implementation

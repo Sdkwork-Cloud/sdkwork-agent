@@ -27,7 +27,7 @@ import {
   ToolRegistry,
   SkillManifest,
   LoadedSkill,
-} from './types.js';
+} from './types';
 import { SkillSystemEvent } from './openclaw-types.js';
 
 // ============================================================================

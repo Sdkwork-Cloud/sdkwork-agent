@@ -9,8 +9,8 @@
  * @standard Industry Leading
  */
 
-import type { UnifiedLogger } from '../core/domain/unified';
-import { createLogger } from './logger';
+import type { UnifiedLogger } from '../core/domain/unified.js';
+import { createLogger } from './logger.js';
 
 /**
  * 事件处理器类型

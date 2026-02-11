@@ -369,11 +369,14 @@ export class OpenAIEmbeddingProvider extends EmbeddingProvider {
       throw new Error(`OpenAI API error: ${response.statusText}`);
     }
 
-    const data = await response.json();
+    const data = await response.json() as {
+      data: Array<{ index: number; embedding: number[] }>;
+      usage?: { prompt_tokens: number; total_tokens: number };
+    };
 
     const embeddings = data.data
-      .sort((a: { index: number }, b: { index: number }) => a.index - b.index)
-      .map((item: { embedding: number[] }) => this.normalize(item.embedding));
+      .sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
+      .map(item => this.normalize(item.embedding));
 
     return {
       embeddings,
@@ -516,7 +519,7 @@ export class TransformersEmbeddingProvider extends EmbeddingProvider {
   }
 
   isAvailable(): boolean {
-    return typeof window !== 'undefined'; // Only in browser for now
+    return false; // Node.js 专用，不支持浏览器
   }
 }
 

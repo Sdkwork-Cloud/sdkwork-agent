@@ -11,7 +11,7 @@
  * Where k is a constant (typically 60) to prevent top ranks from dominating
  */
 
-import type { Memory } from '../../domain/memory';
+import type { Memory } from '../../domain/memory.js';
 
 // ============================================================================
 // RRF Configuration

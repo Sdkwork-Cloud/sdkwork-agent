@@ -5,7 +5,7 @@ layout: home
 hero:
   name: SDKWork Agent
   text: 统一智能体架构
-  tagline: DDD Domain-Driven Design，行业领先的 Skill / Tool / MCP / Plugin 执行标准
+  tagline: Node.js 服务端专用，DDD Domain-Driven Design，行业领先的 Skill / Tool / MCP / Plugin 执行标准
   image:
     src: /logo.svg
     alt: SDKWork Agent
@@ -166,6 +166,7 @@ console.log(response.choices[0].message.content);
 - [核心概念](./guide/concepts) - 了解 DDD 架构设计
 - [API 参考](./api/agent) - 查看完整 API 文档
 - [示例代码](./examples/basic) - 学习实际使用案例
+- [架构设计](./architecture/overview) - 深入了解技术架构
 
 </div>
 

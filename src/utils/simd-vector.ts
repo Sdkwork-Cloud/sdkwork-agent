@@ -33,19 +33,19 @@ const WASM_CODE = new Uint8Array([
   0x20, 0x00, 0x6a, 0x0b,
 ]);
 
-let wasmModule: WebAssembly.Module | null = null;
-let wasmInstance: WebAssembly.Instance | null = null;
+let wasmModule: any = null;
+let wasmInstance: any = null;
 
 /**
  * 初始化 WebAssembly 模块
  */
-// @ts-expect-error - This function is reserved for future use
+// WASM support - reserved for future use
 async function _initWasm(): Promise<boolean> {
   if (wasmInstance) return true;
 
   try {
-    wasmModule = await WebAssembly.compile(WASM_CODE);
-    wasmInstance = await WebAssembly.instantiate(wasmModule);
+    wasmModule = await (globalThis as any).WebAssembly?.compile(WASM_CODE);
+    wasmInstance = await (globalThis as any).WebAssembly?.instantiate(wasmModule);
     return true;
   } catch {
     return false;

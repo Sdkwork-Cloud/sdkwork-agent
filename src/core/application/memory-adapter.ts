@@ -8,8 +8,8 @@
  * @version 1.0.0
  */
 
-import type { MemoryStore, Memory, MemoryQuery } from '../domain/memory';
-import type { SkillMemoryAPI } from '../domain/skill';
+import type { MemoryStore, Memory, MemoryQuery } from '../domain/memory.js';
+import type { SkillMemoryAPI } from '../domain/skill.js';
 
 /**
  * MemoryStore 适配器

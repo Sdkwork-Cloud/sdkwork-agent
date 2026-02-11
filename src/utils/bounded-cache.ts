@@ -442,14 +442,9 @@ export class MemoryMonitor {
    * Get current memory usage in MB
    */
   getMemoryUsage(): number {
-    if (typeof process !== 'undefined' && process.memoryUsage) {
-      return process.memoryUsage().heapUsed / 1024 / 1024;
-    }
-    // Browser environment - use performance API if available
-    if (typeof performance !== 'undefined' && performance.memory) {
-      return performance.memory.usedJSHeapSize / 1024 / 1024;
-    }
-    return 0;
+    // Node.js 内存监控 - 使用 process.memoryUsage()
+    const memUsage = process.memoryUsage();
+    return memUsage.heapUsed / 1024 / 1024;
   }
 
   /**

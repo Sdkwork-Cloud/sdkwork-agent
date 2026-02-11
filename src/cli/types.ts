@@ -419,4 +419,4 @@ export interface REPL {
 // Export Types
 // ============================================
 
-export * from './commands/types';
+export * from './commands/types.js';

@@ -9,7 +9,7 @@ import {
   LLMRequest,
   LLMResponse,
   LLMStreamChunk,
-} from '../provider';
+} from '../provider.js';
 
 export interface AnthropicConfig extends LLMProviderConfigType {
   anthropicVersion?: string;
@@ -118,7 +118,7 @@ export class AnthropicProvider implements LLMProvider {
   async complete(request: LLMRequest): Promise<LLMResponse> {
     const body = this.buildRequestBody(request);
     const response = await this.makeRequest('/messages', body);
-    const data = await response.json();
+    const data = await response.json() as Record<string, unknown>;
 
     return this.parseResponse(data);
   }
@@ -230,7 +230,7 @@ export class AnthropicProvider implements LLMProvider {
 }
 
 // Register provider
-import { globalProviderRegistry } from '../provider';
+import { globalProviderRegistry } from '../provider.js';
 globalProviderRegistry.register(
   'anthropic',
   (config: LLMProviderConfigType) => new AnthropicProvider(config as AnthropicConfig)

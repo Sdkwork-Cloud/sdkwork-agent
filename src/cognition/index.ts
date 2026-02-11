@@ -16,7 +16,7 @@ export type {
   TreeStats,
   StateEvaluator,
   SimulationPolicy,
-} from '../algorithms/mcts-decision-engine';
+} from '../algorithms/mcts-decision-engine.js';
 
 export {
   // 神经MCTS相关类型
@@ -24,7 +24,7 @@ export {
   SimpleNeuralNetwork,
   createNeuralMCTS,
   createDefaultNeuralMCTSConfig,
-} from '../algorithms/neural-mcts';
+} from '../algorithms/neural-mcts.js';
 
 export type {
   NeuralMCTSConfig,
@@ -33,7 +33,7 @@ export type {
   TrainingExample,
   TrainingStats,
   SearchResult,
-} from '../algorithms/neural-mcts';
+} from '../algorithms/neural-mcts.js';
 
 export {
   // 思维树相关类型
@@ -42,7 +42,7 @@ export {
   DefaultThoughtEvaluator,
   createTreeOfThoughts,
   createDefaultToTConfig,
-} from '../algorithms/tree-of-thoughts';
+} from '../algorithms/tree-of-thoughts.js';
 
 export type {
   ToTConfig,
@@ -53,7 +53,7 @@ export type {
   ToTResult,
   ThoughtGenerator,
   ThoughtEvaluator,
-} from '../algorithms/tree-of-thoughts';
+} from '../algorithms/tree-of-thoughts.js';
 
 // 认知引擎占位符类型
 export interface CognitionConfig {

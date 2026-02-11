@@ -83,23 +83,6 @@ console.log('Agent ID:', agent.id);
 npx tsx test.ts
 ```
 
-## 浏览器环境
-
-SDKWork Agent 支持浏览器环境：
-
-```typescript
-import { createAgent } from 'sdkwork-agent';
-import { OpenAIProvider } from 'sdkwork-agent/llm';
-
-// 浏览器中使用时，API 密钥应通过安全的方式获取
-const agent = createAgent({
-  name: 'BrowserAgent',
-  llm: new OpenAIProvider({
-    apiKey: await getApiKeyFromServer() // 从服务器获取
-  })
-});
-```
-
 ## 常见问题
 
 ### Q: 安装失败怎么办？
@@ -113,11 +96,13 @@ A: 请检查：
 
 A: 确保 `tsconfig.json` 中的 `moduleResolution` 设置为 `"bundler"` 或 `"node"`。
 
-### Q: 浏览器中无法使用？
+### Q: 是否支持浏览器环境？
 
-A: 检查是否正确配置了浏览器构建，某些 Node.js 特定的功能在浏览器中不可用。
+A: SDKWork Agent 3.0+ 版本专注于 Node.js 服务端环境，不再支持浏览器环境。如需在浏览器中使用，请考虑：
+1. 使用服务端 API 代理
+2. 使用 v2.x 版本（不再维护）
 
 ## 下一步
 
-- [快速开始](./quick-start.md) - 5 分钟上手
-- [核心概念](./concepts.md) - 了解架构设计
+- [快速开始](./quick-start) - 5 分钟上手
+- [核心概念](./concepts) - 了解架构设计

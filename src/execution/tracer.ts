@@ -8,7 +8,7 @@
  * 3. 定期清理 - 定时清理过期数据
  */
 
-import type { Executable, ExecutionResult } from './index';
+import type { Executable, ExecutionResult } from './index.js';
 
 export interface ExecutionTrace {
   executionId: string;

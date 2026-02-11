@@ -7,7 +7,7 @@
  * - Standardized parameters and responses
  */
 
-import type { EnhancedSkill as Skill, ExecutionContext } from '../../core/types';
+import type { EnhancedSkill as Skill, ExecutionContext } from '../../core/types.js';
 
 /**
  * 安全的数学表达式解析器
@@ -328,3 +328,9 @@ export const builtInSkills = [echoSkill, mathSkill, listSkillsSkill, lyricsGener
 
 // Map for easy lookup
 export const builtInSkillsMap = new Map(builtInSkills.map(skill => [skill.name, skill]));
+
+// ============================================
+// Re-export Loader
+// ============================================
+
+export { getBuiltInSkillsAsArray } from './loader.js';

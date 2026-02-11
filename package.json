@@ -1,107 +1,61 @@
 {
   "name": "sdkwork-agent",
-  "version": "1.0.0",
-  "description": "Browser-compatible agent architecture with Skills, MCP, Tools, evaluation system, and flexible LLM Provider support",
+  "version": "3.0.0",
+  "description": "Powerful Node.js backend agent architecture with Skills, MCP, Tools, evaluation system, and flexible LLM Provider support. Built for server-side AI applications.",
   "type": "module",
-  "main": "dist/node/index.cjs",
-  "module": "dist/node/index.js",
-  "types": "dist/node/index.d.ts",
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/node/index.d.ts",
-      "browser": {
-        "types": "./dist/browser/index.d.ts",
-        "import": "./dist/browser/index.js"
-      },
-      "node": {
-        "types": "./dist/node/index.d.ts",
-        "import": "./dist/node/index.js",
-        "require": "./dist/node/index.cjs"
-      },
-      "default": {
-        "types": "./dist/node/index.d.ts",
-        "import": "./dist/node/index.js",
-        "require": "./dist/node/index.cjs"
-      }
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
     },
     "./llm": {
-      "types": "./dist/node/llm/index.d.ts",
-      "browser": {
-        "types": "./dist/browser/llm/index.d.ts",
-        "import": "./dist/browser/llm/index.js"
-      },
-      "node": {
-        "types": "./dist/node/llm/index.d.ts",
-        "import": "./dist/node/llm/index.js",
-        "require": "./dist/node/llm/index.cjs"
-      }
+      "types": "./dist/llm/index.d.ts",
+      "import": "./dist/llm/index.js",
+      "require": "./dist/llm/index.cjs"
     },
     "./skills": {
-      "types": "./dist/node/skills/index.d.ts",
-      "browser": {
-        "types": "./dist/browser/skills/index.d.ts",
-        "import": "./dist/browser/skills/index.js"
-      },
-      "node": {
-        "types": "./dist/node/skills/index.d.ts",
-        "import": "./dist/node/skills/index.js",
-        "require": "./dist/node/skills/index.cjs"
-      }
+      "types": "./dist/skills/index.d.ts",
+      "import": "./dist/skills/index.js",
+      "require": "./dist/skills/index.cjs"
     },
     "./tools": {
-      "types": "./dist/node/tools/index.d.ts",
-      "browser": {
-        "types": "./dist/browser/tools/index.d.ts",
-        "import": "./dist/browser/tools/index.js"
-      },
-      "node": {
-        "types": "./dist/node/tools/index.d.ts",
-        "import": "./dist/node/tools/index.js",
-        "require": "./dist/node/tools/index.cjs"
-      }
+      "types": "./dist/tools/index.d.ts",
+      "import": "./dist/tools/index.js",
+      "require": "./dist/tools/index.cjs"
     },
     "./mcp": {
-      "types": "./dist/node/mcp/index.d.ts",
-      "browser": {
-        "types": "./dist/browser/mcp/index.d.ts",
-        "import": "./dist/browser/mcp/index.js"
-      },
-      "node": {
-        "types": "./dist/node/mcp/index.d.ts",
-        "import": "./dist/node/mcp/index.js",
-        "require": "./dist/node/mcp/index.cjs"
-      }
+      "types": "./dist/mcp/index.d.ts",
+      "import": "./dist/mcp/index.js",
+      "require": "./dist/mcp/index.cjs"
     },
     "./storage": {
-      "types": "./dist/node/storage/index.d.ts",
-      "browser": {
-        "types": "./dist/browser/storage/index.d.ts",
-        "import": "./dist/browser/storage/index.js"
-      },
-      "node": {
-        "types": "./dist/node/storage/index.d.ts",
-        "import": "./dist/node/storage/index.js",
-        "require": "./dist/node/storage/index.cjs"
-      }
+      "types": "./dist/storage/index.d.ts",
+      "import": "./dist/storage/index.js",
+      "require": "./dist/storage/index.cjs"
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "bin"
   ],
+  "bin": {
+    "sdkwork": "./bin/sdkwork.js"
+  },
   "scripts": {
     "build": "tsup",
-    "build:browser": "tsup --config tsup.config.ts browserConfig",
-    "build:node": "tsup --config tsup.config.ts nodeConfig",
     "build:watch": "tsup --watch",
     "dev": "tsx watch src/index.ts",
-    "lint": "eslint . --ext .ts,.tsx",
-    "lint:fix": "eslint . --ext .ts,.tsx --fix",
+    "lint": "eslint . --ext .ts --ignore-pattern \"src/**/examples/**\"",
+    "lint:fix": "eslint . --ext .ts --fix",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest run --coverage",
-    "test:file": "vitest run",
     "format": "prettier --write \"src/**/*.ts\"",
     "format:check": "prettier --check \"src/**/*.ts\"",
     "clean": "rm -rf dist",
@@ -117,11 +71,13 @@
     "mcp",
     "tools",
     "llm",
-    "browser",
+    "nodejs",
     "typescript",
     "openai",
     "claude",
-    "gemini"
+    "gemini",
+    "backend",
+    "server"
   ],
   "author": "SDKWork Team <team@sdkwork.io>",
   "license": "MIT",
@@ -143,7 +99,6 @@
     "eslint": "^9.39.2",
     "eslint-config-prettier": "^10.1.8",
     "globals": "^17.3.0",
-    "jsdom": "^27.4.0",
     "prettier": "^3.8.1",
     "tsup": "^8.5.1",
     "tsx": "^4.21.0",
@@ -152,7 +107,16 @@
     "vitest": "^4.0.18"
   },
   "dependencies": {
+    "@inkjs/ui": "^2.0.0",
     "@modelcontextprotocol/sdk": "^1.12.0",
+    "chalk": "^5.6.2",
+    "figures": "^6.1.0",
+    "ink": "^6.6.0",
+    "ink-big-text": "^2.0.0",
+    "ink-gradient": "^4.0.0",
+    "ink-link": "^5.0.0",
+    "ink-spinner": "^5.0.0",
+    "ink-text-input": "^6.0.0",
     "uuid": "^13.0.0",
     "zod": "^4.3.6"
   },

@@ -22,7 +22,7 @@ import type {
   SkillResult,
   Logger,
   ExecutionMetadata,
-} from './types.js';
+} from './types';
 import type { SkillLoader } from './loader.js';
 
 // ============================================================================

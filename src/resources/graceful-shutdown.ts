@@ -6,7 +6,7 @@
  * Compatible with both browser and Node.js environments.
  */
 
-import { Logger, createLogger } from '../utils/logger';
+import { Logger, createLogger } from '../utils/logger.js';
 
 // ============================================
 // Types

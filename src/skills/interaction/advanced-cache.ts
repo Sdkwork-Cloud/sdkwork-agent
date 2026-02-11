@@ -810,5 +810,4 @@ export function createAdvancedCache<K extends string, V>(
   return new AdvancedCache<K, V>(config);
 }
 
-// Export types
-export type { AdvancedCacheConfig, AdvancedCacheStats, CacheLevel };
+// Types are exported from index.ts

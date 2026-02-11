@@ -146,7 +146,7 @@ export type {
 } from './task-type-detector.js';
 
 export {
-  getEnvironment as getEnvironmentInfo,
+  // getEnvironment removed - use environment object instead
 } from './environment.js';
 export type {
   Environment as EnvironmentInfo,

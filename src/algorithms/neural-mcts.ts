@@ -11,7 +11,7 @@
  * 4. 通过自我对弈训练神经网络
  */
 
-import { EventEmitter } from '../utils/event-emitter';
+import { EventEmitter } from '../utils/event-emitter.js';
 
 // ============================================
 // 类型定义
@@ -309,12 +309,9 @@ export class SimpleNeuralNetwork implements NeuralNetwork {
       hiddenBias: this.hiddenBias,
     };
 
-    if (typeof window === 'undefined') {
-      const fs = await import('fs/promises');
-      await fs.writeFile(path, JSON.stringify(model));
-    } else {
-      localStorage.setItem('neural-mcts-model', JSON.stringify(model));
-    }
+    // Node.js 环境 - 使用文件系统
+    const fs = await import('fs/promises');
+    await fs.writeFile(path, JSON.stringify(model));
   }
 
   /**
@@ -323,12 +320,9 @@ export class SimpleNeuralNetwork implements NeuralNetwork {
   async load(path: string): Promise<void> {
     let data: string;
 
-    if (typeof window === 'undefined') {
-      const fs = await import('fs/promises');
-      data = await fs.readFile(path, 'utf-8');
-    } else {
-      data = localStorage.getItem('neural-mcts-model') || '';
-    }
+    // Node.js 环境 - 使用文件系统
+    const fs = await import('fs/promises');
+    data = await fs.readFile(path, 'utf-8');
 
     if (!data) throw new Error('Model not found');
 

@@ -661,6 +661,7 @@ async function main() {
   agent.tools.register(defineTool({
     id: 'timestamp',
     name: 'Timestamp',
+    description: 'Get current timestamp',
     category: 'system',
     confirm: 'none',
     execute: async () => ({

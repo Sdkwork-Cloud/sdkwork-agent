@@ -82,7 +82,10 @@ export class MCPClient {
       throw new Error(`Failed to connect to MCP server: ${response.status}`);
     }
 
-    const capabilities = await response.json();
+    const capabilities = await response.json() as {
+      resources?: Array<{ uri: string; [key: string]: unknown }>;
+      tools?: Array<{ name: string; [key: string]: unknown }>;
+    };
 
     // Register remote resources
     for (const resource of capabilities.resources || []) {

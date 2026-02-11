@@ -8,13 +8,13 @@
 export {
   HNSWIndex,
   createHNSWIndex,
-} from './hnsw';
+} from './hnsw.js';
 
 export type {
   HNSWConfig,
   HNSWNode,
   HNSWSearchResult,
-} from './hnsw';
+} from './hnsw.js';
 
 // MCTS - 蒙特卡洛树搜索
 export {
@@ -23,7 +23,7 @@ export {
   HeuristicSimulationPolicy,
   NeuralNetworkEvaluator,
   MCTSFactory,
-} from './mcts-decision-engine';
+} from './mcts-decision-engine.js';
 
 export type {
   MCTSConfig,
@@ -35,7 +35,7 @@ export type {
   TreeStats,
   StateEvaluator,
   SimulationPolicy,
-} from './mcts-decision-engine';
+} from './mcts-decision-engine.js';
 
 // Neural MCTS - 神经网络增强的蒙特卡洛树搜索
 export {
@@ -43,7 +43,7 @@ export {
   SimpleNeuralNetwork,
   createNeuralMCTS,
   createDefaultNeuralMCTSConfig,
-} from './neural-mcts';
+} from './neural-mcts.js';
 
 export type {
   NeuralMCTSConfig,
@@ -52,7 +52,7 @@ export type {
   TrainingExample,
   TrainingStats,
   SearchResult,
-} from './neural-mcts';
+} from './neural-mcts.js';
 
 // Tree of Thoughts - 多路径思维探索
 export {
@@ -61,7 +61,7 @@ export {
   DefaultThoughtEvaluator,
   createTreeOfThoughts,
   createDefaultToTConfig,
-} from './tree-of-thoughts';
+} from './tree-of-thoughts.js';
 
 export type {
   ToTConfig,
@@ -72,23 +72,23 @@ export type {
   ToTResult,
   ThoughtGenerator,
   ThoughtEvaluator,
-} from './tree-of-thoughts';
+} from './tree-of-thoughts.js';
 
 // 层次规划
 export {
   HTNPlanner,
-} from './hierarchical-planning';
+} from './hierarchical-planning.js';
 
 export type {
   PlanningConfig as HTNConfig,
   Task,
   Plan,
-} from './hierarchical-planning';
+} from './hierarchical-planning.js';
 
 // MCTS 工具选择器
 export {
   MCTSToolSelector,
-} from './mcts-tool-selector';
+} from './mcts-tool-selector.js';
 
 export type {
   ToolSelectionState,
@@ -97,40 +97,40 @@ export type {
   Tool,
   ToolExecutionContext,
   ToolExecutionResult,
-} from './mcts-tool-selector';
+} from './mcts-tool-selector.js';
 
 // 决策引擎 - 从 transformer-decision-engine 导出
 export {
   TransformerDecisionEngine,
-} from './transformer-decision-engine';
+} from './transformer-decision-engine.js';
 
 export type {
   TransformerEngineConfig,
   DecisionInput,
   DecisionOption,
   DecisionResult as TransformerDecisionResult,
-} from './transformer-decision-engine';
+} from './transformer-decision-engine.js';
 
 // ScaNN - Google 的量化向量搜索算法
 export {
   ScannIndex,
   createScannIndex,
-} from './scann-index';
+} from './scann-index.js';
 
 export type {
   ScannConfig,
-} from './scann-index';
+} from './scann-index.js';
 
 // Speculative Decoding - LLM 推理加速
 export {
   SpeculativeDecoder,
   createSpeculativeDecoder,
   MockLanguageModel,
-} from './speculative-decoding';
+} from './speculative-decoding.js';
 
 export type {
   SpeculativeDecodingConfig,
   DecodingResult,
   LanguageModel,
   TokenDistribution,
-} from './speculative-decoding';
+} from './speculative-decoding.js';

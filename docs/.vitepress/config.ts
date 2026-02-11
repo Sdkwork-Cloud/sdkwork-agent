@@ -3,11 +3,11 @@ import { defineConfig } from 'vitepress'
 // https://vitepress.dev/reference/site-config
 export default defineConfig({
   title: "SDKWork Agent",
-  description: "AI 智能体开发套件",
+  description: "AI 智能体开发套件 - Node.js 服务端专用",
   lang: 'zh-CN',
   base: '/sdkwork-browser-agent/',
   lastUpdated: true,
-  
+
   head: [
     ['link', { rel: 'icon', href: '/favicon.ico' }],
     ['meta', { name: 'theme-color', content: '#5f67ee' }],
@@ -16,9 +16,9 @@ export default defineConfig({
   themeConfig: {
     // https://vitepress.dev/reference/default-theme-config
     nav: [
-      { text: '指南', link: '/guide/' },
-      { text: 'API', link: '/api/' },
-      { text: '示例', link: '/examples/' },
+      { text: '指南', link: '/guide/what-is' },
+      { text: 'API', link: '/api/agent' },
+      { text: '示例', link: '/examples/basic' },
       { text: '服务端', link: '/server/getting-started' },
     ],
 
@@ -27,35 +27,17 @@ export default defineConfig({
         {
           text: '开始',
           items: [
-            { text: '简介', link: '/guide/' },
-            { text: '快速开始', link: '/guide/getting-started' },
+            { text: '什么是 SDKWork?', link: '/guide/what-is' },
+            { text: '快速开始', link: '/guide/quick-start' },
+            { text: '安装指南', link: '/guide/installation' },
             { text: '核心概念', link: '/guide/concepts' },
           ]
         },
         {
           text: '基础',
           items: [
-            { text: '智能体', link: '/guide/agent' },
-            { text: '任务', link: '/guide/task' },
-            { text: '能力', link: '/guide/capability' },
-            { text: '内存', link: '/guide/memory' },
-            { text: '工具', link: '/guide/tools' },
-          ]
-        },
-        {
-          text: '高级',
-          items: [
-            { text: '工作流', link: '/guide/workflow' },
-            { text: '多智能体', link: '/guide/multi-agent' },
-            { text: '自定义扩展', link: '/guide/extensions' },
-          ]
-        },
-        {
-          text: '部署',
-          items: [
-            { text: '生产环境', link: '/guide/production' },
             { text: '性能优化', link: '/guide/performance' },
-            { text: '监控', link: '/guide/monitoring' },
+            { text: '故障排除', link: '/guide/troubleshooting' },
           ]
         }
       ],
@@ -63,12 +45,11 @@ export default defineConfig({
         {
           text: 'API 参考',
           items: [
-            { text: '概述', link: '/api/' },
             { text: 'Agent', link: '/api/agent' },
-            { text: 'Task', link: '/api/task' },
-            { text: 'Capability', link: '/api/capability' },
+            { text: 'Skill', link: '/api/skill' },
+            { text: 'Tool', link: '/api/tool' },
             { text: 'Memory', link: '/api/memory' },
-            { text: 'Tools', link: '/api/tools' },
+            { text: 'Events', link: '/api/events' },
           ]
         }
       ],
@@ -76,11 +57,9 @@ export default defineConfig({
         {
           text: '示例',
           items: [
-            { text: '概述', link: '/examples/' },
-            { text: '聊天助手', link: '/examples/chat-agent' },
-            { text: '代码助手', link: '/examples/code-agent' },
-            { text: '数据分析', link: '/examples/data-analysis' },
-            { text: '自动化工作流', link: '/examples/workflow' },
+            { text: '基础示例', link: '/examples/basic' },
+            { text: '高级示例', link: '/examples/advanced' },
+            { text: '流式对话', link: '/examples/streaming' },
           ]
         }
       ],
@@ -92,6 +71,16 @@ export default defineConfig({
             { text: '架构设计', link: '/server/architecture' },
             { text: 'API Reference', link: '/server/api-reference' },
             { text: '模块开发', link: '/server/module-development' },
+          ]
+        }
+      ],
+      '/architecture/': [
+        {
+          text: '架构',
+          items: [
+            { text: '架构总览', link: '/architecture/overview' },
+            { text: '微内核架构', link: '/architecture/microkernel' },
+            { text: 'DDD 分层架构', link: '/architecture/ddd' },
           ]
         }
       ],

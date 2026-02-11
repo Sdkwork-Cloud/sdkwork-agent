@@ -768,13 +768,4 @@ export function createDataManager(config: DataManagerConfig): DataManager {
   return new DataManager(config);
 }
 
-// Export types
-export type {
-  DataManagerConfig,
-  DataVersion,
-  DataMigration,
-  DataTransaction,
-  DataOperation,
-  DataMetadata,
-  DataManagerStats,
-};
+// Types are exported from index.ts

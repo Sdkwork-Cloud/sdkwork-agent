@@ -23,7 +23,7 @@
 import { EventEmitter } from 'events';
 import { z } from 'zod';
 import { Logger } from '../../utils/logger.js';
-import { Skill, SkillResult } from '../core/types.js';
+import { Skill, SkillResult, SkillError } from '../core/types.js';
 import { SkillRegistry } from '../core/registry.js';
 import { SkillScheduler } from '../core/scheduler.js';
 
@@ -58,12 +58,21 @@ import {
 
 import {
   ErrorRecoveryManager,
-  SkillError,
   RecoveryResult,
   RecoveryConfig,
 } from './error-recovery.js';
 
-const logger = new Logger('OptimizedSkillInteractionManager');
+import { ParameterDefinition } from './parameter-extractor.js';
+
+const logger = new Logger({}, 'OptimizedSkillInteractionManager');
+
+// SkillParameter type alias for compatibility
+type SkillParameter = ParameterDefinition;
+
+// Extended Skill type for interaction manager
+interface SkillWithMetadata extends Skill {
+  parameters?: SkillParameter[];
+}
 
 // ============================================================================
 // Types
@@ -415,9 +424,9 @@ export class OptimizedSkillInteractionManager extends EventEmitter {
     if (this.config.enableLongTermMemory) {
       await session.memory.store(
         input.text,
-        'conversation',
+        'context',
         'short_term',
-        { role: 'user', turn: session.turnCount },
+        { source: `user_turn_${session.turnCount}` },
         0.5
       );
     }
@@ -514,7 +523,7 @@ export class OptimizedSkillInteractionManager extends EventEmitter {
     input: UserInput
   ): Promise<InteractionResult> {
     // 获取所有可用skills
-    const availableSkills = this.skillRegistry.getAllSkills();
+    const availableSkills = this.skillRegistry.list();
 
     // 构建对话上下文
     const dialogueContext: DialogueContext = {
@@ -580,7 +589,8 @@ export class OptimizedSkillInteractionManager extends EventEmitter {
     }
 
     // 检查是否需要参数
-    if (!skill.parameters || skill.parameters.length === 0) {
+    const skillWithMeta = skill as SkillWithMetadata;
+    if (!skillWithMeta.parameters || skillWithMeta.parameters.length === 0) {
       // 无参数skill，直接执行
       await session.stateMachine.transitionTo('EXECUTING');
       return this.handleExecuting(session, context);
@@ -613,29 +623,32 @@ export class OptimizedSkillInteractionManager extends EventEmitter {
     context: ConversationContext
   ): Promise<InteractionResult> {
     const skill = context.selectedSkill;
+    const skillWithMeta = skill as SkillWithMetadata;
     
-    if (!skill || !skill.parameters) {
+    if (!skill || !skillWithMeta.parameters) {
       return this.createErrorResult(session, 'Invalid skill or parameters');
     }
 
     // 构建提取上下文
     const extractionContext: ExtractionContext = {
-      conversationHistory: session.history.slice(-this.config.contextWindowSize),
-      availableResources: [],
+      history: session.history.slice(-this.config.contextWindowSize).map(h => ({
+        role: h.role === 'system' ? 'assistant' : h.role,
+        content: h.content,
+        timestamp: h.timestamp,
+      })),
       userPreferences: context.userPreferences,
-      currentParams: context.collectedParams,
-      skillContext: {
-        name: skill.name,
-        description: skill.description,
-        currentStep: context.currentStep,
+      environment: {
+        cwd: process.cwd(),
+        variables: {},
+        platform: process.platform,
       },
     };
 
     // 使用智能参数提取器
     const extractionResult = await this.parameterExtractor.extract(
       input.text,
-      this.buildParamsSchema(skill.parameters),
-      skill.parameters,
+      this.buildParamsSchema(skillWithMeta.parameters),
+      skillWithMeta.parameters,
       extractionContext
     );
 
@@ -644,7 +657,7 @@ export class OptimizedSkillInteractionManager extends EventEmitter {
     session.stateMachine.updateCollectedParams(mergedParams);
 
     // 检查是否所有必需参数都已收集
-    const missingParams = this.getMissingRequiredParams(skill.parameters, mergedParams);
+    const missingParams = this.getMissingRequiredParams(skillWithMeta.parameters, mergedParams);
 
     if (missingParams.length === 0) {
       // 所有参数已收集，进入确认状态
@@ -654,13 +667,13 @@ export class OptimizedSkillInteractionManager extends EventEmitter {
 
     // 继续收集参数
     const nextParam = missingParams[0];
-    const paramDef = skill.parameters.find(p => p.name === nextParam);
+    const paramDef = skillWithMeta.parameters!.find((p: SkillParameter) => p.name === nextParam);
 
     return {
       success: true,
       skillName: skill.name,
-      response: extractionResult.clarificationNeeded 
-        ? extractionResult.clarificationPrompt!
+      response: extractionResult.missing.length > 0
+        ? `Please provide the following parameters: ${extractionResult.missing.join(', ')}`
         : this.generateParamPrompt(paramDef!, missingParams),
       state: 'GATHERING_PARAMS',
       requiresUserInput: true,
@@ -775,7 +788,7 @@ export class OptimizedSkillInteractionManager extends EventEmitter {
           }
           validator = z.object(nestedSchema);
         } else {
-          validator = z.record(z.any());
+          validator = z.record(z.string(), z.any());
         }
         break;
       
@@ -934,15 +947,34 @@ export class OptimizedSkillInteractionManager extends EventEmitter {
       logger.info(`Executing skill: ${skill.name}`, { params });
 
       // 使用调度器执行skill
-      const executionResult = await this.skillScheduler.execute(skill, params);
+      const scheduleResult = await this.skillScheduler.schedule({
+        skillName: skill.name,
+        input: params,
+      });
+
+      // 转换结果为 SkillResult
+      const executionResult: SkillResult<unknown> = {
+        success: scheduleResult.success,
+        data: scheduleResult.result,
+        error: scheduleResult.error ? new SkillError(
+          scheduleResult.error.message,
+          scheduleResult.error.code,
+          scheduleResult.error.recoverable
+        ) : undefined,
+        metadata: scheduleResult.metadata ? {
+          startTime: scheduleResult.metadata.startTime,
+          endTime: scheduleResult.metadata.endTime,
+          duration: scheduleResult.metadata.duration,
+        } : undefined,
+      };
 
       // 存储执行结果到记忆
       if (this.config.enableLongTermMemory) {
         await session.memory.store(
           `Executed ${skill.name} with params: ${JSON.stringify(params)}`,
-          'skill_execution',
+          'skill_usage',
           'medium_term',
-          { skillName: skill.name, result: executionResult.success },
+          { skillName: skill.name, success: executionResult.success },
           executionResult.success ? 0.7 : 0.4
         );
       }
@@ -1039,7 +1071,7 @@ export class OptimizedSkillInteractionManager extends EventEmitter {
 
       if (recoveryResult.fallbackSkill) {
         // 使用降级skill
-        const fallbackSkill = this.skillRegistry.getSkill(recoveryResult.fallbackSkill);
+        const fallbackSkill = this.skillRegistry.get(recoveryResult.fallbackSkill);
         if (fallbackSkill) {
           session.stateMachine.setSelectedSkill(fallbackSkill);
         }
@@ -1154,7 +1186,7 @@ export class OptimizedSkillInteractionManager extends EventEmitter {
     error: Error,
     input: UserInput
   ): Promise<InteractionResult> {
-    logger.error('Interaction error', error);
+    logger.error('Interaction error', { error: String(error) });
 
     // 分析并尝试恢复
     const skillError = this.errorRecoveryManager.analyzeError(error, {
@@ -1238,8 +1270,7 @@ export class OptimizedSkillInteractionManager extends EventEmitter {
             'long_term',
             {
               ...mem.entry.metadata,
-              archivedFrom: mem.entry.layer,
-              sessionId: session.id,
+              source: `archived_from_${mem.entry.layer}_session_${session.id}`,
             },
             mem.entry.importance
           );

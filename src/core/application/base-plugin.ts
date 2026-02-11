@@ -3,7 +3,7 @@ import type {
   PluginConfig,
   PluginState,
   PluginContext,
-} from '../domain/plugin';
+} from '../domain/plugin.js';
 
 /**
  * Base Plugin Implementation

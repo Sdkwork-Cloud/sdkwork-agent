@@ -1,5 +1,5 @@
-import type { Skill } from './skill';
-import type { Tool } from './tool';
+import type { Skill } from './skill.js';
+import type { Tool } from './tool.js';
 
 /**
  * Execution Engine Domain - 执行引擎领域模型

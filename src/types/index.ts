@@ -44,14 +44,14 @@ export type {
   ValidationResult,
   Validator,
   ConfigChangeEvent,
-} from './core.js';
+} from './core';
 
 // ============================================================================
 // Agent Types - 智能体类型
 // ============================================================================
 export {
   AgentStatus,
-} from './agent.js';
+} from './agent';
 export type {
   AgentIdentity,
   AgentState,
@@ -78,7 +78,7 @@ export type {
   MemoryStore,
   AgentContext,
   AgentContextConfig,
-} from './agent.js';
+} from './agent';
 
 // ============================================================================
 // Legacy Compatibility - 向后兼容
@@ -86,16 +86,16 @@ export type {
 
 // 为了向后兼容，导出类型别名
 /** @deprecated 使用 AgentConfig */
-export type AgentConfiguration = import('./agent.js').AgentConfig;
+export type AgentConfiguration = import('./agent').AgentConfig;
 
 /** @deprecated 使用 ExecutionResult */
-export type AgentExecutionResult<T = unknown> = import('./agent.js').ExecutionResult<T>;
+export type AgentExecutionResult<T = unknown> = import('./agent').ExecutionResult<T>;
 
 /** @deprecated 使用 ExecutionContext */
-export type AgentExecutionContext = import('./agent.js').ExecutionContext;
+export type AgentExecutionContext = import('./agent').ExecutionContext;
 
 /** @deprecated 使用 ExecutionStep */
-export type AgentExecutionStep = import('./agent.js').ExecutionStep;
+export type AgentExecutionStep = import('./agent').ExecutionStep;
 
 /** @deprecated 使用 Logger */
-export type AgentLogger = import('./core.js').Logger;
+export type AgentLogger = import('./core').Logger;

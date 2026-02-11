@@ -5,7 +5,7 @@
  */
 
 import { VideoData, VideoAnalysisResult, ProcessingOptions, ProcessingResult } from './types';
-import type { LLMProvider } from '../llm/provider';
+import type { LLMProvider } from '../llm/provider.js';
 
 // ============================================
 // Video Processor Interface

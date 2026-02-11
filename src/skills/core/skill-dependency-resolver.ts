@@ -15,7 +15,7 @@
  */
 
 import { EventEmitter } from '../../utils/event-emitter.js';
-import { Skill, Logger } from './types.js';
+import { Skill, Logger } from './types';
 import { SkillDependency } from './skill-engine.js';
 
 /**

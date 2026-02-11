@@ -18,6 +18,17 @@
 import type { Logger } from '../../utils/logger.js';
 import { Skill, SkillResult } from '../core/types.js';
 
+// Extended Skill type for conversation state machine
+interface SkillWithMetadata extends Skill {
+  parameters?: Array<{
+    name: string;
+    description: string;
+    type: string;
+    required?: boolean;
+    default?: unknown;
+  }>;
+}
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -122,7 +133,7 @@ export interface StateTransitionResult {
  * 状态机配置
  */
 export interface StateMachineConfig {
-  logger?: Logger;
+  logger?: Partial<Logger>;
   maxHistoryLength?: number;
   enablePersistence?: boolean;
   defaultMaxRetries?: number;
@@ -170,7 +181,7 @@ export class SkillConversationStateMachine {
       },
       ...config,
     };
-    this.logger = this.config.logger;
+    this.logger = this.config.logger as Logger;
 
     // 初始化上下文
     this.context = {
@@ -207,15 +218,16 @@ export class SkillConversationStateMachine {
    * 设置选中的技能
    */
   setSelectedSkill(skill: Skill): void {
+    const skillWithMeta = skill as SkillWithMetadata;
     this.context.selectedSkill = skill;
-    this.context.paramDefinitions = skill.parameters?.map(p => ({
+    this.context.paramDefinitions = skillWithMeta.parameters?.map(p => ({
       name: p.name,
       description: p.description || '',
       type: p.type || 'string',
       required: p.required,
       default: p.default,
     }));
-    this.context.pendingParams = skill.parameters
+    this.context.pendingParams = skillWithMeta.parameters
       ?.filter(p => p.required)
       .map(p => p.name) || [];
     this.context.lastUpdated = new Date();
@@ -449,7 +461,7 @@ export class SkillConversationStateMachine {
     // INTENT_RECOGNITION 状态
     handlers.set('INTENT_RECOGNITION', {
       onEnter: async (context, data) => {
-        this.logger.debug('Recognizing intent', data);
+        this.logger.debug('Recognizing intent', { data: JSON.stringify(data) });
       },
       processInput: async (_input, context) => {
         // 意图识别完成后，进入技能选择
@@ -464,7 +476,7 @@ export class SkillConversationStateMachine {
     // SKILL_SELECTION 状态
     handlers.set('SKILL_SELECTION', {
       onEnter: async (context, data) => {
-        this.logger.debug('Selecting skill', data);
+        this.logger.debug('Selecting skill', { data: JSON.stringify(data) });
       },
       processInput: async (input, context) => {
         // 如果用户明确选择了技能
@@ -548,7 +560,7 @@ Is this correct? (yes/no/modify)`,
     // CLARIFYING 状态
     handlers.set('CLARIFYING', {
       onEnter: async (context, data) => {
-        this.logger.debug('Clarifying', data);
+        this.logger.debug('Clarifying', { data: JSON.stringify(data) });
       },
       processInput: async (input, context) => {
         // 重新尝试解析参数
@@ -697,7 +709,7 @@ Is this correct? (yes/no/modify)`,
     // FOLLOW_UP 状态
     handlers.set('FOLLOW_UP', {
       onEnter: async (context, data) => {
-        this.logger.debug('Processing follow-up', data);
+        this.logger.debug('Processing follow-up', { data: String(data) });
       },
       processInput: async (input, context) => {
         // 基于之前的执行结果处理后续请求
@@ -856,12 +868,4 @@ export function createConversationStateMachine(
   return new SkillConversationStateMachine(sessionId, config);
 }
 
-// Export types
-export type {
-  ConversationState,
-  ConversationContext,
-  StateTransitionEvent,
-  StateHandler,
-  StateTransitionResult,
-  StateMachineConfig,
-};
+// Types are exported from index.ts

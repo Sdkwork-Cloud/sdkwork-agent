@@ -1,28 +1,13 @@
 /**
- * SDKWork Configuration Module
+ * Config Module - 配置管理模块
  *
- * 统一的配置管理系统，区分框架级配置和智能体级配置：
- *
- * 框架级配置 (FrameworkConfig):
- * - 全局框架设置
- * - 技能系统配置
- * - LLM 配置
- * - 安全配置
- * - 实验性功能
- *
- * 智能体级配置 (AgentRuntimeConfig):
- * - 智能体身份
- * - 智能体能力
- * - 执行限制
+ * 提供完整的模型配置管理功能
  *
  * @module Config
- * @version 3.0.0
- * @standard SDKWork Architecture Standard
+ * @version 2.0.0
  */
 
-// ============================================================================
-// Framework Configuration - 框架级配置
-// ============================================================================
+// 框架配置
 export {
   FrameworkConfigManager,
   getFrameworkConfigManager,
@@ -30,6 +15,7 @@ export {
   loadFrameworkConfig,
   getFrameworkConfig,
 } from './framework-config.js';
+
 export type {
   FrameworkConfig,
   LoggingConfig,
@@ -42,3 +28,29 @@ export type {
   ExperimentalConfig,
   FrameworkConfigManagerOptions,
 } from './framework-config.js';
+
+// 模型配置
+export {
+  PREDEFINED_PROVIDERS,
+  getSupportedProviders,
+  getProviderConfig,
+  getModelDefinition,
+  getProviderModels,
+  getDefaultModel,
+  validateModelConfig,
+  toLLMConfig,
+} from './model-config.js';
+
+export type {
+  ModelProvider,
+  ModelDefinition,
+  ProviderConfig,
+  UserModelConfig,
+} from './model-config.js';
+
+// 配置管理器
+export {
+  ConfigManager,
+  getConfigManager,
+  resetConfigManager,
+} from './config-manager.js';

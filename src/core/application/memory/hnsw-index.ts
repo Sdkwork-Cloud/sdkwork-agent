@@ -10,7 +10,7 @@
  * Space Complexity: O(n * m) where m is average connections per layer
  */
 
-import type { VectorStore } from '../../domain/memory';
+import type { VectorStore } from '../../domain/memory.js';
 
 // ============================================================================
 // HNSW Configuration

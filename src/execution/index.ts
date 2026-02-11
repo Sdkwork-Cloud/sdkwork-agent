@@ -427,15 +427,15 @@ export interface PluginContext {
 // Execution Engine
 // ============================================================================
 
-export { ExecutionEngine } from './engine';
-export { ScriptExecutor } from './script-executor';
-export { MCPExecutor } from './mcp-executor';
-export { PluginExecutor } from './plugin-executor';
-export { ExecutionTracer } from './tracer';
-export { ResourceMonitor } from './resource-monitor';
+export { ExecutionEngine } from './engine.js';
+export { ScriptExecutor } from './script-executor.js';
+export { MCPExecutor } from './mcp-executor.js';
+export { PluginExecutor } from './plugin-executor.js';
+export { ExecutionTracer } from './tracer.js';
+export { ResourceMonitor } from './resource-monitor.js';
 
 // ToolExecutor 从 core/application 重新导出
-export { ToolExecutorImpl as ToolExecutor } from '../core/application/tool-executor';
+export { ToolExecutorImpl as ToolExecutor } from '../core/application/tool-executor.js';
 
 // ============================================================================
 // Re-exports from sub-modules
@@ -445,23 +445,23 @@ export type {
   ScriptExecutable,
   ScriptLanguage,
   ScriptSandbox,
-} from './script-executor';
+} from './script-executor.js';
 
 // Tool 类型从 domain/tool 导出
 export type {
   Tool as ToolExecutable,
   ToolCategory,
   ConfirmLevel as ToolConfirmationLevel,
-} from '../core/domain/tool';
+} from '../core/domain/tool.js';
 
 export type {
   MCPExecutable,
   MCPResource,
   MCPResourceContent,
-} from './mcp-executor';
+} from './mcp-executor.js';
 
 export type {
   PluginExecutable,
   PluginManifest,
   PluginHook,
-} from './plugin-executor';
+} from './plugin-executor.js';

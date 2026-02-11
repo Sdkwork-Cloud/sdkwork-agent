@@ -7,20 +7,8 @@
 import { EventEmitter } from '../../utils/event-emitter.js';
 import { Logger, createLogger } from '../../utils/logger.js';
 
-// Node.js specific imports - only available in Node environment
-let spawn: typeof import('child_process')['spawn'] | undefined;
-let processEnv: NodeJS.ProcessEnv | undefined;
-
-if (typeof window === 'undefined') {
-  // Node.js environment
-  try {
-    const childProcess = require('child_process');
-    spawn = childProcess.spawn;
-    processEnv = process.env;
-  } catch {
-    // Ignore
-  }
-}
+// Node.js 专用 - 直接导入 child_process
+import { spawn } from 'child_process';
 import {
   MCPClient,
   MCPServerConfig,
@@ -45,7 +33,7 @@ import {
   MCPPromptGetResult,
   MCPRegistry,
   MCPManager,
-} from '../domain/mcp';
+} from '../domain/mcp.js';
 
 // ============================================================================
 // Transport Implementations
@@ -73,19 +61,14 @@ class StdioTransport implements MCPTransportHandler {
   }
 
   async connect(): Promise<void> {
-    // Check if we're in Node.js environment
-    if (typeof window !== 'undefined' || !spawn) {
-      throw new Error('Stdio transport is only available in Node.js environment');
-    }
-
     return new Promise((resolve, reject) => {
       if (!this._config.command) {
         reject(new Error('Command is required for stdio transport'));
         return;
       }
 
-      this._process = spawn!(this._config.command, this._config.args || [], {
-        env: { ...processEnv, ...this._config.env },
+      this._process = spawn(this._config.command, this._config.args || [], {
+        env: { ...process.env, ...this._config.env },
         stdio: ['pipe', 'pipe', 'pipe'],
       });
 

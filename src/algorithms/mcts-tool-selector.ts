@@ -13,7 +13,7 @@ import {
   StateEvaluator,
   SimulationPolicy,
   DecisionResult,
-} from './mcts-decision-engine';
+} from './mcts-decision-engine.js';
 
 /**
  * 工具定义

@@ -12,7 +12,7 @@
  * - Time-based decay with access-based refresh
  */
 
-import { EventEmitter } from '../../../utils/event-emitter';
+import { EventEmitter } from '../../../utils/event-emitter.js';
 import { v4 as uuidv4 } from 'uuid';
 import type {
   Memory,
@@ -20,7 +20,7 @@ import type {
   MemorySource,
   MemoryMetadata,
   MemoryEvent,
-} from '../../domain/memory';
+} from '../../domain/memory.js';
 
 // ============================================================================
 // Memory Tier Types

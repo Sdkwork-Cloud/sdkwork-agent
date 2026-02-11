@@ -6,8 +6,8 @@
  * Compatible with both browser and Node.js environments.
  */
 
-import { BoundedHistory } from '../utils/bounded-cache';
-import { EmbeddingService } from '../utils/embedding-service';
+import { BoundedHistory } from '../utils/bounded-cache.js';
+import { EmbeddingService } from '../utils/embedding-service.js';
 
 // ============================================
 // Types

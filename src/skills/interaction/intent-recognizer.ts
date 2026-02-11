@@ -16,9 +16,20 @@
 import { EventEmitter } from 'events';
 import { Logger } from '../../utils/logger.js';
 import { Skill } from '../core/types.js';
+
+// Extended Skill type for intent recognition
+interface SkillWithMetadata extends Skill {
+  parameters?: Array<{
+    name: string;
+    description: string;
+    type: string;
+    required?: boolean;
+  }>;
+  keywords?: string[];
+}
 import { CacheManager } from './cache-manager.js';
 
-const logger = new Logger('IntentRecognizer');
+const logger = new Logger({}, 'IntentRecognizer');
 
 /** LLM服务接口 */
 export interface LLMService {
@@ -273,16 +284,17 @@ export class IntentRecognizer extends EventEmitter {
     ];
 
     for (const skill of skills) {
+      const skillWithMeta = skill as SkillWithMetadata;
       lines.push(`\n### ${skill.name}`);
       lines.push(`Description: ${skill.description || 'No description'}`);
-      if (skill.parameters && skill.parameters.length > 0) {
+      if (skillWithMeta.parameters && skillWithMeta.parameters.length > 0) {
         lines.push('Parameters:');
-        for (const param of skill.parameters) {
+        for (const param of skillWithMeta.parameters!) {
           lines.push(`  - ${param.name}: ${param.description} (${param.type})${param.required ? ' [required]' : ''}`);
         }
       }
-      if (skill.keywords) {
-        lines.push(`Keywords: ${skill.keywords.join(', ')}`);
+      if (skillWithMeta.keywords) {
+        lines.push(`Keywords: ${skillWithMeta.keywords.join(', ')}`);
       }
     }
 
@@ -414,8 +426,9 @@ export class IntentRecognizer extends EventEmitter {
       }
 
       // 关键词匹配
-      if (skill.keywords) {
-        for (const keyword of skill.keywords) {
+      const skillWithMeta = skill as SkillWithMetadata;
+      if (skillWithMeta.keywords) {
+        for (const keyword of skillWithMeta.keywords) {
           if (lowerInput.includes(keyword.toLowerCase())) {
             score += 0.2;
             matchedKeywords.push(keyword);
@@ -452,7 +465,8 @@ export class IntentRecognizer extends EventEmitter {
       const [inputEmbedding, ...skillEmbeddings] = await Promise.all([
         this.config.llm.embed(userInput),
         ...candidates.map(async (candidate) => {
-          const skillText = `${candidate.skill.name} ${candidate.skill.description || ''} ${(candidate.skill.keywords || []).join(' ')}`;
+          const candidateSkillWithMeta = candidate.skill as SkillWithMetadata;
+          const skillText = `${candidate.skill.name} ${candidate.skill.description || ''} ${(candidateSkillWithMeta.keywords || []).join(' ')}`;
           return this.config.llm.embed(skillText);
         }),
       ]);
@@ -497,7 +511,8 @@ export class IntentRecognizer extends EventEmitter {
     userInput: string,
     skill?: Skill
   ): Promise<Record<string, unknown>> {
-    if (!skill || !skill.parameters || skill.parameters.length === 0) {
+    const skillWithMeta = skill as SkillWithMetadata;
+    if (!skill || !skillWithMeta.parameters || skillWithMeta.parameters.length === 0) {
       return {};
     }
 
@@ -505,7 +520,7 @@ export class IntentRecognizer extends EventEmitter {
 
 Skill: ${skill.name}
 Parameters:
-${skill.parameters.map(p => `- ${p.name}: ${p.description} (${p.type})`).join('\n')}
+${skillWithMeta.parameters.map((p: { name: string; description: string; type: string }) => `- ${p.name}: ${p.description} (${p.type})`).join('\n')}
 
 User Input: "${userInput}"
 

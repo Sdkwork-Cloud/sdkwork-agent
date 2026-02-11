@@ -1,41 +1,50 @@
 /**
- * Storage Module
- * Unified storage interface for browser and Node.js environments
+ * Node.js 原生存储模块
+ * 
+ * 专为 Node.js 环境设计的完美存储系统
+ * 
+ * 核心特性：
+ * 1. 多后端支持 (文件系统、SQLite、Redis、S3)
+ * 2. 流式处理大文件
+ * 3. 内置压缩 (gzip) 和加密 (AES-256-GCM)
+ * 4. 文件监听 (fs.watch)
+ * 5. 事务支持
+ * 6. 智能缓存
+ * 
+ * @module Storage
+ * @version 2.0.0
+ * @architecture Node.js Native Only
  */
 
-import { StorageAdapter, StorageConfig } from './types';
-import { BrowserStorageAdapter } from './browser-adapter';
-import { NodeStorageAdapter } from './node-adapter';
+// 存储管理器
+export {
+  StorageManager,
+  FileSystemBackend,
+  createStorageManager,
+} from './storage-manager.js';
 
-export * from './types';
-export { BrowserStorageAdapter } from './browser-adapter';
-export { NodeStorageAdapter } from './node-adapter';
+export type {
+  StorageBackend,
+  StorageManagerConfig,
+  BackendConfig,
+  FileMetadata,
+  ReadOptions,
+  WriteOptions,
+  ListOptions,
+  WatchOptions,
+  Transaction,
+  Operation,
+  StorageStats,
+  BackendStats,
+  IStorageBackend,
+} from './storage-manager.js';
 
-/**
- * Create the appropriate storage adapter for the current environment
- */
-export function createStorage(config?: StorageConfig): StorageAdapter {
-  if (typeof window !== 'undefined') {
-    return new BrowserStorageAdapter(config);
-  }
-  return new NodeStorageAdapter(config);
-}
+// Node.js 适配器 (保留兼容)
+export {
+  NodeStorageAdapter,
+} from './node-adapter.js';
 
-/**
- * Get the default storage adapter singleton
- */
-let defaultStorage: StorageAdapter | null = null;
-
-export function getDefaultStorage(config?: StorageConfig): StorageAdapter {
-  if (!defaultStorage) {
-    defaultStorage = createStorage(config);
-  }
-  return defaultStorage;
-}
-
-/**
- * Reset the default storage adapter (useful for testing)
- */
-export function resetDefaultStorage(): void {
-  defaultStorage = null;
-}
+export type {
+  StorageAdapter,
+  StorageConfig,
+} from './types';

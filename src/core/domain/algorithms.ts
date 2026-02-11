@@ -1,6 +1,6 @@
 import type { ExecutionPlan, ExecutionStep, ExecutionResult } from './execution';
-import type { Skill } from './skill';
-import type { Tool } from './tool';
+import type { Skill } from './skill.js';
+import type { Tool } from './tool.js';
 
 /**
  * Algorithms Domain - 顶级算法领域模型

@@ -4,7 +4,7 @@
  * Reference: AlphaGo, MuZero
  */
 
-import { EventEmitter } from '../../../utils/event-emitter';
+import { EventEmitter } from '../../../utils/event-emitter.js';
 
 // ============================================================================
 // Core Types

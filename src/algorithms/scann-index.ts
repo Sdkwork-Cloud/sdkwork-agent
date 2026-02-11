@@ -19,7 +19,7 @@
  * @advanced
  */
 
-import { PriorityQueue } from '../utils/priority-queue';
+import { PriorityQueue } from '../utils/priority-queue.js';
 
 /**
  * ScaNN 索引配置

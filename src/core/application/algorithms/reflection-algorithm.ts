@@ -7,8 +7,8 @@ import type {
   ReflectionSuggestion,
   AlgorithmResult,
   ReflectionType,
-} from '../../domain/algorithms';
-import type { ExecutionPlan } from '../../domain/execution';
+} from '../../domain/algorithms.js';
+import type { ExecutionPlan } from '../../domain/execution.js';
 
 /**
  * Reflection Algorithm Implementation

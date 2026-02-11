@@ -8,7 +8,7 @@
  * @standard SDKWork Unified Type System
  */
 
-import type { ID, Logger, BaseConfig, ExecutionError as CoreExecutionError } from './core.js';
+import type { ID, Logger, BaseConfig, ExecutionError as CoreExecutionError } from './core';
 
 // ============================================================================
 // Agent Identity

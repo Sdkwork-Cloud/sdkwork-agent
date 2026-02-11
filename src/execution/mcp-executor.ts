@@ -3,7 +3,7 @@
  * MCP协议执行器 - 执行MCP工具
  */
 
-import type { Executable, ExecutionContext, ExecutionResult, MCPClient } from './index';
+import type { Executable, ExecutionContext, ExecutionResult, MCPClient } from './index.js';
 
 export interface MCPExecutable extends Executable {
   type: 'mcp';

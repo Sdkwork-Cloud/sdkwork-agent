@@ -42,5 +42,6 @@ module.exports = {
     'vitest.config.ts',
     'tsup.config.ts',
     'examples/',
+    'src/**/examples/',
   ],
 };

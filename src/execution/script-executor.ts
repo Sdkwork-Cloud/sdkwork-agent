@@ -19,7 +19,7 @@ import type {
   ExecutionContext,
   ExecutionResult,
   ExecutionStep,
-} from './index';
+} from './index.js';
 
 /**
  * 脚本语言类型

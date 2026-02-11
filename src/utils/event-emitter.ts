@@ -7,7 +7,7 @@
  * @deprecated 新项目请直接使用 typed-event-emitter 中的 TypedEventEmitter
  */
 
-import { TypedEventEmitter } from './typed-event-emitter';
+import { TypedEventEmitter } from './typed-event-emitter.js';
 
 /**
  * 事件监听器类型

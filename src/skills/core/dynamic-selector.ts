@@ -21,7 +21,7 @@ import {
   IDynamicSkillSelector,
   SkillSystemEvent,
 } from './openclaw-types.js';
-import { Logger } from './types.js';
+import { Logger } from './types';
 
 /**
  * 动态选择器配置

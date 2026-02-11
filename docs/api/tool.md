@@ -218,10 +218,10 @@ interface ToolRegistry {
   /** 注册 Tool */
   register(tool: Tool): void;
   
-  /** 取消注册 */
+  /** 取消注册（按 ID） */
   unregister(toolId: string): void;
   
-  /** 获取 Tool */
+  /** 获取 Tool（按 ID） */
   get(toolId: string): Tool | undefined;
   
   /** 根据名称获取 */
@@ -251,13 +251,19 @@ interface ToolRegistry {
 agent.tools.register(fileReadTool);
 agent.tools.register(fileWriteTool);
 
+// 获取 Tool（按 ID）
+const tool = agent.tools.get('file-read');
+
+// 根据名称获取
+const toolByName = agent.tools.getByName('File Read');
+
 // 按分类列出
 const fileTools = agent.tools.listByCategory('file');
 
 // 执行 Tool
-const result = await agent.tools.execute('file-read', {
+const result = await agent.executeTool('file-read', JSON.stringify({
   path: './data.txt'
-});
+}));
 
 if (result.success) {
   console.log('Content:', result.data.content);
@@ -322,50 +328,50 @@ const fileDeleteTool = defineTool({
 
 ```typescript
 // 文件读取
-agent.tools.execute('file-read', { path: './file.txt' });
+agent.executeTool('file-read', JSON.stringify({ path: './file.txt' }));
 
 // 文件写入
-agent.tools.execute('file-write', { 
+agent.executeTool('file-write', JSON.stringify({ 
   path: './file.txt', 
   content: 'Hello' 
-});
+}));
 
 // 文件删除
-agent.tools.execute('file-delete', { path: './file.txt' });
+agent.executeTool('file-delete', JSON.stringify({ path: './file.txt' }));
 
 // 目录列表
-agent.tools.execute('dir-list', { path: './' });
+agent.executeTool('dir-list', JSON.stringify({ path: './' }));
 ```
 
 ### Network Tools
 
 ```typescript
 // HTTP 请求
-agent.tools.execute('http-request', {
+agent.executeTool('http-request', JSON.stringify({
   method: 'GET',
   url: 'https://api.example.com/data'
-});
+}));
 
 // WebSocket
-agent.tools.execute('websocket-connect', {
+agent.executeTool('websocket-connect', JSON.stringify({
   url: 'wss://ws.example.com'
-});
+}));
 ```
 
 ### Data Tools
 
 ```typescript
 // JSON 处理
-agent.tools.execute('json-parse', { text: '{"key": "value"}' });
+agent.executeTool('json-parse', JSON.stringify({ text: '{"key": "value"}' }));
 
 // CSV 处理
-agent.tools.execute('csv-parse', { text: 'a,b,c\n1,2,3' });
+agent.executeTool('csv-parse', JSON.stringify({ text: 'a,b,c\n1,2,3' }));
 
 // 数据验证
-agent.tools.execute('data-validate', {
+agent.executeTool('data-validate', JSON.stringify({
   data: { name: 'John' },
   schema: { type: 'object', properties: { name: { type: 'string' } } }
-});
+}));
 ```
 
 ## Tool Chain

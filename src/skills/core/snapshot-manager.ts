@@ -23,7 +23,7 @@ import {
   SkillSystemEvent,
   SnapshotVersionManager,
 } from './openclaw-types.js';
-import { Logger } from './types.js';
+import { Logger } from './types';
 
 /**
  * 快照管理器配置

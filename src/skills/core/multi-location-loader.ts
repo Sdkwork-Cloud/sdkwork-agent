@@ -22,7 +22,7 @@ import type {
   SkillInvocationPolicy,
   SkillSystemEvent,
 } from './openclaw-types.js';
-import { Logger } from './types.js';
+import { Logger } from './types';
 
 /**
  * 多位置加载器配置

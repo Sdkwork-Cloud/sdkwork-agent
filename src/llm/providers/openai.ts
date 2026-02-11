@@ -9,7 +9,7 @@ import {
   LLMRequest,
   LLMResponse,
   LLMStreamChunk,
-} from '../provider';
+} from '../provider.js';
 
 export interface OpenAIConfig extends LLMProviderConfig {
   organization?: string;
@@ -139,7 +139,7 @@ export class OpenAIProvider implements LLMProvider {
   async complete(request: LLMRequest): Promise<LLMResponse> {
     const body = this.buildRequestBody(request);
     const response = await this.makeRequest('/chat/completions', body);
-    const data = await response.json();
+    const data = await response.json() as Record<string, unknown>;
 
     return this.parseResponse(data);
   }
@@ -251,7 +251,7 @@ export class OpenAIProvider implements LLMProvider {
 }
 
 // Register provider
-import { globalProviderRegistry } from '../provider';
+import { globalProviderRegistry } from '../provider.js';
 globalProviderRegistry.register(
   'openai',
   (config: LLMProviderConfig) => new OpenAIProvider(config as OpenAIConfig)

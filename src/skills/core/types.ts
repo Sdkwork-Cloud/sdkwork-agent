@@ -203,6 +203,7 @@ export interface SkillManifest {
     cacheable?: boolean;
     timeout?: number;
     retries?: number;
+    dependencies?: string[];
   };
 }
 

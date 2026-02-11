@@ -13,7 +13,7 @@
  * @version 1.0.0
  */
 
-import { Logger, createLogger } from './logger';
+import { Logger, createLogger } from './logger.js';
 
 // ============================================
 // 类型定义
@@ -338,13 +338,9 @@ export class PerformanceMonitor {
   }
 
   private getMemoryUsage(): number {
-    if (typeof process !== 'undefined' && process.memoryUsage) {
-      return process.memoryUsage().heapUsed;
-    }
-    if (typeof performance !== 'undefined' && performance.memory) {
-      return performance.memory.usedJSHeapSize;
-    }
-    return 0;
+    // Node.js 内存监控
+    const memUsage = process.memoryUsage();
+    return memUsage.heapUsed;
   }
 
   private takeMemorySnapshot(): MemorySnapshot {

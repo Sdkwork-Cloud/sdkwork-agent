@@ -9,8 +9,8 @@
  * @version 1.0.0
  */
 
-import { EventEmitter } from '../utils/event-emitter';
-import { Logger } from '../skills/core/types';
+import { EventEmitter } from '../utils/event-emitter.js';
+import { Logger } from '../skills/core/types.js';
 
 // ============================================================================
 // Common Types

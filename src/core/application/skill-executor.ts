@@ -18,16 +18,16 @@ import type {
   SkillInjectedAPI,
   SkillLogger,
   SkillMemoryAPI,
-} from '../domain/skill';
-import type { ToolRegistry } from '../domain/tool';
-import type { LLMProvider } from '../../llm/provider';
+} from '../domain/skill.js';
+import type { ToolRegistry } from '../domain/tool.js';
+import type { LLMProvider } from '../../llm/provider.js';
 import type {
   ExecutionId,
   AgentId,
   UnifiedLogger,
   SkillId,
-} from '../domain/unified';
-import { createExecutionId } from '../domain/unified';
+} from '../domain/unified.js';
+import { createExecutionId } from '../domain/unified.js';
 import { AgentEventEmitter } from '../../utils/typed-event-emitter.js';
 import { createLogger } from '../../utils/logger.js';
 

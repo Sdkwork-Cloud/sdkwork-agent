@@ -5,8 +5,8 @@
  * supporting image, audio, video, and other modalities.
  */
 
-export * from './multimodal-processor';
-export * from './image-processor';
-export * from './audio-processor';
-export * from './video-processor';
+export * from './multimodal-processor.js';
+export * from './image-processor.js';
+export * from './audio-processor.js';
+export * from './video-processor.js';
 export * from './types';

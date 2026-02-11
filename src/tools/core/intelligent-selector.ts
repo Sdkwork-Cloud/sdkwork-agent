@@ -13,7 +13,7 @@
  */
 
 import { EventEmitter } from '../../utils/event-emitter.js';
-import { Tool } from './types.js';
+import { Tool } from './types';
 import { ToolRegistry } from '../registry.js';
 import { LLMService, Logger } from '../../skills/core/types.js';
 

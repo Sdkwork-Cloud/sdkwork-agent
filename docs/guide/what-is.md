@@ -90,6 +90,6 @@ VSCode 风格的生命周期管理：
 
 ## 下一步
 
-- [快速开始](./quick-start.md) - 5 分钟上手
-- [核心概念](./concepts.md) - 深入了解架构
-- [安装指南](./installation.md) - 详细安装步骤
+- [快速开始](./quick-start) - 5 分钟上手
+- [核心概念](./concepts) - 深入了解架构
+- [安装指南](./installation) - 详细安装步骤

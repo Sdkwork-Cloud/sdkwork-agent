@@ -13,7 +13,7 @@
  * 4. 可扩展到任意决策任务
  */
 
-import { EventEmitter } from '../utils/event-emitter';
+import { EventEmitter } from '../utils/event-emitter.js';
 
 // ============================================
 // 类型定义

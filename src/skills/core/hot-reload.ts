@@ -21,7 +21,7 @@ import type {
   SkillSystemEvent,
   SkillsConfig,
 } from './openclaw-types.js';
-import { Logger } from './types.js';
+import { Logger } from './types';
 
 /**
  * 热重载管理器配置

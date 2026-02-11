@@ -302,10 +302,10 @@ interface SkillRegistry {
   /** 注册 Skill */
   register(skill: Skill): void;
   
-  /** 取消注册 */
+  /** 取消注册（按 ID） */
   unregister(skillId: string): void;
   
-  /** 获取 Skill */
+  /** 获取 Skill（按 ID） */
   get(skillId: string): Skill | undefined;
   
   /** 根据名称获取 */
@@ -328,12 +328,7 @@ interface SkillRegistry {
 // 注册 Skill
 agent.skills.register(greetingSkill);
 
-// 检查是否存在
-if (agent.skills.has('greeting')) {
-  console.log('Skill exists');
-}
-
-// 获取 Skill
+// 获取 Skill（按 ID）
 const skill = agent.skills.get('greeting');
 
 // 根据名称获取

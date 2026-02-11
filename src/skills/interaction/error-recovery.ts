@@ -16,7 +16,7 @@
 import { EventEmitter } from 'events';
 import { Logger } from '../../utils/logger.js';
 
-const logger = new Logger('ErrorRecoveryManager');
+const logger = new Logger({}, 'ErrorRecoveryManager');
 
 /** 错误严重程度 */
 export type ErrorSeverity = 'warning' | 'error' | 'critical' | 'fatal';
@@ -415,7 +415,7 @@ export class ErrorRecoveryManager extends EventEmitter {
         }
         return result;
       } catch (fixError) {
-        logger.error('Auto-fix failed', fixError);
+        logger.error('Auto-fix failed', { error: String(fixError) });
       }
     }
 

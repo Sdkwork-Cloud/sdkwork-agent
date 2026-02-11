@@ -6,10 +6,10 @@
  * Compatible with both browser and Node.js environments.
  */
 
-import type { LLMProvider, LLMRequest } from '../llm/provider';
-import { EmbeddingService } from '../utils/embedding-service';
-import { TaskTypeDetector } from '../utils/task-type-detector';
-import { ResourceManager } from '../utils/resource-manager';
+import type { LLMProvider, LLMRequest } from '../llm/provider.js';
+import { EmbeddingService } from '../utils/embedding-service.js';
+import { TaskTypeDetector } from '../utils/task-type-detector.js';
+import { ResourceManager } from '../utils/resource-manager.js';
 
 // ============================================
 // Types

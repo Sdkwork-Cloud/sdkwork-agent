@@ -6,7 +6,7 @@
  */
 
 import * as vm from 'vm';
-import { SecureSandbox, SandboxConfig, SandboxContext, ExecutionResult, SecurityViolation } from './secure-sandbox';
+import { SecureSandbox, SandboxConfig, SandboxContext, ExecutionResult, SecurityViolation } from './secure-sandbox.js';
 
 /**
  * Node.js 沙箱配置
@@ -58,12 +58,39 @@ export class NodeSecureSandbox extends SecureSandbox {
   }
 
   /**
+   * 创建安全的全局对象
+   */
+  private createSafeGlobals(): Record<string, unknown> {
+    return {
+      console: {
+        log: (...args: unknown[]) => this.logger.debug('sandbox', { args }),
+        error: (...args: unknown[]) => this.logger.error('sandbox', { args }),
+        warn: (...args: unknown[]) => this.logger.warn('sandbox', { args }),
+        info: (...args: unknown[]) => this.logger.info('sandbox', { args }),
+      },
+      setTimeout: (fn: () => void, ms: number) => setTimeout(fn, Math.min(ms, this.nodeConfig.timeout)),
+      clearTimeout: (id: ReturnType<typeof setTimeout>) => clearTimeout(id),
+    };
+  }
+
+  /**
+   * 报告安全违规
+   */
+  private reportViolation(violation: SecurityViolation): void {
+    this.logger.error('Security violation', {
+      type: violation.type,
+      message: violation.message,
+      code: violation.code,
+    });
+  }
+
+  /**
    * 初始化 VM 上下文
    */
   private initializeContext(): void {
     // 创建安全的全局对象
     const safeGlobals = this.createSafeGlobals();
-    
+
     // 创建 VM 上下文
     this.vmContext = vm.createContext({
       ...safeGlobals,
@@ -249,18 +276,11 @@ export class NodeSecureSandbox extends SecureSandbox {
   }
 
   /**
-   * 获取沙箱指标
+   * 获取沙箱统计信息 (实现基类抽象方法)
    */
-  getMetrics(): {
-    backend: string;
-    healthy: boolean;
-    executionCount: number;
-    averageExecutionTime: number;
-    scriptCacheSize: number;
-    memoryUsage: number;
-  } {
-    const avgTime = this.executionCount > 0 
-      ? this.totalExecutionTime / this.executionCount 
+  getStats(): { backend: string; healthy: boolean; [key: string]: unknown } {
+    const avgTime = this.executionCount > 0
+      ? this.totalExecutionTime / this.executionCount
       : 0;
 
     return {
@@ -270,6 +290,27 @@ export class NodeSecureSandbox extends SecureSandbox {
       averageExecutionTime: avgTime,
       scriptCacheSize: this.scriptCache.size,
       memoryUsage: process.memoryUsage().heapUsed / 1024 / 1024,
+    };
+  }
+
+  /**
+   * 获取沙箱指标 (别名)
+   */
+  getMetrics(): {
+    backend: string;
+    healthy: boolean;
+    executionCount: number;
+    averageExecutionTime: number;
+    scriptCacheSize: number;
+    memoryUsage: number;
+  } {
+    return this.getStats() as {
+      backend: string;
+      healthy: boolean;
+      executionCount: number;
+      averageExecutionTime: number;
+      scriptCacheSize: number;
+      memoryUsage: number;
     };
   }
 

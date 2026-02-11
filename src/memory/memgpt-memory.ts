@@ -11,9 +11,9 @@
  * 4. Working Context (工作上下文) - 当前会话的临时状态
  */
 
-import { EventEmitter } from '../utils/event-emitter';
-import { HNSWVectorDatabase } from './hnsw-vector-database';
-import type { SearchOptions } from './vector-database';
+import { EventEmitter } from '../utils/event-emitter.js';
+import { HNSWVectorDatabase } from './hnsw-vector-database.js';
+import type { SearchOptions } from './vector-database.js';
 
 // ============================================
 // 类型定义

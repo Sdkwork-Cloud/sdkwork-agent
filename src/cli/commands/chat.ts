@@ -8,7 +8,7 @@
  * @standard Industry Leading
  */
 
-import type { CommandHandler, CommandContext, CommandResult } from '../types.js';
+import type { CommandHandler, CommandContext, CommandResult } from '../types';
 import { createLogger } from '../../utils/logger.js';
 import type { Logger } from '../../utils/logger.js';
 

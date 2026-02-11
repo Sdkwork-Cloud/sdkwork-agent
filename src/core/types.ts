@@ -404,4 +404,4 @@ export type {
   LLMStreamChunk,
   LLMMessage,
   ToolDefinition,
-} from '../llm/provider';
+} from '../llm/provider.js';

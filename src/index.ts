@@ -41,76 +41,40 @@
 // ============================================
 export * from './core';
 
-// Import LLMProvider type for use in convenience functions
-import type { LLMProvider } from './llm/provider.js';
-
 // ============================================
-// Unified Agent Architecture (Legacy)
+// Agent - Skill-Based Architecture
 // ============================================
-export {
-  SDKWorkAgent,
-  AgentStatus,
-  AgentConfigSchema,
-} from './agent';
-
+export { Agent } from './agent';
 export type {
-  ValidatedAgentConfig,
-  AgentEvents,
-} from './agent';
-
-// ============================================
-// Agent Factory & Specialized Agents
-// ============================================
-export {
-  AgentFactory,
-  createAgent,
-  AgentPresets,
-} from './agent/factory';
-
-export { PlanningAgent, PlanningStrategy } from './agent/planning-agent';
-export { ReflectiveAgent } from './agent/reflective-agent';
-export { ToolAgent } from './agent/tool-agent';
-
-// ============================================
-// Skill System (agentskills.io compliant)
-// ============================================
-export {
-  SkillRegistry,
-  SkillExecutor,
-  SkillLoader,
-} from './skills/core';
-
-export type {
+  AgentConfig,
+  LLMConfig,
   Skill,
-  SkillResult,
-  SkillManifest,
-  LoadedSkill,
-  SkillError,
-  DisclosureLevel,
-} from './skills/core/types';
+  Tool,
+} from './agent';
+export { ReasonSkill, PlanSkill, MemorySkill } from './agent';
 
 // ============================================
 // Planning Algorithms
 // ============================================
-export { TreeOfThoughts } from './algorithms/tree-of-thoughts';
-export { HNSWIndex, createHNSWIndex } from './algorithms/hnsw';
-export { NeuralMCTS } from './algorithms/neural-mcts';
+export { TreeOfThoughts } from './algorithms/tree-of-thoughts.js';
+export { HNSWIndex, createHNSWIndex } from './algorithms/hnsw.js';
+export { NeuralMCTS } from './algorithms/neural-mcts.js';
 
 // ============================================
 // Memory System
 // ============================================
-export { MemGPTMemory } from './memory/memgpt-memory';
-export { HierarchicalMemory, createHierarchicalMemory } from './memory/hierarchical-memory';
-export type { MemoryEntry, MemoryStats, MemoryRetrievalResult } from './memory/hierarchical-memory';
+export { MemGPTMemory } from './memory/memgpt-memory.js';
+export { HierarchicalMemory, createHierarchicalMemory } from './memory/hierarchical-memory.js';
+export type { MemoryEntry, MemoryStats, MemoryRetrievalResult } from './memory/hierarchical-memory.js';
 
 // ============================================
 // Advanced Algorithms
 // ============================================
-export { ScannIndex, createScannIndex } from './algorithms/scann-index';
-export type { ScannConfig } from './algorithms/scann-index';
+export { ScannIndex, createScannIndex } from './algorithms/scann-index.js';
+export type { ScannConfig } from './algorithms/scann-index.js';
 
-export { SpeculativeDecoder, createSpeculativeDecoder, MockLanguageModel } from './algorithms/speculative-decoding';
-export type { SpeculativeDecodingConfig, DecodingResult, LanguageModel } from './algorithms/speculative-decoding';
+export { SpeculativeDecoder, createSpeculativeDecoder, MockLanguageModel } from './algorithms/speculative-decoding.js';
+export type { SpeculativeDecodingConfig, DecodingResult, LanguageModel } from './algorithms/speculative-decoding.js';
 
 // ============================================
 // LLM Providers
@@ -123,7 +87,7 @@ export type {
   LLMMessage,
   ToolDefinition,
   ToolCall,
-} from './llm/provider';
+} from './llm/provider.js';
 
 // ============================================
 // Unified Execution Engine
@@ -170,67 +134,115 @@ export type {
 } from './execution';
 
 // ============================================
+// TUI (Terminal User Interface)
+// ============================================
+export {
+  TUIRenderer,
+  LoadingIndicator,
+  createRenderer,
+  DEFAULT_THEME,
+  MarkdownRenderer,
+  renderMarkdown,
+  printMarkdown,
+  StreamRenderer,
+  createStreamRenderer,
+  streamOutput,
+  MultilineInput,
+  readMultiline,
+} from './tui';
+
+export type {
+  Theme,
+  StreamOptions,
+  MultilineOptions,
+} from './tui';
+
+// ============================================
+// Configuration
+// ============================================
+export {
+  ConfigManager,
+  getConfigManager,
+  resetConfigManager,
+  PREDEFINED_PROVIDERS,
+  getSupportedProviders,
+  getProviderConfig,
+  getModelDefinition,
+  getProviderModels,
+  getDefaultModel,
+  validateModelConfig,
+  toLLMConfig,
+} from './config';
+
+export type {
+  ModelProvider,
+  ModelDefinition,
+  ProviderConfig,
+  UserModelConfig,
+} from './config';
+
+// ============================================
 // Utilities
 // ============================================
-export { Logger } from './utils/logger';
-export { Container as DIContainer } from './di/container';
+export { Logger } from './utils/logger.js';
+export { Container as DIContainer } from './di/container.js';
 
 // ============================================
 // Version & Environment
 // ============================================
-export const VERSION = '2.0.0';
+// Node.js 专用架构 - 不再支持浏览器环境
+export const VERSION = '3.0.0';
 export const AGENT_SKILLS_SPEC_VERSION = '1.0.0';
 
-export const isBrowser = typeof window !== 'undefined';
-export const isNode = typeof window === 'undefined';
-
 // ============================================
-// Convenience Exports
+// Simplified API - 简洁的 Agent 创建 API
 // ============================================
 
-export interface QuickAgentOptions {
+import type { LLMProvider } from './llm/provider.js';
+import type { Skill } from './core/domain/skill.js';
+import type { Tool } from './core/domain/tool.js';
+import { AgentImpl } from './core/application/agent-impl.js';
+
+export interface CreateAgentOptions {
+  /** Agent 名称 */
   name?: string;
-  skills?: import('./core/domain/skill').Skill[];
-  tools?: import('./core/domain/tool').Tool[];
+  /** Agent 描述 */
+  description?: string;
+  /** 技能列表 */
+  skills?: Skill[];
+  /** 工具列表 */
+  tools?: Tool[];
 }
 
 /**
- * 快速创建Agent (使用新的DDD架构)
+ * 创建 Agent - 简洁的 API
+ * 
+ * @example
+ * ```typescript
+ * import { createAgent } from '@sdkwork/agent';
+ * 
+ * const agent = createAgent(openaiProvider, {
+ *   name: 'MyAgent',
+ *   skills: [mySkill],
+ *   tools: [myTool],
+ * });
+ * 
+ * const response = await agent.chat('Hello!');
+ * ```
  */
-export async function quickCreateAgent(llmProvider: LLMProvider, options: QuickAgentOptions = {}) {
-  const { AgentImpl } = await import('./core/application/agent-impl');
+export function createAgent(llmProvider: LLMProvider, options: CreateAgentOptions = {}) {
   return new AgentImpl({
     name: options.name || 'Agent',
+    description: options.description,
     llm: llmProvider,
     skills: options.skills,
     tools: options.tools,
   });
 }
 
-/**
- * 快速创建智能Agent (使用新的DDD架构)
- * @deprecated 使用 quickCreateAgent 代替
- */
-export async function createSmartAgent(llmProvider: LLMProvider, name?: string) {
-  return quickCreateAgent(llmProvider, { name: name || 'SmartAgent' });
-}
-
-/**
- * 快速创建规划Agent (使用新的DDD架构)
- * @deprecated 使用 quickCreateAgent 代替
- */
-export async function createPlanningAgent(llmProvider: LLMProvider, name?: string) {
-  return quickCreateAgent(llmProvider, { name: name || 'PlannerAgent' });
-}
-
-/**
- * 快速创建反思Agent (使用新的DDD架构)
- * @deprecated 使用 quickCreateAgent 代替
- */
-export async function createReflectiveAgent(llmProvider: LLMProvider, name?: string) {
-  return quickCreateAgent(llmProvider, { name: name || 'ReflectiveAgent' });
-}
+// 为了向后兼容，保留 quickCreateAgent 作为别名
+/** @deprecated 使用 createAgent 代替 */
+export const quickCreateAgent = createAgent;
 
 // Default export
-import { SDKWorkAgent as _SDKWorkAgent } from './agent';
-export { _SDKWorkAgent as default };
+export { Agent as default } from './agent';

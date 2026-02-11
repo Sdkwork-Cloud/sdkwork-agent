@@ -20,9 +20,9 @@ import type {
   CommandContext,
   CLIEvents,
 } from './types';
-import { AgentEventEmitter } from '../utils/typed-event-emitter';
-import { createLogger } from '../utils/logger';
-import type { Logger } from '../utils/logger';
+import { AgentEventEmitter } from '../utils/typed-event-emitter.js';
+import { createLogger } from '../utils/logger.js';
+import type { Logger } from '../utils/logger.js';
 
 // ============================================
 // Perfect REPL Implementation

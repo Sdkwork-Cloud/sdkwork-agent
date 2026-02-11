@@ -22,7 +22,7 @@ import {
   SkillsConfig,
   SkillSystemEvent,
 } from './openclaw-types.js';
-import { Logger } from './types.js';
+import { Logger } from './types';
 
 /**
  * 命令分发器配置

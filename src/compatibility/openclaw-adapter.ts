@@ -15,8 +15,8 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { EventEmitter } from '../utils/event-emitter';
-import { Logger } from '../skills/core/types';
+import { EventEmitter } from '../utils/event-emitter.js';
+import { Logger } from '../skills/core/types.js';
 import {
   SkillEntry,
   OpenClawSkillMetadata,

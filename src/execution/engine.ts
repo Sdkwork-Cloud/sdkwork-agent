@@ -10,7 +10,7 @@
  * 5. 错误处理 - 统一的错误恢复策略
  */
 
-import { EventEmitter } from '../utils/event-emitter';
+import { EventEmitter } from '../utils/event-emitter.js';
 import type {
   Executable,
   ExecutableType,
@@ -23,13 +23,13 @@ import type {
   MCPClient,
   PluginManager,
   ResourceLimits,
-} from './index';
-import { ScriptExecutor } from './script-executor';
-import { MCPExecutor } from './mcp-executor';
-import { PluginExecutor } from './plugin-executor';
-import { ExecutionTracer } from './tracer';
-import { ResourceMonitor } from './resource-monitor';
-import { Logger } from '../utils/logger';
+} from './index.js';
+import { ScriptExecutor } from './script-executor.js';
+import { MCPExecutor } from './mcp-executor.js';
+import { PluginExecutor } from './plugin-executor.js';
+import { ExecutionTracer } from './tracer.js';
+import { ResourceMonitor } from './resource-monitor.js';
+import { Logger } from '../utils/logger.js';
 
 /**
  * 执行引擎配置

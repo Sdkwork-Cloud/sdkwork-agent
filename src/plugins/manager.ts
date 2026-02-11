@@ -18,19 +18,22 @@ export interface Plugin {
 
 // Simple plugin context - using generic agent interface
 export interface PluginContext {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  agent: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  registerSkill: (skill: any) => void;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  registerTool: (tool: any) => void;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  registerMCPResource: (resource: any) => void;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  registerMCPTool: (tool: any) => void;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  getLLMProvider: () => any;
+  agent: unknown;
+  registerSkill: (skill: unknown) => void;
+  registerTool: (tool: unknown) => void;
+  registerMCPResource: (resource: unknown) => void;
+  registerMCPTool: (tool: unknown) => void;
+  getLLMProvider: () => unknown;
   config: Record<string, unknown>;
+}
+
+// Agent interface for plugin context
+interface AgentWithCapabilities {
+  registerSkill?: (skill: unknown) => void;
+  registerTool?: (tool: unknown) => void;
+  registerMCPResource?: (resource: unknown) => void;
+  registerMCPTool?: (tool: unknown) => void;
+  llmProvider?: unknown;
 }
 
 export class PluginManager {
@@ -38,8 +41,7 @@ export class PluginManager {
   private contexts = new Map<string, PluginContext>();
 
   constructor(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    private agent: any,
+    private agent: AgentWithCapabilities,
     private config: PluginManagerConfig = {}
   ) {}
 
@@ -169,7 +171,7 @@ export class PluginLoader {
     // Could load from JSON, YAML, remote URL, etc.
     if (source.startsWith('http')) {
       const response = await fetch(source);
-      return response.json();
+      return response.json() as Promise<Record<string, unknown>>;
     }
 
     // Default: assume it's a JSON file

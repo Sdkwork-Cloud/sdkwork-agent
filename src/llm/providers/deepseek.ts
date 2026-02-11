@@ -10,7 +10,7 @@ import {
   LLMRequest,
   LLMResponse,
   LLMStreamChunk,
-} from '../provider';
+} from '../provider.js';
 
 export interface DeepSeekConfig extends LLMProviderConfig {}
 
@@ -126,7 +126,7 @@ export class DeepSeekProvider implements LLMProvider {
   async complete(request: LLMRequest): Promise<LLMResponse> {
     const body = this.buildRequestBody(request);
     const response = await this.makeRequest('/chat/completions', body);
-    const data = await response.json();
+    const data = await response.json() as Record<string, unknown>;
 
     return this.parseResponse(data);
   }
@@ -213,7 +213,7 @@ export class DeepSeekProvider implements LLMProvider {
 }
 
 // Register provider
-import { globalProviderRegistry } from '../provider';
+import { globalProviderRegistry } from '../provider.js';
 globalProviderRegistry.register(
   'deepseek',
   (config: LLMProviderConfig) => new DeepSeekProvider(config as DeepSeekConfig)

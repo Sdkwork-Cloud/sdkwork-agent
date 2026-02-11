@@ -11,7 +11,7 @@ import {
   SkillIndex,
   SkillEvent,
   isValidSkillName,
-} from './types.js';
+} from './types';
 
 /**
  * Configuration for SkillRegistry

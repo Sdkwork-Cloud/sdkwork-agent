@@ -10,9 +10,9 @@ import {
   LongTermMemorySystem,
   ErrorRecoveryManager,
   createOptimizedInteractionManager
-} from '../index';
-import { SkillRegistry } from '../../core/skill-registry';
-import { SkillScheduler } from '../../core/scheduler';
+} from '../index.js';
+import { SkillRegistry } from '../../core/skill-registry.js';
+import { SkillScheduler } from '../../core/scheduler.js';
 
 const registry = new SkillRegistry();
 const scheduler = new SkillScheduler();

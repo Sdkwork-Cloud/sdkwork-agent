@@ -43,14 +43,14 @@ export type {
 export {
   SkillPluginSystem,
   createPluginSystem,
-} from './plugin-system.js';
+} from './plugin-system';
 export type {
   PluginManifest,
   PluginInstance,
   PluginContext,
   PluginSystemConfig,
   PluginEvent,
-} from './plugin-system.js';
+} from './plugin-system';
 
 // ============================================================================
 // Unified Skill Manager
@@ -60,7 +60,7 @@ import { EventEmitter } from '../../utils/event-emitter.js';
 import { Logger } from '../core/types.js';
 import { SkillHub, createSkillHub, SkillHubConfig } from './skill-hub.js';
 import { DynamicSkillLoader, createDynamicLoader, DynamicLoaderConfig } from './dynamic-loader.js';
-import { SkillPluginSystem, createPluginSystem, PluginSystemConfig } from './plugin-system.js';
+import { SkillPluginSystem, createPluginSystem, PluginSystemConfig } from './plugin-system';
 
 /**
  * 统一技能管理器配置

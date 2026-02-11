@@ -91,7 +91,7 @@ try {
 
 ### Skill 执行失败
 
-**症状**: `agent.skills.execute()` 返回错误
+**症状**: `agent.executeSkill()` 返回错误
 
 **常见错误**:
 - `Skill not found`: Skill ID 错误
@@ -101,12 +101,13 @@ try {
 **解决方案**:
 ```typescript
 // 检查 Skill 是否存在
-if (!agent.skills.has('skill-id')) {
+const skill = agent.skills.get('skill-id');
+if (!skill) {
   console.error('Skill 不存在');
 }
 
 // 验证输入
-const result = await agent.skills.execute('skill-id', input);
+const result = await agent.executeSkill('skill-id', JSON.stringify(input));
 if (!result.success) {
   console.error('执行失败:', result.error);
 }
@@ -114,7 +115,7 @@ if (!result.success) {
 
 ### Tool 调用失败
 
-**症状**: `agent.tools.execute()` 返回错误
+**症状**: `agent.executeTool()` 返回错误
 
 **解决方案**:
 1. 检查 Tool 是否存在
@@ -122,9 +123,9 @@ if (!result.success) {
 3. 检查确认级别
 
 ```typescript
-const result = await agent.tools.execute('file-read', {
+const result = await agent.executeTool('file-read', JSON.stringify({
   path: './file.txt'
-});
+}));
 
 if (!result.success) {
   console.error('Tool 错误:', result.error.message);

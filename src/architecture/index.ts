@@ -15,31 +15,31 @@
 // ============================================
 
 // 统一能力系统 (Skills + Tools + MCP)
-// export * from './capability';
+// export * from './capability.js';
 
 // 智能体运行时
-// export * from './runtime';
+// export * from './runtime.js';
 
 // 插件系统
 // export * from './plugin-system';
 
 // UI 交互系统
-// export * from './ui-bridge';
+// export * from './ui-bridge.js';
 
 // 事件总线
-// export * from './event-bus';
+// export * from './event-bus.js';
 
 // 上下文管理
-// export * from './context-manager';
+// export * from './context-manager.js';
 
 // 中间件系统
-// export * from './middleware';
+// export * from './middleware.js';
 
 // 配置管理
-// export * from './config-manager';
+// export * from './config-manager.js';
 
 // 监控与可观测性
-// export * from './observability';
+// export * from './observability.js';
 
 // ============================================
 // 架构类型定义

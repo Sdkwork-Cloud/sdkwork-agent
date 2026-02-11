@@ -109,10 +109,10 @@ const greetingSkill = defineSkill({
 agent.skills.register(greetingSkill);
 
 // 执行 Skill
-const result = await agent.skills.execute('greeting', {
+const result = await agent.executeSkill('greeting', JSON.stringify({
   name: '张三',
   language: 'zh'
-});
+}));
 
 console.log(result.data.greeting);
 // 输出: 你好，张三！欢迎使用 SDKWork Agent。
@@ -166,9 +166,9 @@ const calculatorTool = defineTool({
 agent.tools.register(calculatorTool);
 
 // 执行 Tool
-const result = await agent.tools.execute('calculator', {
+const result = await agent.executeTool('calculator', JSON.stringify({
   expression: '2 + 2 * 3'
-});
+}));
 
 console.log(result.data.result); // 8
 ```
@@ -286,11 +286,11 @@ async function main() {
   console.log('Assistant:', response.choices[0].message.content);
 
   // 执行 Skill
-  const skillResult = await agent.skills.execute('echo', { message: 'Hello' });
+  const skillResult = await agent.executeSkill('echo', JSON.stringify({ message: 'Hello' }));
   console.log('Skill 结果:', skillResult.data);
 
   // 执行 Tool
-  const toolResult = await agent.tools.execute('timestamp');
+  const toolResult = await agent.executeTool('timestamp', '{}');
   console.log('Tool 结果:', toolResult.data);
 
   // 清理
@@ -303,7 +303,7 @@ main().catch(console.error);
 
 ## 下一步
 
-- [核心概念](./concepts.md) - 深入了解架构设计
-- [API 参考](../api/agent.md) - 查看完整 API 文档
-- [示例代码](../examples/basic.md) - 学习更多实际使用案例
-- [流式对话](../examples/streaming.md) - 实现打字机效果
+- [核心概念](./concepts) - 深入了解架构设计
+- [API 参考](../api/agent) - 查看完整 API 文档
+- [示例代码](../examples/basic) - 学习更多实际使用案例
+- [流式对话](../examples/streaming) - 实现打字机效果

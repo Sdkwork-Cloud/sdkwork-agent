@@ -27,7 +27,7 @@ import {
   ExecutionContext,
   SkillResult,
   SkillError,
-} from './types.js';
+} from './types';
 
 /**
  * Skill 加载配置

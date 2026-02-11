@@ -21,7 +21,7 @@ import type {
   ToolChainResult,
   ToolEvent,
   ToolEventType,
-} from '../domain/tool';
+} from '../domain/tool.js';
 
 /**
  * Tool 执行器配置

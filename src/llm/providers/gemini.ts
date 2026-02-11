@@ -9,7 +9,7 @@ import {
   LLMRequest,
   LLMResponse,
   LLMStreamChunk,
-} from '../provider';
+} from '../provider.js';
 
 export interface GeminiConfig extends LLMProviderConfigType {
   apiVersion?: string;
@@ -136,7 +136,7 @@ export class GeminiProvider implements LLMProvider {
     const model = request.model || this._defaultParams.model || 'gemini-3.0-flash';
     const body = this.buildRequestBody(request);
     const response = await this.makeRequest(`models/${model}:generateContent`, body);
-    const data = await response.json();
+    const data = await response.json() as Record<string, unknown>;
 
     return this.parseResponse(data, model);
   }
@@ -259,7 +259,7 @@ export class GeminiProvider implements LLMProvider {
 }
 
 // Register provider
-import { globalProviderRegistry } from '../provider';
+import { globalProviderRegistry } from '../provider.js';
 globalProviderRegistry.register(
   'gemini',
   (config: LLMProviderConfigType) => new GeminiProvider(config as GeminiConfig)

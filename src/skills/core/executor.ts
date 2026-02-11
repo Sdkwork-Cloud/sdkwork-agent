@@ -12,7 +12,7 @@ import {
   SkillError,
   ExecutionMetadata,
   Logger,
-} from './types.js';
+} from './types';
 
 /**
  * Executor configuration

@@ -9,8 +9,8 @@
  * @standard Industry Leading
  */
 
-import { createLogger } from './logger';
-import type { ILogger } from './logger';
+import { createLogger } from './logger.js';
+import type { ILogger } from './logger.js';
 
 // ============================================================================
 // Types

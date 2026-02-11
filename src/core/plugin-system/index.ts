@@ -333,25 +333,18 @@ class PluginLoader {
   async load(manifest: PluginManifest, code: string): Promise<PluginInstance> {
     switch (this.config.isolation) {
       case 'worker':
-        return this.loadInWorker(manifest, code);
+        throw new Error('Worker isolation not supported in Node.js');
       case 'vm':
         return this.loadInVM(manifest, code);
       case 'iframe':
-        return this.loadInIframe(manifest, code);
+        throw new Error('iframe isolation not supported in Node.js');
       case 'none':
       default:
         return this.loadDirectly(manifest, code);
     }
   }
 
-  private async loadInWorker(manifest: PluginManifest, code: string): Promise<PluginInstance> {
-    // Create Web Worker with plugin code
-    const blob = new Blob([code], { type: 'application/javascript' });
-    const workerUrl = URL.createObjectURL(blob);
-    const worker = new Worker(workerUrl);
-
-    return new WorkerPluginInstance(worker, manifest);
-  }
+  // Worker isolation removed - Node.js only supports VM isolation
 
   private async loadInVM(manifest: PluginManifest, code: string): Promise<PluginInstance> {
     // Use vm2 or similar for Node.js
@@ -359,14 +352,7 @@ class PluginLoader {
     return this.loadDirectly(manifest, code);
   }
 
-  private async loadInIframe(manifest: PluginManifest, code: string): Promise<PluginInstance> {
-    // Create sandboxed iframe
-    const iframe = document.createElement('iframe');
-    iframe.sandbox.add('allow-scripts');
-    iframe.srcdoc = `<script>${code}</script>`;
-    
-    return new IframePluginInstance(iframe, manifest);
-  }
+  // iframe isolation removed - Node.js only supports VM isolation
 
   private async loadDirectly(manifest: PluginManifest, code: string): Promise<PluginInstance> {
     // Direct execution (no isolation)
@@ -382,58 +368,7 @@ class PluginLoader {
 // Plugin Instance Implementations
 // ============================================================================
 
-class WorkerPluginInstance implements PluginInstance {
-  private worker: Worker;
-  private manifest: PluginManifest;
-
-  constructor(worker: Worker, manifest: PluginManifest) {
-    this.worker = worker;
-    this.manifest = manifest;
-  }
-
-  async initialize(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error('Plugin initialization timeout')), 30000);
-      
-      this.worker.onmessage = (event) => {
-        if (event.data.type === 'initialized') {
-          clearTimeout(timeout);
-          resolve();
-        }
-      };
-
-      this.worker.postMessage({ type: 'initialize', manifest: this.manifest });
-    });
-  }
-
-  async destroy(): Promise<void> {
-    this.worker.terminate();
-  }
-
-  async handleEvent(event: PluginEvent): Promise<void> {
-    this.worker.postMessage({ type: 'event', event });
-  }
-}
-
-class IframePluginInstance implements PluginInstance {
-  private iframe: HTMLIFrameElement;
-
-  constructor(iframe: HTMLIFrameElement, _manifest: PluginManifest) {
-    this.iframe = iframe;
-  }
-
-  async initialize(): Promise<void> {
-    document.body.appendChild(this.iframe);
-  }
-
-  async destroy(): Promise<void> {
-    this.iframe.remove();
-  }
-
-  async handleEvent(event: PluginEvent): Promise<void> {
-    this.iframe.contentWindow?.postMessage({ type: 'event', event }, '*');
-  }
-}
+// WorkerPluginInstance and IframePluginInstance removed
 
 class DirectPluginInstance implements PluginInstance {
   private initializeFn: (context: PluginContext) => Promise<void>;

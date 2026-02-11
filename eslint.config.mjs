@@ -6,7 +6,7 @@ import globals from 'globals';
 export default [
   eslint.configs.recommended,
   {
-    files: ['**/*.ts', '**/*.tsx'],
+    files: ['**/*.ts'],
     languageOptions: {
       parser: tsParser,
       parserOptions: {
@@ -16,7 +16,6 @@ export default [
       },
       globals: {
         ...globals.node,
-        ...globals.browser,
         ...globals.es2022,
       },
     },
@@ -54,7 +53,6 @@ export default [
     languageOptions: {
       globals: {
         ...globals.node,
-        ...globals.browser,
         console: 'readonly',
         module: 'readonly',
         require: 'readonly',

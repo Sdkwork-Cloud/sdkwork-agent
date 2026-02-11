@@ -10,7 +10,7 @@ import {
   LLMRequest,
   LLMResponse,
   LLMStreamChunk,
-} from '../provider';
+} from '../provider.js';
 
 export interface QwenConfig extends LLMProviderConfig {}
 
@@ -188,7 +188,7 @@ export class QwenProvider implements LLMProvider {
   async complete(request: LLMRequest): Promise<LLMResponse> {
     const body = this.buildRequestBody(request);
     const response = await this.makeRequest('/services/aigc/text-generation/generation', body);
-    const data = await response.json();
+    const data = await response.json() as Record<string, unknown>;
 
     return this.parseResponse(data);
   }
@@ -286,7 +286,7 @@ export class QwenProvider implements LLMProvider {
 }
 
 // Register provider
-import { globalProviderRegistry } from '../provider';
+import { globalProviderRegistry } from '../provider.js';
 globalProviderRegistry.register(
   'qwen',
   (config: LLMProviderConfig) => new QwenProvider(config as QwenConfig)

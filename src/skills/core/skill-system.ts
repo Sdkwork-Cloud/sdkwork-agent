@@ -45,7 +45,7 @@ import {
   SkillSystemEvent,
 } from './openclaw-types.js';
 import { CommandDispatchResult } from './command-dispatch.js';
-import { Logger, ISkillRegistry } from './types.js';
+import { Logger, ISkillRegistry } from './types';
 
 /**
  * 统一技能系统配置

@@ -661,18 +661,4 @@ export class StorageAdapterFactory {
 // 导出类型
 // ============================================================================
 
-export type {
-  StorageConfig,
-  StorageQueryOptions,
-  SemanticQueryOptions,
-  StorageQueryResult,
-  StorageStats,
-  BatchOperationResult,
-  MemoryItem,
-  MemoryType,
-  MemoryMetadata,
-  StorageEvent,
-  SerializationConfig,
-  CompressionConfig,
-  EncryptionConfig,
-};
+// Types are exported from index.ts

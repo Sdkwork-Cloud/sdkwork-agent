@@ -176,7 +176,7 @@ export type {
  * ```
  */
 export async function initMemory(name: string = 'default') {
-  const { createMemoryManager } = await import('./storage/index.js');
+  const { createMemoryManager } = await import('./storage/index');
   return createMemoryManager(name, 'default');
 }
 
@@ -186,7 +186,7 @@ export async function initMemory(name: string = 'default') {
  * 适用于对性能要求极高的场景，所有数据存储在内存中
  */
 export async function initHighPerformanceMemory(name: string = 'high-performance') {
-  const { createMemoryManager } = await import('./storage/index.js');
+  const { createMemoryManager } = await import('./storage/index');
   return createMemoryManager(name, 'high-performance');
 }
 
@@ -196,7 +196,7 @@ export async function initHighPerformanceMemory(name: string = 'high-performance
  * 适用于需要数据持久化的场景，所有数据保存到文件
  */
 export async function initPersistentMemory(name: string = 'persistent') {
-  const { createMemoryManager } = await import('./storage/index.js');
+  const { createMemoryManager } = await import('./storage/index');
   return createMemoryManager(name, 'persistent');
 }
 
@@ -206,7 +206,7 @@ export async function initPersistentMemory(name: string = 'persistent') {
  * 适用于需要语义检索的场景，使用向量存储
  */
 export async function initSemanticMemory(name: string = 'semantic') {
-  const { createMemoryManager } = await import('./storage/index.js');
+  const { createMemoryManager } = await import('./storage/index');
   return createMemoryManager(name, 'vector');
 }
 

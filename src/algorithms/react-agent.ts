@@ -16,9 +16,9 @@
  * @reference ReAct: Synergizing Reasoning and Acting in Language Models (Yao et al., 2022)
  */
 
-import { EventEmitter } from '../utils/event-emitter';
-import { LLMService, Logger } from '../skills/core/types';
-import { ToolRegistry } from '../tools/registry';
+import { EventEmitter } from '../utils/event-emitter.js';
+import { LLMService, Logger } from '../skills/core/types.js';
+import { ToolRegistry } from '../tools/registry.js';
 // GraphMemory import removed - module not available
 
 /**
@@ -128,14 +128,16 @@ export class ReActAgent extends EventEmitter {
   private reflections: string[] = [];
   private startTime: number = 0;
   private toolsUsed: Set<string> = new Set();
+  private logger: Logger;
 
   constructor(
     private llm: LLMService,
     private tools: ToolRegistry,
-    _logger: Logger,
+    logger: Logger,
     config: ReActConfig = {}
   ) {
     super();
+    this.logger = logger;
     this.config = {
       maxSteps: 10,
       thoughtPrompt: this.getDefaultThoughtPrompt(),
@@ -353,35 +355,41 @@ export class ReActAgent extends EventEmitter {
     return this.parseAction(response);
   }
 
-  private async executeAction(action: ReActAction, _step: number): Promise<string> {
+  private async executeAction(action: ReActAction, step: number): Promise<string> {
+    this.logger.debug(`[ReAct Step ${step}] Executing action: ${action.type}:${action.name}`);
 
     try {
       switch (action.type) {
         case 'tool':
           this.toolsUsed.add(action.name);
+          this.logger.info(`Executing tool: ${action.name}`, { parameters: action.parameters });
           const toolResult = await this.tools.execute(action.name, action.parameters, {
             executionId: `react-${Date.now()}`,
             agentId: 'react-agent',
-            logger: {
-              debug: () => {},
-              info: () => {},
-              warn: () => {},
-              error: () => {},
-            },
+            logger: this.logger,
           });
+          this.logger.debug(`Tool ${action.name} executed successfully`);
           return JSON.stringify(toolResult);
 
         case 'skill':
           this.toolsUsed.add(action.name);
+          this.logger.info(`Executing skill: ${action.name}`);
           return `Executed skill: ${action.name}`;
 
         case 'think':
+          this.logger.debug(`Thinking: ${action.parameters.thought}`);
           return `Thought: ${action.parameters.thought}`;
 
+        case 'finish':
+          this.logger.info('Task finished', { answer: action.parameters.answer });
+          return `Final answer: ${action.parameters.answer}`;
+
         default:
+          this.logger.warn(`Unknown action type: ${action.type}`);
           return `Unknown action type: ${action.type}`;
       }
     } catch (error) {
+      this.logger.error(`Error executing action ${action.type}:${action.name}`, { error });
       return `Error executing action: ${(error as Error).message}`;
     }
   }

@@ -3,7 +3,7 @@
  * 插件执行器 - 执行插件扩展
  */
 
-import type { Executable, ExecutionContext, ExecutionResult, PluginManager } from './index';
+import type { Executable, ExecutionContext, ExecutionResult, PluginManager } from './index.js';
 
 export interface PluginExecutable extends Executable {
   type: 'plugin';

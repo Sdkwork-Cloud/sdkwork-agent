@@ -20,7 +20,7 @@ export {
   InMemoryVectorStore,
   SimpleEmbeddingProvider,
   type MemoryStoreConfig,
-} from './memory-store-impl';
+} from './memory-store-impl.js';
 
 // ============================================================================
 // HNSW Vector Index (O(log n) search)
@@ -31,7 +31,7 @@ export {
   createHNSWIndex,
   DEFAULT_HNSW_CONFIG,
   type HNSWConfig,
-} from './hnsw-index';
+} from './hnsw-index.js';
 
 // ============================================================================
 // BM25 Full-Text Search
@@ -42,7 +42,7 @@ export {
   createBM25SearchEngine,
   DEFAULT_BM25_CONFIG,
   type BM25Config,
-} from './bm25-search';
+} from './bm25-search.js';
 
 // ============================================================================
 // Hybrid Search with RRF
@@ -57,7 +57,7 @@ export {
   type RRFConfig,
   type SearchSourceResult,
   type RRFResult,
-} from './hybrid-search';
+} from './hybrid-search.js';
 
 // ============================================================================
 // Hierarchical Memory with Importance Scoring
@@ -74,4 +74,4 @@ export {
   type MemoryCompression,
   type HierarchicalMemoryConfig,
   type TierStats,
-} from './hierarchical-memory';
+} from './hierarchical-memory.js';

@@ -8,9 +8,9 @@ import {
   OptimizedSkillInteractionManager,
   createOptimizedInteractionManager,
   UserInput
-} from '../index';
-import { SkillRegistry } from '../../core/skill-registry';
-import { SkillScheduler } from '../../core/scheduler';
+} from '../index.js';
+import { SkillRegistry } from '../../core/skill-registry.js';
+import { SkillScheduler } from '../../core/scheduler.js';
 
 // 模拟创建registry和scheduler
 const registry = new SkillRegistry();

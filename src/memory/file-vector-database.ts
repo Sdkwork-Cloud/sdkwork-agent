@@ -15,7 +15,7 @@ import {
   SearchResult,
   HybridSearchOptions,
   IndexStats,
-} from './vector-database';
+} from './vector-database.js';
 
 /**
  * 文件向量数据库配置

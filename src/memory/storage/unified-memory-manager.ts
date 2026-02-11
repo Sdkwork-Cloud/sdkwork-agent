@@ -240,13 +240,13 @@ export class UnifiedMemoryManager extends EventEmitter {
 
       switch (storageConfig.type) {
         case 'memory':
-          storage = new MemoryStorageAdapter(storageConfig as import('./memory-storage.js').MemoryStorageConfig);
+          storage = new MemoryStorageAdapter(storageConfig as import('./memory-storage').MemoryStorageConfig);
           break;
         case 'file':
-          storage = new FileStorageAdapter(storageConfig as import('./file-storage.js').FileStorageConfig);
+          storage = new FileStorageAdapter(storageConfig as import('./file-storage').FileStorageConfig);
           break;
         case 'vector':
-          storage = new VectorStorageAdapter(storageConfig as import('./vector-storage.js').VectorStorageConfig);
+          storage = new VectorStorageAdapter(storageConfig as import('./vector-storage').VectorStorageConfig);
           break;
         default:
           this.logger.warn(`Unknown storage type: ${storageConfig.type}`);
@@ -893,11 +893,4 @@ export function createUnifiedMemoryManager(
 // 导出
 // ============================================================================
 
-export type {
-  UnifiedMemoryManagerConfig,
-  MemoryOperationOptions,
-  MemoryRetrievalOptions,
-  TierStorageMapping,
-  TierCapacityConfig,
-  MigrationResult,
-};
+// Types are exported from index.ts

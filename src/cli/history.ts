@@ -10,8 +10,8 @@
  */
 
 import type { ConversationHistory, ConversationMessage } from './types';
-import { createLogger } from '../utils/logger';
-import type { Logger } from '../utils/logger';
+import { createLogger } from '../utils/logger.js';
+import type { Logger } from '../utils/logger.js';
 import { v4 as uuidv4 } from 'uuid';
 
 /**

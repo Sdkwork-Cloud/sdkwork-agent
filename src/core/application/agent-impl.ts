@@ -20,34 +20,34 @@ import type {
   ChatResponse,
   ChatMessage,
   LLMConfig,
-} from '../domain/agent';
-import { createAgentId, createExecutionId } from '../domain/unified';
-import type { AgentId } from '../domain/unified';
-import { AgentState } from '../domain/agent';
-import type { Skill, SkillExecutionContext, SkillResult } from '../domain/skill';
-import type { Tool, ToolExecutionContext, ToolResult } from '../domain/tool';
-import type { MCPServerConfig } from '../domain/mcp';
-import type { PluginConfig } from '../domain/plugin';
-import type { SessionId } from '../domain/agent';
-import type { MemoryStore } from '../domain/memory';
-import type { LLMProvider } from '../../llm/provider';
-import type { ExecutionEngine } from './execution-engine';
-import { OpenAIProvider } from '../../llm/providers/openai';
-import { AnthropicProvider } from '../../llm/providers/anthropic';
-import { GeminiProvider } from '../../llm/providers/gemini';
-import { MoonshotProvider } from '../../llm/providers/moonshot';
-import { MiniMaxProvider } from '../../llm/providers/minimax';
-import { ZhipuProvider } from '../../llm/providers/zhipu';
-import { QwenProvider } from '../../llm/providers/qwen';
-import { DeepSeekProvider } from '../../llm/providers/deepseek';
-import { DoubaoProvider } from '../../llm/providers/doubao';
-import { SkillExecutorImpl } from './skill-executor';
-import { ToolExecutorImpl } from './tool-executor';
-import { MCPManagerImpl } from './mcp-client';
-import { PluginManagerImpl, createPluginManager } from './plugin-manager';
+} from '../domain/agent.js';
+import { createAgentId, createExecutionId } from '../domain/unified.js';
+import type { AgentId } from '../domain/unified.js';
+import { AgentState } from '../domain/agent.js';
+import type { Skill, SkillExecutionContext, SkillResult } from '../domain/skill.js';
+import type { Tool, ToolExecutionContext, ToolResult } from '../domain/tool.js';
+import type { MCPServerConfig } from '../domain/mcp.js';
+import type { PluginConfig } from '../domain/plugin.js';
+import type { SessionId } from '../domain/agent.js';
+import type { MemoryStore } from '../domain/memory.js';
+import type { LLMProvider } from '../../llm/provider.js';
+import type { ExecutionEngine } from './execution-engine.js';
+import { OpenAIProvider } from '../../llm/providers/openai.js';
+import { AnthropicProvider } from '../../llm/providers/anthropic.js';
+import { GeminiProvider } from '../../llm/providers/gemini.js';
+import { MoonshotProvider } from '../../llm/providers/moonshot.js';
+import { MiniMaxProvider } from '../../llm/providers/minimax.js';
+import { ZhipuProvider } from '../../llm/providers/zhipu.js';
+import { QwenProvider } from '../../llm/providers/qwen.js';
+import { DeepSeekProvider } from '../../llm/providers/deepseek.js';
+import { DoubaoProvider } from '../../llm/providers/doubao.js';
+import { SkillExecutorImpl } from './skill-executor.js';
+import { ToolExecutorImpl } from './tool-executor.js';
+import { MCPManagerImpl } from './mcp-client.js';
+import { PluginManagerImpl, createPluginManager } from './plugin-manager.js';
 import { Microkernel, createMicrokernel } from '../microkernel';
-import { ExecutionEngineImpl } from './execution-engine';
-import { createMemoryAdapter } from './memory-adapter';
+import { ExecutionEngineImpl } from './execution-engine.js';
+import { createMemoryAdapter } from './memory-adapter.js';
 
 
 // ============================================

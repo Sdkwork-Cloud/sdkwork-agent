@@ -14,7 +14,7 @@
 
 import { EmbeddingProvider } from '../embeddings/embedding-provider.js';
 import { delay } from '../utils/environment.js';
-import type { FileVectorDBConfig } from './file-vector-database';
+import type { FileVectorDBConfig } from './file-vector-database.js';
 
 export interface VectorDBConfig {
   /** 数据库类型 */

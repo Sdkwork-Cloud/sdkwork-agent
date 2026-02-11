@@ -13,7 +13,7 @@ export {
   type MCTSConfig,
   type MCTSResult,
   type AsyncState,
-} from './mcts';
+} from './mcts.js';
 
 // HTN - Hierarchical Task Network
 export {
@@ -33,7 +33,7 @@ export {
   createPrimitiveTask,
   createCompoundTask,
   createMethod,
-} from './htn';
+} from './htn.js';
 
 // RAG - Retrieval-Augmented Generation
 export {
@@ -52,7 +52,7 @@ export {
   type EmbeddingProvider,
   type LLMProvider,
   type TextSplitter,
-} from './rag';
+} from './rag.js';
 
 // Reflection - Self-improvement system
 export {
@@ -70,4 +70,4 @@ export {
   type ReflectionMemory,
   createReflectionEngine,
   createLLMEvaluator,
-} from './reflection';
+} from './reflection.js';

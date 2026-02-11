@@ -22,7 +22,7 @@ import {
   createCompatibilityLayer,
 } from '../../compatibility/index.js';
 import type { SkillSelectionContext, SkillSelectionResult } from './openclaw-types.js';
-import { Logger } from './types.js';
+import { Logger } from './types';
 
 // ============================================================================
 // Advanced Algorithms

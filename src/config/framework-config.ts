@@ -17,7 +17,7 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { EventEmitter } from '../utils/event-emitter';
+import { EventEmitter } from '../utils/event-emitter.js';
 
 // ============================================================================
 // Core Configuration Types
