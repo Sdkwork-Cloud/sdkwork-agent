@@ -89,6 +89,8 @@ export interface ExecutionContext {
     error: (message: string, meta?: Record<string, unknown>, error?: Error) => void;
   };
   signal?: AbortSignal;
+  /** 执行上下文管理器 (用于循环检测和深度控制) */
+  executionContext?: import('../../execution/execution-context.js').ExecutionContextManager;
 }
 
 // ============================================================================

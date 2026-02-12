@@ -1,411 +1,330 @@
 # Tool API
 
-Tool 是原子操作单元，提供分类管理和确认级别控制。
+Tool 是 SDKWork Browser Agent 的原子操作单元，提供文件、网络、系统等基础能力。
 
-## defineTool
+## Tool 定义
 
-定义一个新的 Tool。
-
-```typescript
-function defineTool(config: ToolConfig): Tool
-```
-
-### ToolConfig
+### Tool 接口
 
 ```typescript
-interface ToolConfig {
+interface Tool {
   /** Tool ID */
   id: string;
-  
   /** Tool 名称 */
   name: string;
-  
   /** 描述 */
   description: string;
   
-  /** 版本 */
-  version?: string;
-  
   /** 分类 */
-  category: 'file' | 'network' | 'system' | 'data' | 'llm' | 'custom';
-  
+  category: ToolCategory;
   /** 确认级别 */
-  confirm: 'none' | 'read' | 'write' | 'destructive';
+  confirm: ConfirmLevel;
   
   /** 输入 Schema */
   input?: JSONSchema;
-  
   /** 输出 Schema */
   output?: JSONSchema;
   
   /** 执行函数 */
-  execute: ToolExecutor;
-  
-  /** 元数据 */
-  meta?: Record<string, unknown>;
-}
-
-type ToolExecutor = (
-  input: unknown,
-  context: ToolExecutionContext
-) => Promise<ToolResult>;
-
-interface JSONSchema {
-  type: 'string' | 'number' | 'boolean' | 'object' | 'array';
-  properties?: Record<string, JSONSchema>;
-  items?: JSONSchema;
-  required?: string[];
-  enum?: unknown[];
-  description?: string;
-  default?: unknown;
+  execute: (input: unknown, context: ExecutionContext) => Promise<ToolResult>;
 }
 ```
 
-### 示例
+### ToolCategory
 
 ```typescript
-import { defineTool } from 'sdkwork-agent';
+type ToolCategory = 
+  | 'file'      // 文件操作
+  | 'network'   // 网络请求
+  | 'system'    // 系统命令
+  | 'data'      // 数据处理
+  | 'llm'       // LLM 调用
+  | 'custom';   // 自定义
+```
 
-// 文件读取 Tool
-const fileReadTool = defineTool({
+### ConfirmLevel
+
+```typescript
+type ConfirmLevel = 
+  | 'none'       // 无需确认
+  | 'read'       // 读取操作确认
+  | 'write'      // 写入操作确认
+  | 'destructive'; // 破坏性操作确认
+```
+
+### ToolResult
+
+```typescript
+interface ToolResult {
+  /** 是否成功 */
+  success: boolean;
+  /** 输出数据 */
+  data?: unknown;
+  /** 错误信息 */
+  error?: ToolError;
+  /** 输出内容 */
+  output?: ToolOutput;
+}
+
+interface ToolError {
+  code: string;
+  message: string;
+  toolId: string;
+  stack?: string;
+  recoverable: boolean;
+}
+
+interface ToolOutput {
+  content: ToolOutputContent[];
+}
+
+type ToolOutputContent = 
+  | { type: 'text'; text: string }
+  | { type: 'image'; data: string; mimeType: string }
+  | { type: 'json'; data: unknown };
+```
+
+### ExecutionContext
+
+```typescript
+interface ExecutionContext {
+  /** Agent ID */
+  agentId: string;
+  /** 会话 ID */
+  sessionId?: string;
+  /** 执行 ID */
+  executionId: string;
+  /** 时间戳 */
+  timestamp: number;
+  /** 元数据 */
+  metadata?: Record<string, unknown>;
+}
+```
+
+## 创建 Tool
+
+### 基础示例
+
+```typescript
+import type { Tool } from '@sdkwork/browser-agent';
+
+const timestampTool: Tool = {
+  id: 'timestamp',
+  name: 'Timestamp',
+  description: 'Get current timestamp',
+  category: 'system',
+  confirm: 'none',
+  execute: async (input, context) => ({
+    success: true,
+    data: {
+      timestamp: Date.now(),
+      iso: new Date().toISOString(),
+    },
+  }),
+};
+```
+
+### 文件读取 Tool
+
+```typescript
+import type { Tool } from '@sdkwork/browser-agent';
+import { readFile } from 'fs/promises';
+
+const fileReadTool: Tool = {
   id: 'file-read',
   name: 'File Read',
-  description: 'Read file content',
+  description: 'Read file content from disk',
   category: 'file',
   confirm: 'read',
   input: {
     type: 'object',
     properties: {
-      path: { type: 'string', description: 'File path' },
-      encoding: { type: 'string', enum: ['utf8', 'base64'], default: 'utf8' }
+      path: { type: 'string', description: 'File path to read' },
+      encoding: { 
+        type: 'string', 
+        enum: ['utf8', 'base64', 'binary'],
+        default: 'utf8',
+        description: 'File encoding'
+      },
     },
-    required: ['path']
+    required: ['path'],
   },
   output: {
     type: 'object',
     properties: {
       content: { type: 'string' },
-      size: { type: 'number' }
-    }
+      size: { type: 'number' },
+      path: { type: 'string' },
+    },
   },
   execute: async (input, context) => {
     try {
-      const fs = await import('fs/promises');
-      const content = await fs.readFile(input.path, input.encoding);
+      const { path, encoding = 'utf8' } = input as { path: string; encoding?: string };
+      const content = await readFile(path, encoding as BufferEncoding);
+      
       return {
         success: true,
         data: {
           content: content.toString(),
-          size: content.length
-        }
+          size: content.length,
+          path,
+        },
+        output: {
+          content: [{ type: 'text', text: content.toString() }],
+        },
       };
     } catch (error) {
       return {
         success: false,
         error: {
-          message: `Failed to read file: ${error.message}`,
-          code: 'FILE_READ_ERROR'
-        }
+          code: 'FILE_READ_ERROR',
+          message: `Failed to read file: ${(error as Error).message}`,
+          toolId: 'file-read',
+          recoverable: true,
+        },
       };
     }
-  }
-});
+  },
+};
+```
 
-// HTTP 请求 Tool
-const httpTool = defineTool({
+### HTTP 请求 Tool
+
+```typescript
+import type { Tool } from '@sdkwork/browser-agent';
+
+const httpRequestTool: Tool = {
   id: 'http-request',
   name: 'HTTP Request',
-  description: 'Make HTTP request',
+  description: 'Make HTTP requests',
   category: 'network',
-  confirm: 'none',
+  confirm: 'read',
   input: {
     type: 'object',
     properties: {
       url: { type: 'string', description: 'Request URL' },
-      method: { type: 'string', enum: ['GET', 'POST', 'PUT', 'DELETE'], default: 'GET' },
-      headers: { type: 'object', description: 'Request headers' },
-      body: { type: 'string', description: 'Request body' }
+      method: { 
+        type: 'string', 
+        enum: ['GET', 'POST', 'PUT', 'DELETE'],
+        default: 'GET' 
+      },
+      headers: { type: 'object' },
+      body: { type: 'string' },
     },
-    required: ['url']
+    required: ['url'],
+  },
+  output: {
+    type: 'object',
+    properties: {
+      status: { type: 'number' },
+      headers: { type: 'object' },
+      body: { type: 'string' },
+    },
   },
   execute: async (input, context) => {
-    const response = await fetch(input.url, {
-      method: input.method,
-      headers: input.headers,
-      body: input.body
-    });
-    return {
-      success: response.ok,
-      data: {
-        status: response.status,
-        statusText: response.statusText,
-        headers: Object.fromEntries(response.headers),
-        body: await response.text()
-      }
+    const { url, method = 'GET', headers, body } = input as {
+      url: string;
+      method?: string;
+      headers?: Record<string, string>;
+      body?: string;
     };
-  }
-});
-```
-
-## ToolExecutionContext
-
-Tool 执行上下文。
-
-```typescript
-interface ToolExecutionContext {
-  /** 执行 ID */
-  executionId: string;
-  
-  /** Agent ID */
-  agentId: string;
-  
-  /** 会话 ID */
-  sessionId?: string;
-  
-  /** Tool ID */
-  toolId: string;
-  
-  /** Tool 名称 */
-  toolName: string;
-  
-  /** 日志 */
-  logger: {
-    debug: (msg: string, meta?: unknown) => void;
-    info: (msg: string, meta?: unknown) => void;
-    warn: (msg: string, meta?: unknown) => void;
-    error: (msg: string, error?: Error) => void;
-  };
-  
-  /** 中止信号 */
-  signal?: AbortSignal;
-}
-```
-
-## ToolResult
-
-Tool 执行结果。
-
-```typescript
-interface ToolResult {
-  success: boolean;
-  data?: unknown;
-  error?: ToolError;
-  metadata?: ToolExecutionMeta;
-}
-
-interface ToolError {
-  message: string;
-  code?: string;
-  details?: unknown;
-}
-
-interface ToolExecutionMeta {
-  executionId: string;
-  toolId: string;
-  toolName: string;
-  startTime: number;
-  endTime: number;
-  duration: number;
-}
+    
+    try {
+      const response = await fetch(url, {
+        method,
+        headers,
+        body,
+      });
+      
+      const responseBody = await response.text();
+      
+      return {
+        success: true,
+        data: {
+          status: response.status,
+          headers: Object.fromEntries(response.headers.entries()),
+          body: responseBody,
+        },
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: {
+          code: 'HTTP_ERROR',
+          message: `HTTP request failed: ${(error as Error).message}`,
+          toolId: 'http-request',
+          recoverable: true,
+        },
+      };
+    }
+  },
+};
 ```
 
 ## ToolRegistry
 
-Tool 注册表。
+### 注册 Tool
 
 ```typescript
-interface ToolRegistry {
-  /** 注册 Tool */
-  register(tool: Tool): void;
-  
-  /** 取消注册（按 ID） */
-  unregister(toolId: string): void;
-  
-  /** 获取 Tool（按 ID） */
-  get(toolId: string): Tool | undefined;
-  
-  /** 根据名称获取 */
-  getByName(name: string): Tool | undefined;
-  
-  /** 列出所有 */
-  list(): Tool[];
-  
-  /** 按分类列出 */
-  listByCategory(category: ToolCategory): Tool[];
-  
-  /** 搜索 */
-  search(query: string): Tool[];
-  
-  /** 清空 */
-  clear(): void;
-  
-  /** 执行 Tool */
-  execute(name: string, input: unknown, context: ToolExecutionContext): Promise<ToolResult>;
-}
+agent.tools.register(timestampTool);
 ```
 
-### 示例
+### 注销 Tool
 
 ```typescript
-// 注册 Tool
-agent.tools.register(fileReadTool);
-agent.tools.register(fileWriteTool);
+agent.tools.unregister('timestamp');
+```
 
-// 获取 Tool（按 ID）
+### 获取 Tool
+
+```typescript
 const tool = agent.tools.get('file-read');
+```
 
-// 根据名称获取
-const toolByName = agent.tools.getByName('File Read');
+### 列出所有 Tool
 
-// 按分类列出
-const fileTools = agent.tools.listByCategory('file');
+```typescript
+const tools = agent.tools.list();
+tools.forEach(t => console.log(t.id, t.name, t.category));
+```
 
-// 执行 Tool
+### 按分类列出
+
+```typescript
+const fileTools = agent.tools.getByCategory('file');
+const networkTools = agent.tools.getByCategory('network');
+```
+
+## 执行 Tool
+
+### 通过 Agent 执行
+
+```typescript
 const result = await agent.executeTool('file-read', JSON.stringify({
-  path: './data.txt'
+  path: './data.txt',
+  encoding: 'utf8',
 }));
 
 if (result.success) {
   console.log('Content:', result.data.content);
+  console.log('Size:', result.data.size);
 } else {
   console.error('Error:', result.error.message);
 }
 ```
 
-## 确认级别
+## 内置 Tool
 
-### none
+SDKWork Browser Agent 提供以下内置 Tool：
 
-无需确认，直接执行。
-
-```typescript
-const calculatorTool = defineTool({
-  id: 'calculator',
-  confirm: 'none',
-  // ...
-});
-```
-
-### read
-
-读取操作，低风险。
-
-```typescript
-const fileReadTool = defineTool({
-  id: 'file-read',
-  confirm: 'read',
-  // ...
-});
-```
-
-### write
-
-写入操作，中等风险。
-
-```typescript
-const fileWriteTool = defineTool({
-  id: 'file-write',
-  confirm: 'write',
-  // ...
-});
-```
-
-### destructive
-
-破坏性操作，高风险。
-
-```typescript
-const fileDeleteTool = defineTool({
-  id: 'file-delete',
-  confirm: 'destructive',
-  // ...
-});
-```
-
-## 内置 Tools
-
-### File Tools
-
-```typescript
-// 文件读取
-agent.executeTool('file-read', JSON.stringify({ path: './file.txt' }));
-
-// 文件写入
-agent.executeTool('file-write', JSON.stringify({ 
-  path: './file.txt', 
-  content: 'Hello' 
-}));
-
-// 文件删除
-agent.executeTool('file-delete', JSON.stringify({ path: './file.txt' }));
-
-// 目录列表
-agent.executeTool('dir-list', JSON.stringify({ path: './' }));
-```
-
-### Network Tools
-
-```typescript
-// HTTP 请求
-agent.executeTool('http-request', JSON.stringify({
-  method: 'GET',
-  url: 'https://api.example.com/data'
-}));
-
-// WebSocket
-agent.executeTool('websocket-connect', JSON.stringify({
-  url: 'wss://ws.example.com'
-}));
-```
-
-### Data Tools
-
-```typescript
-// JSON 处理
-agent.executeTool('json-parse', JSON.stringify({ text: '{"key": "value"}' }));
-
-// CSV 处理
-agent.executeTool('csv-parse', JSON.stringify({ text: 'a,b,c\n1,2,3' }));
-
-// 数据验证
-agent.executeTool('data-validate', JSON.stringify({
-  data: { name: 'John' },
-  schema: { type: 'object', properties: { name: { type: 'string' } } }
-}));
-```
-
-## Tool Chain
-
-Tool 调用链。
-
-```typescript
-interface ToolChain {
-  id: string;
-  nodes: ToolCallNode[];
-  strategy: 'sequential' | 'parallel' | 'dag';
-}
-
-interface ToolCallNode {
-  id: string;
-  toolId: string;
-  input: unknown;
-  dependencies: string[];
-  result?: unknown;
-  state: 'pending' | 'ready' | 'executing' | 'completed' | 'failed' | 'skipped';
-  error?: string;
-}
-```
-
-### 示例
-
-```typescript
-// 执行 Tool 链
-const chainResult = await agent.tools.executeChain([
-  { toolId: 'file-read', input: { path: './input.txt' } },
-  { toolId: 'data-process', input: { data: '{{prev.data.content}}' } },
-  { toolId: 'file-write', input: { path: './output.txt', content: '{{prev.data}}' } }
-]);
-```
+| Tool ID | 名称 | 分类 | 说明 |
+|---------|------|------|------|
+| `file-read` | File Read | file | 读取文件 |
+| `file-write` | File Write | file | 写入文件 |
+| `file-list` | File List | file | 列出目录 |
+| `http-request` | HTTP Request | network | HTTP 请求 |
+| `execute-command` | Execute Command | system | 执行命令 |
+| `json-parse` | JSON Parse | data | JSON 解析 |
 
 ## Tool 事件
 
@@ -416,25 +335,101 @@ type ToolEventType =
   | 'tool:invoking'
   | 'tool:invoked'
   | 'tool:completed'
-  | 'tool:failed'
-  | 'tool:aborted'
-  | 'tool:chain:started'
-  | 'tool:chain:completed'
-  | 'tool:chain:failed';
+  | 'tool:failed';
+```
 
-interface ToolEvent<T = unknown> {
-  type: ToolEventType;
-  timestamp: number;
-  payload: T;
-  toolId: string;
-  executionId?: string;
+**示例：**
+
+```typescript
+agent.on('tool:completed', (event) => {
+  console.log(`Tool ${event.payload.toolId} completed`);
+  console.log(`Duration: ${event.payload.duration}ms`);
+});
+
+agent.on('tool:failed', (event) => {
+  console.error(`Tool ${event.payload.toolId} failed:`, event.payload.error);
+});
+```
+
+## Tool 插件
+
+### 创建插件
+
+```typescript
+import type { Tool } from '@sdkwork/browser-agent';
+
+const myTools: Tool[] = [
+  timestampTool,
+  fileReadTool,
+  httpRequestTool,
+];
+
+// 注册多个 Tool
+for (const tool of myTools) {
+  agent.tools.register(tool);
 }
+```
+
+## 完整示例
+
+```typescript
+import { createAgent } from '@sdkwork/browser-agent';
+import { OpenAIProvider } from '@sdkwork/browser-agent/llm';
+import type { Tool } from '@sdkwork/browser-agent';
+
+// 定义自定义 Tool
+const echoTool: Tool = {
+  id: 'echo',
+  name: 'Echo',
+  description: 'Echo the input',
+  category: 'custom',
+  confirm: 'none',
+  input: {
+    type: 'object',
+    properties: {
+      message: { type: 'string' },
+    },
+    required: ['message'],
+  },
+  execute: async (input, context) => ({
+    success: true,
+    data: input,
+    output: {
+      content: [{ type: 'text', text: (input as { message: string }).message }],
+    },
+  }),
+};
+
+async function main() {
+  const llm = new OpenAIProvider({
+    apiKey: process.env.OPENAI_API_KEY!,
+    model: 'gpt-4-turbo-preview',
+  });
+
+  const agent = createAgent(llm, {
+    name: 'ToolAgent',
+    tools: [echoTool],
+  });
+
+  await agent.initialize();
+
+  const result = await agent.executeTool('echo', JSON.stringify({
+    message: 'Hello, World!',
+  }));
+
+  console.log(result.data);
+
+  await agent.destroy();
+}
+
+main().catch(console.error);
 ```
 
 ## 最佳实践
 
-1. **明确的确认级别** - 根据操作风险设置合适的 confirm 级别
-2. **完善的错误处理** - 返回详细的错误信息
-3. **输入验证** - 使用 JSON Schema 验证输入
-4. **超时控制** - 网络操作设置合理的超时
-5. **资源清理** - 确保连接、文件句柄正确关闭
+1. **合适的分类** - 选择正确的 category 帮助 AI 理解
+2. **确认级别** - 根据操作风险设置 confirm 级别
+3. **完整的 Schema** - 定义 input 和 output Schema
+4. **错误处理** - 返回有意义的错误信息
+5. **幂等性** - 尽量设计幂等的 Tool
+6. **资源清理** - 确保释放资源（文件句柄、连接等）

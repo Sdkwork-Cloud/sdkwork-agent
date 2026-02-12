@@ -9,6 +9,7 @@
  */
 
 import type { AgentId, ExecutionId, SkillId, ToolId, SessionId } from './types.js';
+import { getLogger } from '../../utils/logger.js';
 
 // ============================================================================
 // Event Types - 事件类型
@@ -45,6 +46,7 @@ export type SkillEventType =
   | 'skill:executed'
   | 'skill:completed'
   | 'skill:failed'
+  | 'skill:error'
   | 'skill:aborted'
   | 'skill:hot:reloaded';
 
@@ -76,6 +78,7 @@ export type ExecutionEventType =
   | 'execution:retry'
   | 'execution:timeout'
   | 'execution:cancelled'
+  | 'execution:aborted'
   | 'execution:completed'
   | 'execution:failed';
 
@@ -465,6 +468,7 @@ export class EventBusImpl implements EventBus {
    * 执行处理器
    */
   private executeHandler<T>(handler: EventHandler, event: UnifiedEvent<T>): void {
+    const logger = getLogger('agent');
     try {
       // 检查过滤器
       const filter = this.filters.get(handler);
@@ -476,11 +480,11 @@ export class EventBusImpl implements EventBus {
       const result = handler(event);
       if (result instanceof Promise) {
         result.catch((error) => {
-          console.error('Event handler error:', error);
+          logger.error('Event handler error', { eventType: event.type }, error);
         });
       }
     } catch (error) {
-      console.error('Event handler error:', error);
+      logger.error('Event handler error', { eventType: event.type }, error as Error);
     }
   }
 }

@@ -154,9 +154,11 @@ export class SkillExecutorImpl {
       input,
     });
 
+    // 设置超时
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    
     try {
-      // 设置超时
-      const timeoutId = setTimeout(() => {
+      timeoutId = setTimeout(() => {
         abortController.abort();
         this.eventEmitter.emit('skill:aborted', {
           skillId: skill.id as SkillId,
@@ -176,7 +178,7 @@ export class SkillExecutorImpl {
       // 执行 Skill Script
       const result = await this.runSkillScript(skill, executionContext);
 
-      clearTimeout(timeoutId);
+      if (timeoutId) clearTimeout(timeoutId);
 
       // 发射执行完成事件
       this.eventEmitter.emit('skill:completed', {
@@ -187,6 +189,8 @@ export class SkillExecutorImpl {
 
       return result;
     } catch (error) {
+      if (timeoutId) clearTimeout(timeoutId);
+      
       const skillError = this.createSkillError(error, skill.id);
 
       // 发射执行失败事件
@@ -274,12 +278,23 @@ export class SkillExecutorImpl {
   ): SkillExecutionContext {
     const logger = this.createSkillLogger(skill.id, executionId);
 
+    // 解析输入：如果是 JSON 字符串，则解析为对象
+    let parsedInput = input;
+    if (typeof input === 'string') {
+      try {
+        parsedInput = JSON.parse(input);
+      } catch {
+        // 如果解析失败，保持原字符串
+        parsedInput = input;
+      }
+    }
+
     return {
       executionId,
       agentId: context.agentId,
       sessionId: context.sessionId,
       parentExecutionId: context.parentExecutionId,
-      input,
+      input: parsedInput,
       references: this.buildReferencesMap(skill.references),
       logger,
       signal: abortController.signal,

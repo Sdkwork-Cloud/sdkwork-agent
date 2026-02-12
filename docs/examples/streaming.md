@@ -1,98 +1,44 @@
-# 流式对话示例
+# 流式输出示例
 
-本文档展示如何使用 SDKWork Agent 的流式对话功能。
+本文档提供 SDKWork Browser Agent 的流式输出使用示例。
 
-## 基础流式对话
+## 基础流式输出
 
-实现打字机效果的实时输出：
+使用 `chatStream` 方法进行流式对话：
 
 ```typescript
-import { createAgent } from 'sdkwork-agent';
-import { OpenAIProvider } from 'sdkwork-agent/llm';
+import { createAgent } from '@sdkwork/browser-agent';
+import { OpenAIProvider } from '@sdkwork/browser-agent/llm';
 
 async function main() {
-  const agent = createAgent({
+  const llm = new OpenAIProvider({
+    apiKey: process.env.OPENAI_API_KEY!,
+    model: 'gpt-4-turbo-preview',
+  });
+
+  const agent = createAgent(llm, {
     name: 'StreamAgent',
-    llm: new OpenAIProvider({
-      apiKey: process.env.OPENAI_API_KEY!,
-      model: 'gpt-4'
-    })
+    description: 'An agent with streaming support',
   });
 
   await agent.initialize();
-
-  // 流式对话
-  const stream = agent.chatStream({
-    messages: [
-      { role: 'user', content: '讲一个关于AI的短故事' }
-    ]
-  });
 
   console.log('Assistant: ');
 
-  // 实时输出
-  for await (const chunk of stream) {
-    const content = chunk.choices[0].delta.content;
-    if (content) {
-      process.stdout.write(content);
-      // 模拟打字延迟
-      await new Promise(resolve => setTimeout(resolve, 50));
-    }
-  }
-
-  console.log('\n\n[故事结束]');
-
-  await agent.destroy();
-}
-
-main().catch(console.error);
-```
-
-## 带进度显示的流式对话
-
-显示生成进度：
-
-```typescript
-import { createAgent } from 'sdkwork-agent';
-import { OpenAIProvider } from 'sdkwork-agent/llm';
-
-async function main() {
-  const agent = createAgent({
-    name: 'ProgressAgent',
-    llm: new OpenAIProvider({
-      apiKey: process.env.OPENAI_API_KEY!
-    })
-  });
-
-  await agent.initialize();
-
   const stream = agent.chatStream({
     messages: [
-      { role: 'user', content: '写一段关于TypeScript的介绍' }
+      { id: '1', role: 'user', content: '讲一个简短的故事', timestamp: Date.now() }
     ]
   });
 
-  let fullContent = '';
-  let tokenCount = 0;
-
-  console.log('Generating...\n');
-
   for await (const chunk of stream) {
-    const content = chunk.choices[0].delta.content;
+    const content = chunk.choices[0]?.delta?.content;
     if (content) {
-      fullContent += content;
-      tokenCount++;
-      
-      // 每10个token显示一次进度
-      if (tokenCount % 10 === 0) {
-        process.stdout.write(`\rGenerated ${tokenCount} tokens...`);
-      }
+      process.stdout.write(content);
     }
   }
 
-  console.log('\n\n--- Generated Content ---');
-  console.log(fullContent);
-  console.log(`\nTotal tokens: ${tokenCount}`);
+  console.log('\n');
 
   await agent.destroy();
 }
@@ -100,56 +46,372 @@ async function main() {
 main().catch(console.error);
 ```
 
-## 流式对话带取消
+## 流式输出类型
 
-支持中途取消生成：
+### ChatStreamChunk
 
 ```typescript
-import { createAgent } from 'sdkwork-agent';
-import { OpenAIProvider } from 'sdkwork-agent/llm';
+interface ChatStreamChunk {
+  id: string;
+  object: 'chat.completion.chunk';
+  created: number;
+  model: string;
+  choices: ChatStreamChoice[];
+}
+
+interface ChatStreamChoice {
+  index: number;
+  delta: {
+    role?: 'assistant';
+    content?: string;
+    toolCalls?: ToolCall[];
+  };
+  finishReason: 'stop' | 'tool_calls' | 'length' | null;
+}
+```
+
+## 带回调的流式输出
+
+使用回调函数处理流式输出：
+
+```typescript
+import { createAgent } from '@sdkwork/browser-agent';
+import { OpenAIProvider } from '@sdkwork/browser-agent/llm';
 
 async function main() {
-  const agent = createAgent({
-    name: 'CancellableAgent',
-    llm: new OpenAIProvider({
-      apiKey: process.env.OPENAI_API_KEY!
-    })
+  const llm = new OpenAIProvider({
+    apiKey: process.env.OPENAI_API_KEY!,
+    model: 'gpt-4-turbo-preview',
+  });
+
+  const agent = createAgent(llm, {
+    name: 'CallbackStreamAgent',
+    description: 'An agent with callback streaming',
   });
 
   await agent.initialize();
 
-  // 创建中止控制器
-  const controller = new AbortController();
+  let fullContent = '';
 
-  // 3秒后取消
-  setTimeout(() => {
-    console.log('\n\n[Cancelling...]');
-    controller.abort();
-  }, 3000);
+  const stream = agent.chatStream({
+    messages: [
+      { id: '1', role: 'user', content: '解释什么是人工智能', timestamp: Date.now() }
+    ]
+  });
+
+  for await (const chunk of stream) {
+    const content = chunk.choices[0]?.delta?.content;
+    if (content) {
+      fullContent += content;
+      process.stdout.write(content);
+    }
+  }
+
+  console.log('\n\n--- Full Response ---');
+  console.log(fullContent);
+
+  await agent.destroy();
+}
+
+main().catch(console.error);
+```
+
+## TUI 流式渲染
+
+在终端界面中渲染流式输出：
+
+```typescript
+import { createAgent } from '@sdkwork/browser-agent';
+import { OpenAIProvider } from '@sdkwork/browser-agent/llm';
+import { createStreamRenderer } from '@sdkwork/browser-agent/tui';
+
+async function main() {
+  const llm = new OpenAIProvider({
+    apiKey: process.env.OPENAI_API_KEY!,
+    model: 'gpt-4-turbo-preview',
+  });
+
+  const agent = createAgent(llm, {
+    name: 'TUIStreamAgent',
+    description: 'An agent with TUI streaming',
+  });
+
+  await agent.initialize();
+
+  const renderer = createStreamRenderer({
+    prefix: '> ',
+    color: 'green'
+  });
+
+  console.log('Assistant:');
+
+  const stream = agent.chatStream({
+    messages: [
+      { id: '1', role: 'user', content: '写一首关于春天的诗', timestamp: Date.now() }
+    ]
+  });
+
+  for await (const chunk of stream) {
+    const content = chunk.choices[0]?.delta?.content;
+    if (content) {
+      renderer.write(content);
+    }
+  }
+
+  renderer.end();
+  console.log('\n');
+
+  await agent.destroy();
+}
+
+main().catch(console.error);
+```
+
+## 流式输出与事件
+
+结合事件系统处理流式输出：
+
+```typescript
+import { createAgent } from '@sdkwork/browser-agent';
+import { OpenAIProvider } from '@sdkwork/browser-agent/llm';
+
+async function main() {
+  const llm = new OpenAIProvider({
+    apiKey: process.env.OPENAI_API_KEY!,
+    model: 'gpt-4-turbo-preview',
+  });
+
+  const agent = createAgent(llm, {
+    name: 'EventStreamAgent',
+    description: 'An agent with event streaming',
+  });
+
+  agent.on('chat:started', (event) => {
+    console.log(`[Started] Execution ID: ${event.payload.executionId}`);
+  });
+
+  agent.on('chat:completed', (event) => {
+    console.log(`[Completed] Duration: ${event.payload.duration}ms`);
+  });
+
+  await agent.initialize();
+
+  console.log('Assistant: ');
+
+  const stream = agent.chatStream({
+    messages: [
+      { id: '1', role: 'user', content: '介绍一下 TypeScript', timestamp: Date.now() }
+    ]
+  });
+
+  let charCount = 0;
+  for await (const chunk of stream) {
+    const content = chunk.choices[0]?.delta?.content;
+    if (content) {
+      process.stdout.write(content);
+      charCount += content.length;
+    }
+  }
+
+  console.log(`\n\n[Stats] Total characters: ${charCount}`);
+
+  await agent.destroy();
+}
+
+main().catch(console.error);
+```
+
+## 流式输出与 Tool 调用
+
+处理包含 Tool 调用的流式输出：
+
+```typescript
+import { createAgent } from '@sdkwork/browser-agent';
+import { OpenAIProvider } from '@sdkwork/browser-agent/llm';
+import type { Tool } from '@sdkwork/browser-agent';
+
+async function main() {
+  const llm = new OpenAIProvider({
+    apiKey: process.env.OPENAI_API_KEY!,
+    model: 'gpt-4-turbo-preview',
+  });
+
+  const weatherTool: Tool = {
+    id: 'get-weather',
+    name: 'Get Weather',
+    description: 'Get current weather for a location',
+    category: 'network',
+    confirm: 'read',
+    input: {
+      type: 'object',
+      properties: {
+        location: { type: 'string', description: 'City name' }
+      },
+      required: ['location']
+    },
+    execute: async (input) => {
+      const { location } = input as { location: string };
+      return {
+        success: true,
+        data: {
+          location,
+          temperature: Math.floor(Math.random() * 30) + 5,
+          condition: ['sunny', 'cloudy', 'rainy'][Math.floor(Math.random() * 3)]
+        }
+      };
+    }
+  };
+
+  const agent = createAgent(llm, {
+    name: 'ToolStreamAgent',
+    description: 'An agent with tool streaming',
+    tools: [weatherTool],
+  });
+
+  agent.on('tool:invoking', (event) => {
+    console.log(`\n[Tool] Invoking ${event.payload.toolId}...`);
+  });
+
+  agent.on('tool:completed', (event) => {
+    console.log(`[Tool] Completed: ${JSON.stringify(event.payload.result.data)}`);
+  });
+
+  await agent.initialize();
+
+  console.log('User: 北京今天天气怎么样？');
+  console.log('Assistant: ');
+
+  const stream = agent.chatStream({
+    messages: [
+      { id: '1', role: 'user', content: '北京今天天气怎么样？', timestamp: Date.now() }
+    ]
+  });
+
+  for await (const chunk of stream) {
+    const content = chunk.choices[0]?.delta?.content;
+    if (content) {
+      process.stdout.write(content);
+    }
+
+    const toolCalls = chunk.choices[0]?.delta?.toolCalls;
+    if (toolCalls) {
+      for (const toolCall of toolCalls) {
+        console.log(`\n[Tool Call] ${toolCall.function.name}`);
+      }
+    }
+  }
+
+  console.log('\n');
+
+  await agent.destroy();
+}
+
+main().catch(console.error);
+```
+
+## 错误处理
+
+处理流式输出中的错误：
+
+```typescript
+import { createAgent } from '@sdkwork/browser-agent';
+import { OpenAIProvider } from '@sdkwork/browser-agent/llm';
+
+async function main() {
+  const llm = new OpenAIProvider({
+    apiKey: process.env.OPENAI_API_KEY!,
+    model: 'gpt-4-turbo-preview',
+  });
+
+  const agent = createAgent(llm, {
+    name: 'ErrorStreamAgent',
+    description: 'An agent with error handling',
+  });
+
+  await agent.initialize();
 
   try {
+    console.log('Assistant: ');
+
     const stream = agent.chatStream({
       messages: [
-        { role: 'user', content: '写一个很长的故事' }
+        { id: '1', role: 'user', content: 'Hello!', timestamp: Date.now() }
       ]
     });
 
-    console.log('Assistant: ');
-
     for await (const chunk of stream) {
-      // 检查是否已取消
-      if (controller.signal.aborted) {
-        break;
-      }
-
-      const content = chunk.choices[0].delta.content;
+      const content = chunk.choices[0]?.delta?.content;
       if (content) {
         process.stdout.write(content);
       }
     }
+
+    console.log('\n');
   } catch (error) {
-    if (error.name === 'AbortError') {
-      console.log('\n[Generation cancelled by user]');
+    console.error('\n[Error]', (error as Error).message);
+    
+    // 检查是否可恢复
+    if ((error as any).recoverable) {
+      console.log('Retrying...');
+      // 重试逻辑
+    }
+  }
+
+  await agent.destroy();
+}
+
+main().catch(console.error);
+```
+
+## 中断流式输出
+
+中断正在进行的流式输出：
+
+```typescript
+import { createAgent } from '@sdkwork/browser-agent';
+import { OpenAIProvider } from '@sdkwork/browser-agent/llm';
+
+async function main() {
+  const llm = new OpenAIProvider({
+    apiKey: process.env.OPENAI_API_KEY!,
+    model: 'gpt-4-turbo-preview',
+  });
+
+  const agent = createAgent(llm, {
+    name: 'InterruptStreamAgent',
+    description: 'An agent with stream interruption',
+  });
+
+  await agent.initialize();
+
+  console.log('Assistant: ');
+
+  const stream = agent.chatStream({
+    messages: [
+      { id: '1', role: 'user', content: '写一篇很长的文章', timestamp: Date.now() }
+    ]
+  });
+
+  let charCount = 0;
+  const maxChars = 100;
+
+  try {
+    for await (const chunk of stream) {
+      const content = chunk.choices[0]?.delta?.content;
+      if (content) {
+        process.stdout.write(content);
+        charCount += content.length;
+
+        // 达到限制后中断
+        if (charCount >= maxChars) {
+          console.log('\n\n[Interrupted] Reached character limit');
+          break;
+        }
+      }
+    }
+  } catch (error) {
+    if ((error as any).name === 'AbortError') {
+      console.log('\n\n[Interrupted] Stream was aborted');
     } else {
       throw error;
     }
@@ -163,312 +425,65 @@ main().catch(console.error);
 
 ## 多轮流式对话
 
-保持上下文的流式对话：
+实现多轮流式对话：
 
 ```typescript
-import { createAgent } from 'sdkwork-agent';
-import { OpenAIProvider } from 'sdkwork-agent/llm';
+import * as readline from 'readline';
+import { createAgent } from '@sdkwork/browser-agent';
+import { OpenAIProvider } from '@sdkwork/browser-agent/llm';
 
 async function main() {
-  const agent = createAgent({
-    name: 'MultiTurnStreamAgent',
-    llm: new OpenAIProvider({
-      apiKey: process.env.OPENAI_API_KEY!
-    })
+  const llm = new OpenAIProvider({
+    apiKey: process.env.OPENAI_API_KEY!,
+    model: 'gpt-4-turbo-preview',
+  });
+
+  const agent = createAgent(llm, {
+    name: 'ChatStreamAgent',
+    description: 'A conversational agent with streaming',
   });
 
   await agent.initialize();
 
-  const messages = [
-    { role: 'system', content: '你是一个有帮助的助手。' }
-  ];
-
-  // 第一轮
-  console.log('User: 你好！');
-  messages.push({ role: 'user', content: '你好！' });
-
-  console.log('Assistant: ');
-  let response = await streamChat(agent, messages);
-  messages.push({ role: 'assistant', content: response });
-
-  // 第二轮
-  console.log('\nUser: 今天天气怎么样？');
-  messages.push({ role: 'user', content: '今天天气怎么样？' });
-
-  console.log('Assistant: ');
-  response = await streamChat(agent, messages);
-  messages.push({ role: 'assistant', content: response });
-
-  await agent.destroy();
-}
-
-async function streamChat(agent, messages) {
-  const stream = agent.chatStream({ messages });
-  let fullContent = '';
-
-  for await (const chunk of stream) {
-    const content = chunk.choices[0].delta.content;
-    if (content) {
-      process.stdout.write(content);
-      fullContent += content;
-    }
-  }
-
-  return fullContent;
-}
-
-main().catch(console.error);
-```
-
-## 流式代码生成
-
-实时显示代码生成过程：
-
-```typescript
-import { createAgent } from 'sdkwork-agent';
-import { OpenAIProvider } from 'sdkwork-agent/llm';
-
-async function main() {
-  const agent = createAgent({
-    name: 'CodeGenAgent',
-    llm: new OpenAIProvider({
-      apiKey: process.env.OPENAI_API_KEY!
-    })
+  const sessionId = agent.createSession();
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout
   });
 
-  await agent.initialize();
+  console.log('Chat started. Type "exit" to quit.\n');
 
-  const stream = agent.chatStream({
-    messages: [
-      {
-        role: 'user',
-        content: '写一个快速排序算法的TypeScript实现，包含详细注释'
+  const chat = async () => {
+    rl.question('You: ', async (input) => {
+      if (input.toLowerCase() === 'exit') {
+        rl.close();
+        await agent.destroy();
+        console.log('Goodbye!');
+        return;
       }
-    ]
-  });
 
-  console.log('```typescript');
+      process.stdout.write('Assistant: ');
 
-  for await (const chunk of stream) {
-    const content = chunk.choices[0].delta.content;
-    if (content) {
-      process.stdout.write(content);
-    }
-  }
+      const stream = agent.chatStream({
+        messages: [
+          { id: Date.now().toString(), role: 'user', content: input, timestamp: Date.now() }
+        ],
+        sessionId
+      });
 
-  console.log('\n```');
-
-  await agent.destroy();
-}
-
-main().catch(console.error);
-```
-
-## 流式对话事件
-
-监听流式对话事件：
-
-```typescript
-import { createAgent } from 'sdkwork-agent';
-import { OpenAIProvider } from 'sdkwork-agent/llm';
-
-async function main() {
-  const agent = createAgent({
-    name: 'EventStreamAgent',
-    llm: new OpenAIProvider({
-      apiKey: process.env.OPENAI_API_KEY!
-    })
-  });
-
-  // 监听流式事件
-  agent.on('chat:started', (event) => {
-    console.log('[Stream Started]');
-  });
-
-  agent.on('chat:stream', (event) => {
-    // 可以在这里处理每个 chunk
-  });
-
-  agent.on('chat:completed', (event) => {
-    console.log('\n[Stream Completed]');
-    console.log(`Duration: ${event.payload.duration}ms`);
-  });
-
-  await agent.initialize();
-
-  const stream = agent.chatStream({
-    messages: [
-      { role: 'user', content: '解释什么是流式传输' }
-    ]
-  });
-
-  console.log('Assistant: ');
-
-  for await (const chunk of stream) {
-    const content = chunk.choices[0].delta.content;
-    if (content) {
-      process.stdout.write(content);
-    }
-  }
-
-  console.log();
-
-  await agent.destroy();
-}
-
-main().catch(console.error);
-```
-
-## 打字机效果
-
-模拟打字机效果：
-
-```typescript
-import { createAgent } from 'sdkwork-agent';
-import { OpenAIProvider } from 'sdkwork-agent/llm';
-
-async function typeWriterEffect(text, delay = 50) {
-  for (const char of text) {
-    process.stdout.write(char);
-    await new Promise(resolve => setTimeout(resolve, delay));
-  }
-}
-
-async function main() {
-  const agent = createAgent({
-    name: 'TypeWriterAgent',
-    llm: new OpenAIProvider({
-      apiKey: process.env.OPENAI_API_KEY!
-    })
-  });
-
-  await agent.initialize();
-
-  const stream = agent.chatStream({
-    messages: [
-      { role: 'user', content: '用一句话介绍自己' }
-    ]
-  });
-
-  console.log('Assistant: ');
-
-  // 收集所有内容
-  let fullContent = '';
-  for await (const chunk of stream) {
-    const content = chunk.choices[0].delta.content;
-    if (content) {
-      fullContent += content;
-    }
-  }
-
-  // 打字机效果输出
-  await typeWriterEffect(fullContent, 50);
-  console.log();
-
-  await agent.destroy();
-}
-
-main().catch(console.error);
-```
-
-## 流式对话保存到文件
-
-将流式输出保存到文件：
-
-```typescript
-import { createAgent } from 'sdkwork-agent';
-import { OpenAIProvider } from 'sdkwork-agent/llm';
-import { writeFile } from 'fs/promises';
-
-async function main() {
-  const agent = createAgent({
-    name: 'FileStreamAgent',
-    llm: new OpenAIProvider({
-      apiKey: process.env.OPENAI_API_KEY!
-    })
-  });
-
-  await agent.initialize();
-
-  const stream = agent.chatStream({
-    messages: [
-      { role: 'user', content: '写一篇关于人工智能的短文' }
-    ]
-  });
-
-  let content = '';
-
-  console.log('Generating and saving...\n');
-
-  for await (const chunk of stream) {
-    const text = chunk.choices[0].delta.content;
-    if (text) {
-      content += text;
-      process.stdout.write(text);
-    }
-  }
-
-  // 保存到文件
-  await writeFile('./output.txt', content, 'utf8');
-  console.log('\n\n[Saved to output.txt]');
-
-  await agent.destroy();
-}
-
-main().catch(console.error);
-```
-
-## 实时字数统计
-
-实时显示生成字数：
-
-```typescript
-import { createAgent } from 'sdkwork-agent';
-import { OpenAIProvider } from 'sdkwork-agent/llm';
-
-async function main() {
-  const agent = createAgent({
-    name: 'StatsAgent',
-    llm: new OpenAIProvider({
-      apiKey: process.env.OPENAI_API_KEY!
-    })
-  });
-
-  await agent.initialize();
-
-  const stream = agent.chatStream({
-    messages: [
-      { role: 'user', content: '写一段500字的技术文章' }
-    ]
-  });
-
-  let charCount = 0;
-  let wordCount = 0;
-  let content = '';
-
-  console.log('Generating...\n');
-
-  for await (const chunk of stream) {
-    const text = chunk.choices[0].delta.content;
-    if (text) {
-      content += text;
-      charCount += text.length;
-      wordCount += text.split(/\s+/).filter(w => w.length > 0).length;
-      
-      process.stdout.write(text);
-      
-      // 每50个字符更新一次统计
-      if (charCount % 50 === 0) {
-        process.stdout.write(`\r[Chars: ${charCount}, Words: ${wordCount}] `);
+      for await (const chunk of stream) {
+        const content = chunk.choices[0]?.delta?.content;
+        if (content) {
+          process.stdout.write(content);
+        }
       }
-    }
-  }
 
-  console.log(`\n\nFinal Stats:`);
-  console.log(`- Characters: ${charCount}`);
-  console.log(`- Words: ${wordCount}`);
+      console.log('\n');
+      chat();
+    });
+  };
 
-  await agent.destroy();
+  chat();
 }
 
 main().catch(console.error);
@@ -476,8 +491,8 @@ main().catch(console.error);
 
 ## 最佳实践
 
-1. **错误处理** - 始终使用 try-catch 处理流式对话
-2. **资源清理** - 确保在完成后调用 agent.destroy()
-3. **取消支持** - 对于长时间生成，提供取消功能
-4. **进度反馈** - 给用户实时反馈生成进度
-5. **缓冲处理** - 对于大量数据，考虑分批处理
+1. **错误处理** - 始终处理流式输出中的错误
+2. **资源清理** - 确保在完成后关闭流和释放资源
+3. **中断处理** - 提供用户中断流式输出的能力
+4. **缓冲管理** - 合理管理输出缓冲区
+5. **用户体验** - 提供清晰的输出格式和进度指示

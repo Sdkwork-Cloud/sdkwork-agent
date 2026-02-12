@@ -1,8 +1,6 @@
 import { defineConfig } from 'tsup';
-
-// ============================================================================
-// SDKWork Agent - Node.js 专用构建配置
-// ============================================================================
+import { cpSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
 
 export default defineConfig({
   entry: {
@@ -15,43 +13,43 @@ export default defineConfig({
     'tui/cli': 'src/tui/cli.ts',
     'agent/index': 'src/agent/index.ts',
   },
-  // 生成类型定义
   dts: {
     resolve: true,
     compilerOptions: {
       composite: false,
     },
   },
-  // 输出格式：ESM 和 CommonJS
   format: ['esm', 'cjs'],
-  // 代码分割
   splitting: true,
-  // 生成 sourcemap
   sourcemap: true,
-  // 清理输出目录
   clean: true,
-  // 目标平台
   target: 'es2022',
-  // 输出目录
   outDir: 'dist',
-  // 代码压缩
   minify: false,
-  // 平台：Node.js
   platform: 'node',
-  // 保留注释
   banner: {
     js: '/*! SDKWork Agent v3.0.0 - Powerful Node.js Backend Agent Framework | MIT License */',
   },
-  // Tree shaking
   treeshake: true,
-  // 外部依赖（不打包进输出）
+  shims: true,
   external: [
     'zod',
     'uuid',
     '@modelcontextprotocol/sdk',
   ],
-  // esbuild 选项
   esbuildOptions: (options) => {
     options.keepNames = true;
+  },
+  cjsInterop: true,
+  output: {
+    exports: 'named',
+  },
+  async onSuccess() {
+    const srcDir = join(process.cwd(), 'src', 'skills', 'builtin');
+    const destDir = join(process.cwd(), 'dist', 'skills', 'builtin');
+    if (existsSync(srcDir)) {
+      cpSync(srcDir, destDir, { recursive: true });
+      console.log('✓ Copied builtin skills to dist/skills/builtin');
+    }
   },
 });

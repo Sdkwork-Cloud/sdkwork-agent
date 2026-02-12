@@ -100,9 +100,16 @@ class StdioTransport implements MCPTransportHandler {
 
   async disconnect(): Promise<void> {
     if (this._process) {
+      this._process.stdout?.removeAllListeners();
+      this._process.stderr?.removeAllListeners();
+      this._process.removeAllListeners();
       this._process.kill();
       this._process = null;
     }
+    this._messageCallback = null;
+    this._errorCallback = null;
+    this._closeCallback = null;
+    this._buffer = '';
   }
 
   async send(message: MCPRequest): Promise<void> {
@@ -715,5 +722,10 @@ export class MCPManagerImpl extends EventEmitter implements MCPManager {
       allPrompts.push(...client.prompts);
     }
     return allPrompts;
+  }
+
+  async destroy(): Promise<void> {
+    await this.disconnectAll();
+    this.removeAllListeners();
   }
 }

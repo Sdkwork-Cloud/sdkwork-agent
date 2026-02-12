@@ -7,15 +7,15 @@
 ::: code-group
 
 ```bash [npm]
-npm install @sdkwork/agent
+npm install @sdkwork/browser-agent
 ```
 
 ```bash [yarn]
-yarn add @sdkwork/agent
+yarn add @sdkwork/browser-agent
 ```
 
 ```bash [pnpm]
-pnpm add @sdkwork/agent
+pnpm add @sdkwork/browser-agent
 ```
 
 :::
@@ -25,34 +25,29 @@ pnpm add @sdkwork/agent
 ### 1. 基础示例
 
 ```typescript
-import { createAgent } from '@sdkwork/agent';
-import { OpenAIProvider } from '@sdkwork/agent/llm';
+import { createAgent } from '@sdkwork/browser-agent';
+import { OpenAIProvider } from '@sdkwork/browser-agent/llm';
 
-// 创建 LLM Provider
-const openai = new OpenAIProvider({
-  apiKey: process.env.OPENAI_API_KEY,
-  model: 'gpt-4'
+const llm = new OpenAIProvider({
+  apiKey: process.env.OPENAI_API_KEY!,
+  model: 'gpt-4-turbo-preview',
 });
 
-// 创建 Agent
-const agent = createAgent(openai, {
+const agent = createAgent(llm, {
   name: 'MyAssistant',
-  description: 'A helpful AI assistant'
+  description: 'A helpful AI assistant',
 });
 
-// 初始化
 await agent.initialize();
 
-// 对话
 const response = await agent.chat({
   messages: [
-    { role: 'user', content: 'Hello, who are you?' }
+    { id: '1', role: 'user', content: 'Hello, who are you?', timestamp: Date.now() }
   ]
 });
 
 console.log(response.choices[0].message.content);
 
-// 清理资源
 await agent.destroy();
 ```
 
@@ -60,7 +55,9 @@ await agent.destroy();
 
 ```typescript
 const stream = agent.chatStream({
-  messages: [{ role: 'user', content: 'Tell me a story' }]
+  messages: [
+    { id: '1', role: 'user', content: 'Tell me a story', timestamp: Date.now() }
+  ]
 });
 
 for await (const chunk of stream) {
@@ -71,195 +68,153 @@ for await (const chunk of stream) {
 }
 ```
 
-### 3. 带记忆的对话
+### 3. 会话管理
 
 ```typescript
+// 创建会话
+const sessionId = agent.createSession();
+
 // 第一轮对话
-await agent.chat({
-  messages: [{ role: 'user', content: 'My name is Alice' }],
-  sessionId: 'session-1'
+const response1 = await agent.chat({
+  messages: [
+    { id: '1', role: 'user', content: 'My name is Alice', timestamp: Date.now() }
+  ],
+  sessionId
 });
 
-// 第二轮对话 - Agent 会记住你的名字
-const response = await agent.chat({
-  messages: [{ role: 'user', content: 'What is my name?' }],
-  sessionId: 'session-1'
+// 第二轮对话（会记住上下文）
+const response2 = await agent.chat({
+  messages: [
+    { id: '2', role: 'user', content: 'What is my name?', timestamp: Date.now() }
+  ],
+  sessionId
 });
 
-console.log(response.choices[0].message.content);
-// 输出: "Your name is Alice."
+// 清除会话
+agent.clearSession(sessionId);
 ```
 
 ## 添加 Skills
 
 ```typescript
-import { z } from 'zod';
+import { createAgent } from '@sdkwork/browser-agent';
+import { OpenAIProvider } from '@sdkwork/browser-agent/llm';
+import type { Skill } from '@sdkwork/browser-agent';
 
-// 定义 Skill
-const calculatorSkill = {
+const llm = new OpenAIProvider({
+  apiKey: process.env.OPENAI_API_KEY!,
+  model: 'gpt-4-turbo-preview',
+});
+
+const calculatorSkill: Skill = {
   id: 'calculator',
   name: 'Calculator',
   description: 'Perform mathematical calculations',
   version: '1.0.0',
-  inputSchema: z.object({
-    expression: z.string()
-  }),
-  execute: async (input, context) => {
-    const { expression } = input as { expression: string };
-    
-    // 安全地计算表达式
-    const result = eval(expression); // 实际使用应使用更安全的计算方式
-    
-    return {
-      success: true,
-      data: { result, expression },
-      metadata: {
-        executionId: context.executionId,
-        skillId: 'calculator',
-        skillName: 'Calculator',
-        startTime: Date.now(),
-        endTime: Date.now(),
-        duration: 0
+  script: {
+    lang: 'typescript',
+    code: `
+      async function main() {
+        const { a, b, operation } = $input;
+        let result;
+        
+        switch (operation) {
+          case 'add': result = a + b; break;
+          case 'subtract': result = a - b; break;
+          case 'multiply': result = a * b; break;
+          case 'divide': result = a / b; break;
+          default: throw new Error('Unknown operation');
+        }
+        
+        return { result, operation };
       }
-    };
+    `,
+    entry: 'main'
+  },
+  input: {
+    type: 'object',
+    properties: {
+      a: { type: 'number' },
+      b: { type: 'number' },
+      operation: { type: 'string', enum: ['add', 'subtract', 'multiply', 'divide'] }
+    },
+    required: ['a', 'b', 'operation']
   }
 };
 
-// 创建带 Skills 的 Agent
-const agent = createAgent(openai, {
+const agent = createAgent(llm, {
   name: 'MathAgent',
-  skills: [calculatorSkill]
+  skills: [calculatorSkill],
 });
 
 await agent.initialize();
 
-// 执行 Skill
-const result = await agent.executeSkill('calculator', {
-  expression: '2 + 2'
-});
+const result = await agent.executeSkill('calculator', JSON.stringify({
+  a: 10,
+  b: 5,
+  operation: 'multiply'
+}));
 
-console.log(result.data); // { result: 4, expression: '2 + 2' }
+console.log(result.data);
 ```
 
 ## 添加 Tools
 
 ```typescript
-// 定义 Tool
-const fileReaderTool = {
+import { createAgent } from '@sdkwork/browser-agent';
+import { OpenAIProvider } from '@sdkwork/browser-agent/llm';
+import type { Tool } from '@sdkwork/browser-agent';
+import { readFile } from 'fs/promises';
+
+const llm = new OpenAIProvider({
+  apiKey: process.env.OPENAI_API_KEY!,
+  model: 'gpt-4-turbo-preview',
+});
+
+const fileReaderTool: Tool = {
   id: 'file-reader',
   name: 'FileReader',
   description: 'Read file contents',
-  category: 'file' as const,
-  confirm: 'read' as const,
-  inputSchema: z.object({
-    path: z.string()
-  }),
-  execute: async (input, context) => {
+  category: 'file',
+  confirm: 'read',
+  input: {
+    type: 'object',
+    properties: {
+      path: { type: 'string' }
+    },
+    required: ['path']
+  },
+  execute: async (input) => {
     const { path } = input as { path: string };
-    
-    const fs = await import('fs/promises');
-    const content = await fs.readFile(path, 'utf-8');
-    
+    const content = await readFile(path, 'utf-8');
     return {
       success: true,
-      data: { content, path },
-      metadata: {
-        executionId: context.executionId,
-        toolId: 'file-reader',
-        toolName: 'FileReader',
-        startTime: Date.now(),
-        endTime: Date.now(),
-        duration: 0
-      }
+      data: { content, path }
     };
   }
 };
 
-// 创建带 Tools 的 Agent
-const agent = createAgent(openai, {
+const agent = createAgent(llm, {
   name: 'FileAgent',
-  tools: [fileReaderTool]
+  tools: [fileReaderTool],
 });
 
 await agent.initialize();
 
-// 执行 Tool
-const result = await agent.executeTool('file-reader', {
-  path: './README.md'
-});
+const result = await agent.executeTool('file-reader', JSON.stringify({ path: './README.md' }));
 
 console.log(result.data.content);
-```
-
-## 使用 ReAct 思考引擎
-
-```typescript
-const agent = createAgent(openai, {
-  name: 'ReasoningAgent',
-  skills: [calculatorSkill, searchSkill]
-});
-
-await agent.initialize();
-
-// 使用 ReAct 思考模式
-const result = await agent.think(
-  'What is the population of Tokyo multiplied by 2?',
-  { sessionId: 'session-1', executionId: 'exec-1' }
-);
-
-console.log('Answer:', result.answer);
-console.log('Steps:', result.steps.length);
-console.log('Tools used:', result.toolsUsed);
-
-// 流式思考过程
-for await (const event of agent.thinkStream('Complex question')) {
-  switch (event.type) {
-    case 'thought':
-      console.log('🧠 Thinking:', event.thought);
-      break;
-    case 'actions':
-      console.log('🔧 Actions:', event.actions.map(a => `${a.type}:${a.name}`).join(', '));
-      break;
-    case 'observations':
-      console.log('👁️ Results:', event.observations);
-      break;
-    case 'reflection':
-      console.log('💭 Reflection:', event.reflection);
-      break;
-    case 'complete':
-      console.log('✅ Answer:', event.answer);
-      break;
-  }
-}
-```
-
-## 使用 TUI 界面
-
-```typescript
-import { main } from '@sdkwork/agent/tui/cli';
-
-// 启动交互式 TUI
-// 功能包括：
-// - 多 LLM 提供者支持（OpenAI, Anthropic, Google 等）
-// - 65+ 模型选择
-// - 9 种主题切换
-// - 会话管理（保存/加载/删除）
-// - 自动补全和历史记录
-// - Markdown 渲染
-// - 流式输出
-main();
 ```
 
 ## 事件监听
 
 ```typescript
-// 监听 Agent 事件
 agent.on('agent:initialized', (event) => {
   console.log('Agent initialized:', event.payload.agentId);
 });
 
 agent.on('chat:completed', (event) => {
-  console.log('Chat completed:', event.payload.executionId);
+  console.log('Chat completed');
 });
 
 agent.on('skill:completed', (event) => {
@@ -282,23 +237,36 @@ try {
   await agent.initialize();
 } catch (error) {
   console.error('Failed to initialize agent:', error);
-  
-  // 尝试重置
-  await agent.reset();
 }
 
-// 执行过程中的错误处理
 try {
-  const result = await agent.executeSkill('unknown-skill', {});
+  const result = await agent.executeSkill('unknown-skill', '{}');
+  if (!result.success) {
+    console.error('Skill failed:', result.error);
+  }
 } catch (error) {
   console.error('Skill execution failed:', error);
 }
 ```
 
+## CLI 使用
+
+```bash
+npx @sdkwork/browser-agent
+```
+
+功能包括：
+- 多 LLM 提供者支持（OpenAI, Anthropic, Google 等）
+- 65+ 模型选择
+- 9 种主题切换
+- 会话管理（保存/加载/删除）
+- 自动补全和历史记录
+- Markdown 渲染
+- 流式输出
+
 ## 下一步
 
-- [核心概念](./concepts.md) - 了解 DDD 架构设计
-- [API 参考](../api/agent.md) - 查看完整 API 文档
-- [示例代码](../examples/basic.md) - 学习更多使用案例
-- [ReAct 引擎](../architecture/react.md) - 深入了解思考引擎
-- [TUI 界面](./tui.md) - 专业级终端交互
+- [核心概念](./concepts) - 了解 DDD 架构设计
+- [API 参考](../api/agent) - 查看完整 API 文档
+- [示例代码](../examples/basic) - 学习更多使用案例
+- [TUI 界面](./tui) - 专业级终端交互

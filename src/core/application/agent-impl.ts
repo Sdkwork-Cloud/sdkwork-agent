@@ -287,6 +287,11 @@ export class AgentImpl extends EventEmitter implements Agent {
     return this._llm;
   }
 
+  setLLM(config: AgentConfig['llm']): void {
+    this._llm = this._initLLM(config);
+    this._config.llm = config;
+  }
+
   get skills(): import('../domain/skill').SkillRegistry {
     if (!this._skillsRegistry) {
       this._skillsRegistry = {
@@ -582,6 +587,11 @@ export class AgentImpl extends EventEmitter implements Agent {
               finishReason: chunk.finish_reason || null,
             },
           ],
+          usage: chunk.usage ? {
+            promptTokens: chunk.usage.prompt_tokens,
+            completionTokens: chunk.usage.completion_tokens,
+            totalTokens: chunk.usage.total_tokens,
+          } : undefined,
         };
       }
 

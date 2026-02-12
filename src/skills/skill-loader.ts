@@ -414,9 +414,10 @@ function parametersToSchema(parameters: ParameterDef[]): import('../core/domain/
  * 将 frontmatter 转换为 Domain Skill
  */
 function convertToDomainSkill(frontmatter: SkillFrontmatter, skillPath: string, fullContent: string): DomainSkill {
-  // 解析 Parameters 部分
   const parameters = parseParametersSection(fullContent);
   const inputSchema = parametersToSchema(parameters);
+  
+  const skillCode = generateSkillCode(frontmatter, fullContent);
   
   return {
     id: frontmatter.name,
@@ -424,7 +425,7 @@ function convertToDomainSkill(frontmatter: SkillFrontmatter, skillPath: string, 
     description: frontmatter.description,
     version: frontmatter.version || '1.0.0',
     script: {
-      code: `// ${frontmatter.name} skill\n// Loaded from: ${skillPath}`,
+      code: skillCode,
       lang: 'typescript',
     },
     
@@ -437,6 +438,63 @@ function convertToDomainSkill(frontmatter: SkillFrontmatter, skillPath: string, 
       path: skillPath,
     },
   };
+}
+
+/**
+ * 生成技能执行代码
+ * 基于 SKILL.md 内容生成使用 LLM 的执行代码
+ */
+function generateSkillCode(frontmatter: SkillFrontmatter, fullContent: string): string {
+  const examplesSection = extractSection(fullContent, 'Examples');
+  const whenToUseSection = extractSection(fullContent, 'When to Use');
+  const escapedDescription = frontmatter.description.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n');
+  
+  let code = `// Auto-generated skill code for: ${frontmatter.name}\n`;
+  code += `// Description: ${frontmatter.description}\n\n`;
+  code += `async function execute() {\n`;
+  code += `  const skillName = "${frontmatter.name}";\n`;
+  code += `  const description = "${escapedDescription}";\n\n`;
+  code += `  // Build prompt from skill context\n`;
+  code += `  let prompt = "You are executing the \\"" + skillName + "\\" skill.\\n\\n";\n`;
+  code += `  prompt += "Description: " + description + "\\n\\n";\n\n`;
+  code += `  // Add input parameters\n`;
+  code += `  if ($input && typeof $input === 'object') {\n`;
+  code += `    prompt += "Input parameters:\\n";\n`;
+  code += `    for (const [key, value] of Object.entries($input)) {\n`;
+  code += `      prompt += "- " + key + ": " + JSON.stringify(value) + "\\n";\n`;
+  code += `    }\n`;
+  code += `    prompt += "\\n";\n`;
+  code += `  }\n\n`;
+  
+  if (whenToUseSection) {
+    const escapedWhenToUse = whenToUseSection.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n');
+    code += `  // Add usage context\n`;
+    code += `  prompt += "When to use:\\n${escapedWhenToUse}\\n\\n";\n\n`;
+  }
+  
+  if (examplesSection) {
+    const escapedExamples = examplesSection.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n');
+    code += `  // Add examples\n`;
+    code += `  prompt += "Examples:\\n${escapedExamples}\\n\\n";\n\n`;
+  }
+  
+  code += `  prompt += "Please execute this skill and provide the result.";\n\n`;
+  code += `  // Call LLM\n`;
+  code += `  const result = await $llm(prompt);\n`;
+  code += `  return result;\n`;
+  code += `}\n\n`;
+  code += `return execute();\n`;
+  
+  return code;
+}
+
+/**
+ * 提取 Markdown 文档中的特定部分
+ */
+function extractSection(content: string, sectionName: string): string {
+  const sectionRegex = new RegExp(`##\\s*${sectionName}\\s*\\n([\\s\\S]*?)(?=\\n##\\s|$)`, 'i');
+  const match = content.match(sectionRegex);
+  return match ? match[1].trim() : '';
 }
 
 /**
@@ -506,22 +564,22 @@ async function loadSkillsFromDirectory(
  * 兼容 ESM 和 CommonJS 环境
  */
 function getBuiltinSkillsDir(): string {
-  // 尝试多个可能的路径（开发环境和生产环境）
-  const possiblePaths = [
-    // 开发环境：源码目录（从当前工作目录）
-    path.join(process.cwd(), 'src', 'skills', 'builtin'),
-    // 相对于当前工作目录的上级
-    path.join(process.cwd(), '..', 'src', 'skills', 'builtin'),
-  ];
+  const possiblePaths: string[] = [];
 
-  // 如果 __dirname 可用（CommonJS 环境），也尝试这些路径
+  // 如果 __dirname 可用，优先使用（打包后的环境）
   if (typeof __dirname !== 'undefined') {
     possiblePaths.push(
-      path.join(__dirname, '..', '..', '..', 'src', 'skills', 'builtin'),
-      path.join(__dirname, '..', '..', 'src', 'skills', 'builtin'),
-      path.join(__dirname, 'builtin')
+      path.join(__dirname, '..', 'skills', 'builtin'),
+      path.join(__dirname, 'skills', 'builtin'),
+      path.join(__dirname, '..', '..', 'skills', 'builtin')
     );
   }
+
+  // 开发环境：源码目录
+  possiblePaths.push(
+    path.join(process.cwd(), 'src', 'skills', 'builtin'),
+    path.join(process.cwd(), '..', 'src', 'skills', 'builtin')
+  );
 
   for (const dir of possiblePaths) {
     const normalizedPath = path.normalize(dir);
@@ -530,7 +588,6 @@ function getBuiltinSkillsDir(): string {
     }
   }
 
-  // 默认返回第一个路径（即使不存在，让调用者处理错误）
   return path.join(process.cwd(), 'src', 'skills', 'builtin');
 }
 

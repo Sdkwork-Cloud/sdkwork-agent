@@ -434,6 +434,25 @@ export { PluginExecutor } from './plugin-executor.js';
 export { ExecutionTracer } from './tracer.js';
 export { ResourceMonitor } from './resource-monitor.js';
 
+// Execution Context Manager
+export {
+  ExecutionContextManager,
+  createExecutionContext,
+  getExecutionContext,
+  removeExecutionContext,
+  getActiveExecutionContexts,
+  cleanupExpiredContexts,
+  WithExecutionContext,
+  DEFAULT_EXECUTION_LIMITS,
+} from './execution-context.js';
+
+export type {
+  ExecutionLimits,
+  ExecutionCall,
+  ExecutionCycle,
+  ExecutionContextOptions,
+} from './execution-context.js';
+
 // ToolExecutor 从 core/application 重新导出
 export { ToolExecutorImpl as ToolExecutor } from '../core/application/tool-executor.js';
 

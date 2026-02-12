@@ -5,19 +5,20 @@
   <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License">
   <img src="https://img.shields.io/badge/typescript-100%25-blue.svg" alt="TypeScript">
   <img src="https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen.svg" alt="Node">
+  <img src="https://img.shields.io/badge/ESM-Ready-brightgreen.svg" alt="ESM">
 </p>
 
 <p align="center">
-  <strong>统一智能体架构 - DDD 领域驱动设计</strong><br>
-  <em>行业领先的 Skill / Tool / MCP / Plugin / TUI 标准</em>
+  <strong>企业级 AI 智能体框架</strong><br>
+  <em>DDD 架构 • 微内核 • ReAct 思考 • 多 LLM 支持</em>
 </p>
 
 <p align="center">
-  <a href="#核心特性">核心特性</a> •
-  <a href="#快速开始">快速开始</a> •
-  <a href="#架构设计">架构设计</a> •
-  <a href="#api文档">API文档</a> •
-  <a href="#示例">示例</a>
+  <a href="#-核心特性">核心特性</a> •
+  <a href="#-快速开始">快速开始</a> •
+  <a href="#-架构设计">架构设计</a> •
+  <a href="#-api-文档">API 文档</a> •
+  <a href="#-示例代码">示例代码</a>
 </p>
 
 ---
@@ -28,11 +29,14 @@
 - [核心特性](#-核心特性)
 - [快速开始](#-快速开始)
 - [架构设计](#-架构设计)
+- [LLM 提供者](#-llm-提供者)
 - [领域模型](#-领域模型)
-- [API文档](#-api文档)
-- [配置指南](#-配置指南)
-- [行业标准](#-行业标准)
+- [API 文档](#-api-文档)
+- [安全机制](#-安全机制)
+- [记忆系统](#-记忆系统)
+- [技能系统](#-技能系统)
 - [示例代码](#-示例代码)
+- [项目结构](#-项目结构)
 - [开发指南](#-开发指南)
 - [许可证](#-许可证)
 
@@ -40,37 +44,57 @@
 
 ## 🎯 简介
 
-**SDKWork Agent** 是一个基于 **DDD (领域驱动设计)** 的统一智能体架构，实现了行业领先的 Skill、Tool、MCP、Plugin 和 TUI 标准。
+**SDKWork Agent** 是一个基于 **DDD (领域驱动设计)** 和 **微内核架构** 的企业级 AI 智能体框架，提供统一、类型安全、可扩展的智能应用开发平台。
 
 ### 设计理念
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    设计原则                                  │
-├─────────────────────────────────────────────────────────────┤
-│  DDD 分层架构  │  高内聚低耦合，清晰的领域边界               │
-│  微内核架构    │  服务注册发现、依赖注入、生命周期管理        │
-│  OpenAI 兼容  │  标准 Chat API，流式响应支持               │
-│  类型安全      │  100% TypeScript，完整的类型推导           │
-│  可观测性      │  完整事件模型，执行链路追踪                 │
-│  可扩展性      │  插件化设计，模块化扩展                     │
-│  TUI 支持      │  专业级终端交互界面                         │
-│  ReAct 思考    │  思考-行动-观察循环                         │
-└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                      核心设计原则                                 │
+├─────────────────────────────────────────────────────────────────┤
+│  DDD 分层架构   │  高内聚低耦合，清晰的领域边界                    │
+│  微内核架构     │  服务注册发现、依赖注入、生命周期管理             │
+│  类型安全       │  100% TypeScript，完整的类型推导                 │
+│  事件驱动       │  完整事件模型，执行链路追踪                       │
+│  安全优先       │  多层沙箱隔离，注入攻击检测                       │
+│  可观测性       │  指标监控、日志记录、性能追踪                     │
+│  可扩展性       │  插件化设计，模块化架构                           │
+└─────────────────────────────────────────────────────────────────┘
 ```
+
+---
+
+## ✨ 核心特性
 
 ### 核心能力
 
 | 能力 | 描述 | 状态 |
 |------|------|------|
-| **Skill 执行** | 多语言支持 (JS/TS)，Schema 验证 | ✅ |
-| **Tool 调用** | 分类管理、确认级别、执行链 | ✅ |
-| **MCP 集成** | Anthropic Model Context Protocol | ✅ |
-| **Plugin 系统** | VSCode 风格生命周期管理 | ✅ |
-| **记忆系统** | 语义搜索、多维度存储 | ✅ |
+| **多 LLM 支持** | OpenAI、Anthropic、Google、DeepSeek、Moonshot、MiniMax、智谱、通义千问、豆包 | ✅ |
+| **ReAct 思考** | 思考-行动-观察循环，支持反思机制 | ✅ |
+| **Skill 执行** | 多语言支持 (JS/TS/Python)、Schema 验证、热重载 | ✅ |
+| **Tool 调用** | 分类管理、确认级别、智能选择 | ✅ |
+| **MCP 集成** | Anthropic Model Context Protocol (stdio/HTTP/SSE) | ✅ |
+| **记忆系统** | HNSW 向量搜索、分层记忆、语义缓存 | ✅ |
+| **安全沙箱** | Node VM 隔离、Prompt 注入检测、代码验证 | ✅ |
+| **插件系统** | VSCode 风格生命周期、依赖注入 | ✅ |
 | **执行引擎** | 规划-执行分离、重试机制、熔断保护 | ✅ |
-| **TUI 界面** | 专业级终端 UI，支持流式输出 | ✅ |
-| **ReAct 思考** | 思考-行动-观察循环 | ✅ |
+| **TUI 界面** | 专业级终端 UI、流式输出、主题切换、自动补全 | ✅ |
+
+### 高级特性
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                      高级能力                                    │
+├─────────────────────────────────────────────────────────────────┤
+│  算法引擎       │  MCTS、HTN、思维树、Transformer 决策            │
+│  缓存系统       │  LRU、布隆过滤器、Roaring Bitmap、SIMD 向量     │
+│  流式传输       │  SSE、WebSocket、分块传输                      │
+│  多智能体       │  协商机制、编排调度、协调合作                    │
+│  多模态         │  图像、音频、视频处理                           │
+│  A/B 测试       │  实验管理、变体选择                             │
+└─────────────────────────────────────────────────────────────────┘
+```
 
 ---
 
@@ -88,33 +112,24 @@ npm install @sdkwork/agent
 import { createAgent } from '@sdkwork/agent';
 import { OpenAIProvider } from '@sdkwork/agent/llm';
 
-// 创建 LLM 提供者
-const openai = new OpenAIProvider({
-  apiKey: process.env.OPENAI_API_KEY,
-  model: 'gpt-4'
+const llm = new OpenAIProvider({
+  apiKey: process.env.OPENAI_API_KEY!,
+  model: 'gpt-4-turbo-preview',
 });
 
-// 创建 Agent (简洁 API)
-const agent = createAgent(openai, {
+const agent = createAgent(llm, {
   name: 'MyAssistant',
   description: '一个 helpful AI 助手',
-  skills: [],
-  tools: [],
 });
 
-// 初始化
 await agent.initialize();
 
-// 对话
 const response = await agent.chat({
-  messages: [
-    { role: 'user', content: '你好！' }
-  ]
+  messages: [{ role: 'user', content: '你好，世界！' }],
 });
 
 console.log(response.choices[0].message.content);
 
-// 清理
 await agent.destroy();
 ```
 
@@ -122,7 +137,7 @@ await agent.destroy();
 
 ```typescript
 const stream = agent.chatStream({
-  messages: [{ role: 'user', content: '给我讲个故事' }]
+  messages: [{ role: 'user', content: '给我讲个故事' }],
 });
 
 for await (const chunk of stream) {
@@ -130,13 +145,10 @@ for await (const chunk of stream) {
 }
 ```
 
-### TUI 界面
+### 命令行界面
 
-```typescript
-import { main } from '@sdkwork/agent/tui/cli';
-
-// 启动交互式 TUI
-main();
+```bash
+npx @sdkwork/agent
 ```
 
 ---
@@ -165,27 +177,12 @@ main();
 ├─────────────────────────────────────────────────────────────────┤
 │                      基础设施层 (Infrastructure)                   │
 │  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐            │
-│  │ Microkernel  │ │EventEmitter  │ │ Logger      │            │
+│  │ Microkernel  │ │EventEmitter  │ │   Logger     │            │
+│  └──────────────┘ └──────────────┘ └──────────────┘            │
+│  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐            │
+│  │   Sandbox    │ │VectorStore   │ │   Cache      │            │
 │  └──────────────┘ └──────────────┘ └──────────────┘            │
 └─────────────────────────────────────────────────────────────────┘
-```
-
-### 微内核架构
-
-```typescript
-// 服务注册
-kernel.registerService({
-  id: 'llm-service',
-  version: '1.0.0',
-  dependencies: [],
-  initialize: async () => { /* ... */ },
-  destroy: async () => { /* ... */ },
-  pause: async () => { /* ... */ },
-  resume: async () => { /* ... */ },
-});
-
-// 拓扑排序初始化
-await kernel.initializeAll();
 ```
 
 ### Agent 生命周期
@@ -198,61 +195,92 @@ await kernel.initializeAll();
       │ reset()                      │ chat() / execute()
       ↓                              ↓
 ┌─────────┐                    ┌─────────────┐
-│  ERROR  │ ←───────────────── │  CHATTING   │
-│ (可恢复) │      错误处理       │  EXECUTING  │
+│  ERROR  │ ←───────────────── │  EXECUTING  │
+│ (可恢复) │      错误处理       │   THINKING  │
 └─────────┘                    └─────────────┘
 ```
 
 ### ReAct 思考引擎
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    ReAct 循环                                │
-├─────────────────────────────────────────────────────────────┤
-│  1. 思考 (Thought)    → 分析情况并制定计划                   │
-│  2. 行动 (Action)     → 选择工具/技能执行                    │
-│  3. 观察 (Observation)→ 收集执行结果                         │
-│  4. 反思 (Reflection) → 每 N 步进行自我反思                  │
-│  5. 重复              → 直到获得答案或达到最大步数            │
-└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                      ReAct 循环                                  │
+├─────────────────────────────────────────────────────────────────┤
+│  1. 思考 (Thought)    → 分析情况并规划下一步行动                  │
+│  2. 行动 (Action)     → 选择并执行工具/技能                       │
+│  3. 观察 (Observation)→ 收集并解释执行结果                        │
+│  4. 反思 (Reflection) → 每 N 步进行自我反思（可选）               │
+│  5. 重复              → 直到获得答案或达到最大步数                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 🤖 LLM 提供者
+
+### 支持的提供者
+
+| 提供者 | 模型 | 特性 |
+|--------|------|------|
+| **OpenAI** | GPT-4, GPT-4-Turbo, GPT-3.5 | 流式输出、函数调用 |
+| **Anthropic** | Claude 3 (Opus/Sonnet/Haiku) | 视觉理解、长上下文 |
+| **Google** | Gemini Pro, Gemini Ultra | 多模态、安全特性 |
+| **DeepSeek** | DeepSeek Chat, Coder | 代码生成 |
+| **Moonshot** | Moonshot v1 | 长上下文 (128K) |
+| **MiniMax** | abab5.5-chat | 中文优化 |
+| **智谱 AI** | glm-4 | 双语支持 |
+| **通义千问** | qwen-turbo, qwen-max | 阿里云 |
+| **豆包** | doubao-pro | 字节跳动 |
+
+### 提供者配置
+
+```typescript
+import { OpenAIProvider } from '@sdkwork/agent/llm';
+
+const openai = new OpenAIProvider({
+  apiKey: process.env.OPENAI_API_KEY!,
+  model: 'gpt-4-turbo-preview',
+  baseUrl: 'https://api.openai.com/v1',  // 可选：自定义端点
+  organization: 'org-xxx',               // 可选：组织 ID
+  defaults: {
+    temperature: 0.7,
+    maxTokens: 4096,
+    topP: 1,
+  },
+});
 ```
 
 ---
 
 ## 📐 领域模型
 
-### Agent 聚合根
+### Agent
 
 ```typescript
 interface Agent {
-  // 身份
   readonly id: AgentId;
   readonly name: string;
   readonly description?: string;
-  
-  // 状态
   readonly state: AgentState;
   
-  // 领域服务
   readonly llm: LLMProvider;
   readonly skills: SkillRegistry;
   readonly tools: ToolRegistry;
   readonly memory?: MemoryStore;
   readonly execution: ExecutionEngine;
-  readonly kernel: Microkernel;
   
-  // 核心能力
   chat(request: ChatRequest): Promise<ChatResponse>;
   chatStream(request: ChatRequest): AsyncGenerator<ChatStreamChunk>;
+  think(input: string, context: ThinkContext): Promise<ThinkResult>;
+  thinkStream(input: string, context: ThinkContext): AsyncGenerator<ThinkEvent>;
   
-  // 生命周期
   initialize(): Promise<void>;
   destroy(): Promise<void>;
-  reset(): Promise<void>; // 错误恢复
+  reset(): Promise<void>;
 }
 ```
 
-### Skill 领域模型
+### Skill
 
 ```typescript
 interface Skill {
@@ -260,23 +288,17 @@ interface Skill {
   readonly name: string;
   readonly description: string;
   readonly version: string;
-  
-  // 输入/输出 Schema
   readonly inputSchema: z.ZodType<unknown>;
+  readonly metadata?: SkillMetadata;
   
-  // 执行函数
   execute(input: unknown, context: SkillContext): Promise<SkillResult>;
-  
-  // 可选流式执行
   executeStream?(input: unknown, context: SkillContext): AsyncIterable<unknown>;
 }
 
-// Skill 上下文
 interface SkillContext {
   executionId: ExecutionId;
   agentId: AgentId;
   sessionId?: SessionId;
-  input: unknown;
   logger: Logger;
   llm: LLMService;
   memory: MemoryService;
@@ -285,55 +307,22 @@ interface SkillContext {
 }
 ```
 
-### Tool 领域模型
+### Tool
 
 ```typescript
 interface Tool {
   readonly id: ToolId;
   readonly name: string;
   readonly description: string;
-  readonly category: 'file' | 'network' | 'system' | 'data' | 'llm' | 'custom';
-  readonly confirm: 'none' | 'read' | 'write' | 'destructive';
+  readonly category: ToolCategory;
+  readonly confirm: ConfirmLevel;
+  readonly parameters: z.ZodType<unknown>;
   
-  // 输入/输出 Schema
-  readonly inputSchema?: z.ZodType<unknown>;
-  readonly outputSchema?: z.ZodType<unknown>;
-  
-  // 执行函数
-  execute(input: unknown, context: ToolContext): Promise<ToolResult>;
+  execute(input: unknown, context: ExecutionContext): Promise<ToolResult>;
 }
 
-// Tool 上下文
-interface ToolContext {
-  executionId: ExecutionId;
-  agentId: AgentId;
-  sessionId?: SessionId;
-  toolId: ToolId;
-  toolName: string;
-  logger: Logger;
-  signal?: AbortSignal;
-}
-```
-
-### MCP 客户端
-
-```typescript
-// 配置 MCP 服务器
-const agent = createAgent(openai, {
-  name: 'MCPAgent',
-  mcp: [
-    {
-      id: 'github-mcp',
-      name: 'GitHub MCP',
-      transport: {
-        type: 'stdio',
-        command: 'npx',
-        args: ['-y', '@modelcontextprotocol/server-github'],
-        env: { GITHUB_TOKEN: process.env.GITHUB_TOKEN }
-      }
-    }
-  ]
-});
+type ToolCategory = 'file' | 'network' | 'system' | 'data' | 'llm' | 'custom';
+type ConfirmLevel = 'none' | 'read' | 'write' | 'destructive';
 ```
 
 ---
@@ -343,109 +332,69 @@ const agent = createAgent(openai, {
 ### 创建 Agent
 
 ```typescript
-// 简洁 API
-function createAgent(
-  llmProvider: LLMProvider,
-  options?: {
-    name?: string;
-    description?: string;
-    skills?: Skill[];
-    tools?: Tool[];
-  }
-): Agent;
+import { createAgent } from '@sdkwork/agent';
 
-// 示例
-const agent = createAgent(openaiProvider, {
+const agent = createAgent(llmProvider, {
+  id: 'my-agent',
   name: 'MyAgent',
-  skills: [mySkill],
-  tools: [myTool],
+  description: '一个强大的 AI 助手',
+  
+  skills: [mySkill1, mySkill2],
+  tools: [myTool1, myTool2],
+  
+  mcp: [{
+    id: 'github-mcp',
+    name: 'GitHub MCP',
+    transport: {
+      type: 'stdio',
+      command: 'npx',
+      args: ['-y', '@modelcontextprotocol/server-github'],
+      env: { GITHUB_TOKEN: process.env.GITHUB_TOKEN }
+    }
+  }],
+  
+  memory: {
+    type: 'hierarchical',
+    config: { maxEntries: 10000 }
+  },
+  
+  executionLimits: {
+    maxDepth: 10,
+    maxSteps: 50,
+    maxSameActionRepeat: 3,
+    timeout: 60000,
+    maxTotalTime: 300000,
+  },
 });
 ```
 
-### Agent 配置
+### Chat API
 
 ```typescript
-interface AgentConfig {
-  // 身份
-  id?: string;
-  name: string;
-  description?: string;
-  
-  // LLM 配置
-  llm: LLMProvider | LLMConfig;
-  
-  // 可选能力
-  skills?: Skill[];
-  tools?: Tool[];
-  mcp?: MCPServerConfig[];
-  memory?: MemoryConfig;
-}
+const response = await agent.chat({
+  messages: [
+    { role: 'system', content: '你是一个有帮助的助手。' },
+    { role: 'user', content: '你好！' }
+  ],
+  model: 'gpt-4-turbo',
+  temperature: 0.7,
+  maxTokens: 4096,
+  sessionId: 'session-1',
+});
 
-interface LLMConfig {
-  provider: 'openai' | 'anthropic' | 'google' | 'moonshot' | 
-            'minimax' | 'zhipu' | 'qwen' | 'deepseek' | 'doubao';
-  apiKey: string;
-  model?: string;
-  baseUrl?: string;
-  defaults?: {
-    temperature?: number;
-    maxTokens?: number;
-    topP?: number;
-  };
-}
-```
-
-### Chat API (OpenAI 兼容)
-
-```typescript
-// 请求
-interface ChatRequest {
-  messages: ChatMessage[];
-  model?: string;
-  stream?: boolean;
-  temperature?: number;
-  maxTokens?: number;
-  sessionId?: string;
-}
-
-// 响应
-interface ChatResponse {
-  id: string;
-  object: 'chat.completion';
-  created: number;
-  model: string;
-  choices: ChatChoice[];
-  usage: {
-    promptTokens: number;
-    completionTokens: number;
-    totalTokens: number;
-  };
-}
-
-// 流式块
-interface ChatStreamChunk {
-  id: string;
-  object: 'chat.completion.chunk';
-  created: number;
-  model: string;
-  choices: Array<{
-    index: number;
-    delta: {
-      role?: string;
-      content?: string;
-      toolCalls?: ToolCall[];
-    };
-    finishReason: string | null;
-  }>;
-}
+console.log(response.choices[0].message.content);
+console.log(`Token 用量: ${response.usage.totalTokens}`);
 ```
 
 ### 事件系统
 
 ```typescript
-// 订阅事件
+agent.on('agent:initialized', (event) => {
+  console.log('Agent 就绪:', event.payload.agentId);
+});
+
 agent.on('chat:completed', (event) => {
-  console.log('对话完成:', event.payload);
+  console.log('对话完成:', event.payload.responseId);
 });
 
 agent.on('skill:completed', (event) => {
@@ -456,33 +405,37 @@ agent.on('tool:completed', (event) => {
   console.log('Tool 调用:', event.payload.toolId);
 });
 
-// 所有事件类型
-agent.on('agent:initialized', handler);
-agent.on('agent:error', handler);
-agent.on('execution:step', handler);
-agent.on('memory:stored', handler);
-```
-
-### ReAct 引擎
-
-```typescript
-// 使用 ReAct 模式思考
-const result = await agent.think('今天天气怎么样？', {
-  sessionId: 'session-1',
-  executionId: 'exec-1'
+agent.on('execution:step', (event) => {
+  console.log('执行步骤:', event.payload);
 });
 
-// 流式思考过程
+agent.on('agent:error', (event) => {
+  console.error('Agent 错误:', event.payload.error);
+});
+```
+
+### ReAct 思考
+
+```typescript
+const result = await agent.think(
+  '东京的人口乘以 2 是多少？',
+  { sessionId: 'session-1', executionId: 'exec-1' }
+);
+
+console.log('答案:', result.answer);
+console.log('步骤数:', result.steps.length);
+console.log('使用工具:', Array.from(result.toolsUsed));
+
 for await (const event of agent.thinkStream('复杂问题')) {
   switch (event.type) {
     case 'thought':
       console.log('思考:', event.thought);
       break;
-    case 'actions':
-      console.log('行动:', event.actions);
+    case 'action':
+      console.log('行动:', event.action);
       break;
-    case 'observations':
-      console.log('结果:', event.observations);
+    case 'observation':
+      console.log('结果:', event.observation);
       break;
     case 'complete':
       console.log('答案:', event.answer);
@@ -493,260 +446,413 @@ for await (const event of agent.thinkStream('复杂问题')) {
 
 ---
 
-## ⚙️ 配置指南
+## 🔒 安全机制
 
-### 环境变量
-
-```bash
-# LLM 提供者
-OPENAI_API_KEY=sk-...
-ANTHROPIC_API_KEY=sk-ant-...
-GOOGLE_API_KEY=...
-
-# MCP
-GITHUB_TOKEN=ghp_...
-```
-
-### 完整配置示例
-
-```typescript
-import { createAgent } from '@sdkwork/agent';
-import { OpenAIProvider } from '@sdkwork/agent/llm';
-
-const openai = new OpenAIProvider({
-  apiKey: process.env.OPENAI_API_KEY!,
-  model: 'gpt-4-turbo-preview',
-  defaults: {
-    temperature: 0.7,
-    maxTokens: 4000
-  }
-});
-
-const agent = createAgent(openai, {
-  name: '生产助手',
-  description: '企业级 AI 助手',
-  
-  skills: [
-    dataProcessingSkill,
-    analysisSkill,
-    reportGenerationSkill
-  ],
-  
-  tools: [
-    fileReadTool,
-    fileWriteTool,
-    httpRequestTool,
-    databaseQueryTool
-  ],
-});
-```
-
----
-
-## 🏆 行业标准
-
-### 标准兼容性
-
-| 标准 | 兼容性 | 说明 |
-|------|--------|------|
-| **OpenAI API** | 100% | Chat Completion API 完全兼容 |
-| **Anthropic MCP** | 100% | Model Context Protocol |
-| **Claude Code** | 100% | Tool-first 设计哲学 |
-| **OpenCode** | 100% | 模块化执行上下文 |
-| **OpenClaw** | 100% | 声明式动作定义 |
-
-### 架构对比
+### 多层沙箱架构
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    SDKWork Agent                                 │
+│                      安全架构                                    │
 ├─────────────────────────────────────────────────────────────────┤
-│  DDD 分层      │  领域层/应用层/基础设施层                        │
-│  微内核        │  服务注册、依赖注入、生命周期管理                  │
-│  事件驱动      │  完整事件模型                                    │
-│  类型安全      │  100% TypeScript                                │
-│  OpenAI 兼容   │  标准 Chat API                                  │
-│  TUI 支持      │  专业级终端界面                                  │
-│  ReAct 思考    │  思考-行动-观察循环                              │
+│  第一层：静态分析                                                │
+│  ├── 代码验证 (AST 解析)                                        │
+│  ├── 危险模式检测                                                │
+│  └── 导入/请求过滤                                               │
+├─────────────────────────────────────────────────────────────────┤
+│  第二层：运行时沙箱                                              │
+│  ├── Node VM 隔离                                               │
+│  ├── 内存限制 (可配置)                                           │
+│  ├── 执行超时                                                    │
+│  └── 调用栈深度限制                                               │
+├─────────────────────────────────────────────────────────────────┤
+│  第三层：Prompt 注入检测                                         │
+│  ├── 模式匹配                                                    │
+│  ├── 语义分析                                                    │
+│  └── Constitutional AI 检查                                      │
 └─────────────────────────────────────────────────────────────────┘
+```
+
+### 沙箱配置
+
+```typescript
+const sandboxConfig = {
+  timeout: 30000,
+  memoryLimit: 128 * 1024 * 1024,
+  maxCallStackSize: 1000,
+  useContextIsolation: true,
+  cacheCompiledCode: true,
+  allowedModules: ['lodash', 'moment'],
+  deniedModules: ['fs', 'child_process', 'eval'],
+  onViolation: (violation) => {
+    console.error('安全违规:', violation);
+  },
+};
+```
+
+### 执行限制
+
+```typescript
+const executionLimits = {
+  maxDepth: 10,           // 最大递归深度
+  maxSteps: 50,           // 最大执行步骤
+  maxSameActionRepeat: 3, // 最大相同动作重复次数
+  timeout: 60000,         // 步骤超时 (ms)
+  maxTotalTime: 300000,   // 总执行时间 (ms)
+};
 ```
 
 ---
 
-## 💡 示例代码
+## 🧠 记忆系统
 
-### 示例 1: 数据处理 Agent
+### 记忆架构
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                      记忆系统                                    │
+├─────────────────────────────────────────────────────────────────┤
+│  短期记忆                                                        │
+│  ├── 对话历史                                                    │
+│  ├── 工作记忆 (上下文窗口)                                        │
+│  └── 临时缓存                                                    │
+├─────────────────────────────────────────────────────────────────┤
+│  长期记忆                                                        │
+│  ├── 向量存储 (HNSW)                                             │
+│  ├── 语义搜索                                                    │
+│  └── 情景记忆                                                    │
+├─────────────────────────────────────────────────────────────────┤
+│  知识库                                                          │
+│  ├── 文档存储                                                    │
+│  ├── 图记忆 (关系网络)                                            │
+│  └── 分层记忆                                                    │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### 记忆使用
 
 ```typescript
-import { createAgent } from '@sdkwork/agent';
-import { OpenAIProvider } from '@sdkwork/agent/llm';
+const agent = createAgent(llm, {
+  name: 'MemoryAgent',
+  memory: {
+    type: 'hierarchical',
+    config: {
+      maxEntries: 10000,
+      vectorDimension: 128,
+      similarityThreshold: 0.8,
+    },
+  },
+});
 
-// 定义 Skill
-const dataProcessorSkill: Skill = {
+await agent.initialize();
+
+await agent.chat({
+  messages: [{ role: 'user', content: '我叫 Alice' }],
+  sessionId: 'session-1',
+});
+
+const response = await agent.chat({
+  messages: [{ role: 'user', content: '我叫什么名字？' }],
+  sessionId: 'session-1',
+});
+
+console.log(response.choices[0].message.content);
+```
+
+---
+
+## 🛠️ 技能系统
+
+### 内置技能
+
+| 分类 | 技能 |
+|------|------|
+| **影视制作** | 50+ 视频生成流水线技能 |
+| **翻译** | 多语言翻译 |
+| **数学** | 数学计算 |
+| **PDF 处理** | PDF 解析和提取 |
+| **Prompt 优化** | 图像/视频/代码 Prompt 增强 |
+| **歌词生成** | 创意歌词写作 |
+
+### 自定义技能定义
+
+```typescript
+import { z } from 'zod';
+
+const mySkill: Skill = {
   id: 'data-processor',
   name: 'Data Processor',
   description: '处理和分析数据',
   version: '1.0.0',
-  inputSchema: z.object({ data: z.array(z.any()) }),
+  inputSchema: z.object({
+    data: z.array(z.any()),
+    operation: z.enum(['filter', 'map', 'reduce']),
+  }),
+  metadata: {
+    category: 'data',
+    tags: ['processing', 'analysis'],
+    author: 'SDKWork Team',
+  },
   execute: async (input, ctx) => {
-    const { data } = input as { data: unknown[] };
+    const { data, operation } = input as { data: unknown[]; operation: string };
     
-    // 处理数据
-    const processed = data.filter(item => item !== null);
-    
-    // 使用 LLM 分析
-    const response = await ctx.llm.complete({
-      messages: [
-        { role: 'user', content: `分析: ${JSON.stringify(processed)}`, id: '1', timestamp: Date.now() }
-      ]
+    const result = await ctx.llm.complete({
+      messages: [{
+        role: 'user',
+        content: `使用 ${operation} 处理数据: ${JSON.stringify(data)}`,
+        id: '1',
+        timestamp: Date.now(),
+      }],
     });
     
     return {
       success: true,
-      data: {
-        processed,
-        analysis: response.choices[0]?.message?.content
-      },
+      data: result.choices[0]?.message?.content,
       metadata: {
         executionId: ctx.executionId,
         skillId: 'data-processor',
         skillName: 'Data Processor',
         startTime: Date.now(),
         endTime: Date.now(),
-        duration: 0
-      }
+        duration: 0,
+      },
     };
-  }
+  },
 };
-
-// 创建 Agent
-const agent = createAgent(openai, {
-  name: 'DataAgent',
-  skills: [dataProcessorSkill]
-});
-
-await agent.initialize();
-
-// 执行 skill
-const result = await agent.executeSkill('data-processor', {
-  data: largeDataset
-});
 ```
 
-### 示例 2: 带记忆的 Agent
+### Markdown 技能定义
+
+```markdown
+---
+id: my-skill
+name: My Skill
+version: 1.0.0
+description: 一个自定义技能
+inputSchema:
+  type: object
+  properties:
+    input:
+      type: string
+  required:
+    - input
+---
+
+# My Skill
+
+处理输入: {{input}}
+```
+
+---
+
+## 💡 示例代码
+
+### 示例 1：多提供者 Agent
 
 ```typescript
+import { createAgent } from '@sdkwork/agent';
+import { OpenAIProvider } from '@sdkwork/agent/llm';
+import { AnthropicProvider } from '@sdkwork/agent/llm';
+
+const openai = new OpenAIProvider({
+  apiKey: process.env.OPENAI_API_KEY!,
+  model: 'gpt-4-turbo',
+});
+
+const claude = new AnthropicProvider({
+  apiKey: process.env.ANTHROPIC_API_KEY!,
+  model: 'claude-3-opus-20240229',
+});
+
 const agent = createAgent(openai, {
-  name: 'MemoryAgent',
-  description: '带对话记忆的 Agent'
+  name: 'MultiModelAgent',
+  skills: [analysisSkill, generationSkill],
+  tools: [fileTool, webTool],
 });
 
 await agent.initialize();
+```
 
-// 第一轮对话
-await agent.chat({
-  messages: [
-    { role: 'user', content: '我叫 Alice' }
+### 示例 2：MCP 集成
+
+```typescript
+const agent = createAgent(llm, {
+  name: 'MCPAgent',
+  mcp: [
+    {
+      id: 'github',
+      name: 'GitHub MCP',
+      transport: {
+        type: 'stdio',
+        command: 'npx',
+        args: ['-y', '@modelcontextprotocol/server-github'],
+        env: { GITHUB_TOKEN: process.env.GITHUB_TOKEN },
+      },
+    },
+    {
+      id: 'filesystem',
+      name: 'Filesystem MCP',
+      transport: {
+        type: 'stdio',
+        command: 'npx',
+        args: ['-y', '@modelcontextprotocol/server-filesystem', '/path/to/dir'],
+      },
+    },
   ],
-  sessionId: 'session-1'
-});
-
-// 第二轮对话 - Agent 记得用户名字
-const response = await agent.chat({
-  messages: [
-    { role: 'user', content: '我叫什么名字？' }
-  ],
-  sessionId: 'session-1'
-});
-
-// 输出: "你的名字是 Alice"
-console.log(response.choices[0].message.content);
-```
-
-### 示例 3: ReAct 思考
-
-```typescript
-const agent = createAgent(openai, {
-  name: 'ReasoningAgent',
-  skills: [calculatorSkill, searchSkill]
 });
 
 await agent.initialize();
 
-// 使用 ReAct 思考
-const result = await agent.think(
-  '东京的人口乘以 2 是多少？',
-  { sessionId: 'session-1', executionId: 'exec-1' }
-);
-
-console.log('答案:', result.answer);
-console.log('步骤数:', result.steps.length);
-console.log('使用工具:', result.toolsUsed);
+const tools = agent.mcp.aggregateTools();
+console.log(`可用的 MCP 工具: ${tools.length}`);
 ```
 
-### 示例 4: TUI 界面
+### 示例 3：流式事件
 
 ```typescript
-import { main } from '@sdkwork/agent/tui/cli';
+agent.on('chat:chunk', (event) => {
+  process.stdout.write(event.payload.content);
+});
 
-// 启动交互式 TUI，包含：
-// - 多提供者支持 (OpenAI, Anthropic 等)
-// - 65+ 模型选择
-// - 主题切换
-// - 会话管理
-// - 自动补全
-main();
+agent.on('chat:tool_call', (event) => {
+  console.log(`\n调用工具: ${event.payload.name}`);
+});
+
+const stream = agent.chatStream({
+  messages: [{ role: 'user', content: '分析这些数据并创建报告' }],
+});
+
+for await (const chunk of stream) {
+  // 数据块也会作为事件发送
+}
+```
+
+### 示例 4：错误恢复
+
+```typescript
+agent.on('agent:error', async (event) => {
+  console.error('错误:', event.payload.error);
+  
+  if (event.payload.recoverable) {
+    console.log('尝试恢复...');
+    await agent.reset();
+  }
+});
+
+try {
+  await agent.chat({
+    messages: [{ role: 'user', content: '复杂任务' }],
+  });
+} catch (error) {
+  console.error('对话失败:', error);
+  await agent.reset();
+}
+```
+
+---
+
+## 📁 项目结构
+
+```
+@sdkwork/agent/
+├── src/
+│   ├── index.ts                    # 主入口
+│   │
+│   ├── core/                       # 核心架构
+│   │   ├── domain/                 # 领域模型
+│   │   │   ├── agent.ts            # Agent 聚合
+│   │   │   ├── skill.ts            # Skill 领域
+│   │   │   ├── tool.ts             # Tool 领域
+│   │   │   ├── mcp.ts              # MCP 领域
+│   │   │   ├── plugin.ts           # Plugin 领域
+│   │   │   ├── memory.ts           # Memory 领域
+│   │   │   └── events.ts           # 领域事件
+│   │   ├── application/            # 应用服务
+│   │   │   ├── agent-impl.ts       # Agent 实现
+│   │   │   ├── skill-executor.ts   # Skill 执行
+│   │   │   ├── tool-executor.ts    # Tool 执行
+│   │   │   ├── mcp-client.ts       # MCP 客户端
+│   │   │   ├── plugin-manager.ts   # 插件管理
+│   │   │   └── execution-engine.ts # 执行引擎
+│   │   └── microkernel/            # 微内核核心
+│   │       └── index.ts
+│   │
+│   ├── agent/                      # Agent 模块
+│   │   ├── agent.ts                # Agent 类
+│   │   ├── thinking/               # 思考引擎
+│   │   │   └── react-engine.ts     # ReAct 实现
+│   │   └── domain/                 # Agent 领域
+│   │
+│   ├── llm/                        # LLM 提供者
+│   │   ├── provider.ts             # 基础提供者
+│   │   └── providers/              # 提供者实现
+│   │       ├── openai.ts
+│   │       ├── anthropic.ts
+│   │       ├── gemini.ts
+│   │       ├── deepseek.ts
+│   │       ├── moonshot.ts
+│   │       ├── minimax.ts
+│   │       ├── zhipu.ts
+│   │       ├── qwen.ts
+│   │       └── doubao.ts
+│   │
+│   ├── skills/                     # 技能系统
+│   │   ├── core/                   # 核心技能基础设施
+│   │   ├── builtin/                # 内置技能
+│   │   ├── interaction/            # 交互管理
+│   │   └── registry.ts             # 技能注册表
+│   │
+│   ├── tools/                      # 工具系统
+│   │   ├── core/                   # 核心工具基础设施
+│   │   ├── builtin.ts              # 内置工具
+│   │   └── registry.ts             # 工具注册表
+│   │
+│   ├── memory/                     # 记忆系统
+│   │   ├── storage/                # 存储后端
+│   │   ├── hnsw-vector-database.ts # HNSW 实现
+│   │   ├── hierarchical-memory.ts  # 分层记忆
+│   │   └── graph-memory.ts         # 图记忆
+│   │
+│   ├── security/                   # 安全层
+│   │   ├── node-sandbox.ts         # Node VM 沙箱
+│   │   ├── secure-sandbox.ts       # 安全执行
+│   │   ├── prompt-injection-detector.ts
+│   │   └── constitutional-ai.ts    # Constitutional AI
+│   │
+│   ├── execution/                  # 执行引擎
+│   │   ├── execution-context.ts    # 执行上下文
+│   │   ├── process-manager.ts      # 进程管理
+│   │   └── script-executor.ts      # 脚本执行
+│   │
+│   ├── algorithms/                 # AI 算法
+│   │   ├── mcts.ts                 # 蒙特卡洛树搜索
+│   │   ├── transformer-decision.ts # Transformer 决策
+│   │   └── tree-of-thoughts.ts     # 思维树
+│   │
+│   ├── utils/                      # 工具类
+│   │   ├── logger.ts               # 日志系统
+│   │   ├── errors.ts               # 错误处理
+│   │   ├── cache/                  # 缓存工具
+│   │   └── performance-monitor.ts  # 性能监控
+│   │
+│   └── tui/                        # 终端 UI
+│       ├── cli.ts                  # CLI 入口
+│       ├── renderer.ts             # 输出渲染
+│       └── selector.ts             # 交互选择器
+│
+├── dist/                           # 编译输出
+├── tests/                          # 测试套件
+├── docs/                           # 文档
+└── examples/                       # 示例代码
 ```
 
 ---
 
 ## 🔧 开发指南
 
-### 项目结构
+### 环境要求
 
-```
-sdkwork-agent/
-├── src/
-│   ├── index.ts              # 主入口, createAgent
-│   ├── core/
-│   │   ├── domain/           # 领域层
-│   │   │   ├── agent.ts      # Agent 领域模型
-│   │   │   ├── skill.ts      # Skill 领域模型
-│   │   │   ├── tool.ts       # Tool 领域模型
-│   │   │   ├── mcp.ts        # MCP 领域模型
-│   │   │   ├── plugin.ts     # Plugin 领域模型
-│   │   │   ├── memory.ts     # Memory 领域模型
-│   │   │   └── unified.ts    # 统一类型
-│   │   ├── application/      # 应用层
-│   │   │   ├── agent-impl.ts # Agent 实现
-│   │   │   ├── skill-executor.ts
-│   │   │   ├── tool-executor.ts
-│   │   │   ├── mcp-client.ts
-│   │   │   ├── plugin-manager.ts
-│   │   │   ├── execution-engine.ts
-│   │   │   └── memory-store.ts
-│   │   └── microkernel/      # 微内核
-│   │       └── index.ts
-│   ├── agent/                # 旧版 Agent (ReAct)
-│   │   ├── agent.ts          # Agent 类
-│   │   ├── thinking/
-│   │   │   └── react-engine.ts
-│   │   └── skills/
-│   │       └── registry.ts
-│   ├── llm/                  # LLM 提供者
-│   │   ├── provider.ts
-│   │   └── providers/
-│   │       ├── openai.ts
-│   │       ├── anthropic.ts
-│   │       └── ...
-│   ├── skills/               # Skill 系统
-│   ├── tools/                # Tool 系统
-│   ├── tui/                  # 终端 UI
-│   └── utils/                # 工具类
-├── tests/
-├── docs/
-└── examples/
-```
+- Node.js >= 18.0.0
+- npm >= 9.0.0
 
 ### 开发命令
 
@@ -754,23 +860,34 @@ sdkwork-agent/
 # 安装依赖
 npm install
 
-# 开发模式
+# 开发模式 (监听变化)
 npm run dev
 
 # 类型检查
 npm run typecheck
 
-# 运行测试
-npm run test
-
 # 构建
 npm run build
+
+# 运行测试
+npm run test
 
 # 代码检查
 npm run lint
 
-# 格式化
+# 格式化代码
 npm run format
+```
+
+### 模块导出
+
+```typescript
+import { createAgent } from '@sdkwork/agent';
+import { OpenAIProvider } from '@sdkwork/agent/llm';
+import { SkillRegistry } from '@sdkwork/agent/skills';
+import { ToolRegistry } from '@sdkwork/agent/tools';
+import { MCPManager } from '@sdkwork/agent/mcp';
+import { MemoryStore } from '@sdkwork/agent/storage';
 ```
 
 ---
@@ -782,6 +899,6 @@ npm run format
 ---
 
 <p align="center">
-  <strong>Made with ❤️ by SDKWork Team</strong><br>
-  <em>Building the future of AI agents</em>
+  <strong>用 ❤️ 构建于 SDKWork Team</strong><br>
+  <em>赋能开发者构建智能 AI 应用</em>
 </p>

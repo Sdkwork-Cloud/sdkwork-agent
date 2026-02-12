@@ -21,6 +21,12 @@ import type {
   MessageContentPart,
 } from '../domain/types.js';
 import { EventBus, createEventBus } from '../domain/events.js';
+import {
+  ExecutionContextManager,
+  createExecutionContext,
+  removeExecutionContext,
+  type ExecutionLimits,
+} from '../../execution/execution-context.js';
 
 /**
  * 提取文本内容
@@ -45,6 +51,8 @@ export interface ReActConfig {
   temperature?: number;
   /** 是否启用并行工具调用 */
   enableParallelTools?: boolean;
+  /** 执行限制 */
+  executionLimits?: Partial<ExecutionLimits>;
 }
 
 export interface ReActState {
@@ -55,10 +63,11 @@ export interface ReActState {
   startTime: number;
   isComplete: boolean;
   answer?: string;
+  executionContext?: ExecutionContextManager;
 }
 
 export class ReActEngine {
-  private config: Required<ReActConfig>;
+  private config: Required<Omit<ReActConfig, 'executionLimits'>> & { executionLimits: ExecutionLimits };
   private state: ReActState;
   private eventBus: EventBus;
   private abortController: AbortController;
@@ -72,6 +81,24 @@ export class ReActEngine {
     config: ReActConfig = {},
     eventBus?: EventBus
   ) {
+    const defaultLimits: ExecutionLimits = {
+      maxDepth: 10,
+      maxSteps: 50,
+      maxSameActionRepeat: 3,
+      timeout: 60000,
+      maxTotalTime: 300000,
+    };
+
+    const executionLimits: ExecutionLimits = {
+      maxDepth: config.executionLimits?.maxDepth ?? defaultLimits.maxDepth,
+      maxSteps: config.executionLimits?.maxSteps ?? defaultLimits.maxSteps,
+      maxSameActionRepeat: config.executionLimits?.maxSameActionRepeat ?? defaultLimits.maxSameActionRepeat,
+      timeout: config.executionLimits?.timeout ?? defaultLimits.timeout,
+      maxTotalTime: config.executionLimits?.maxTotalTime ?? defaultLimits.maxTotalTime,
+    };
+
+    const { executionLimits: _, ...restConfig } = config;
+
     this.config = {
       maxSteps: 10,
       timeout: 60000,
@@ -81,7 +108,8 @@ export class ReActEngine {
       systemPrompt: this.getDefaultSystemPrompt(),
       temperature: 0.7,
       enableParallelTools: false,
-      ...config,
+      executionLimits,
+      ...restConfig,
     };
 
     this.state = {
@@ -107,17 +135,29 @@ export class ReActEngine {
   ): Promise<ThinkingResult> {
     this.reset();
 
-    this.logger.info('[ReAct] Starting thinking process', { input });
+    // 创建执行上下文
+    this.state.executionContext = createExecutionContext({
+      executionId: context.executionId,
+      agentId: context.agentId,
+      sessionId: context.sessionId,
+      limits: this.config.executionLimits,
+      eventBus: this.eventBus,
+    });
+
+    this.logger.info('[ReAct] Starting thinking process', { input, executionId: context.executionId });
 
     this.eventBus.publish(
       'thinking:started',
-      { input, maxSteps: this.config.maxSteps },
+      { input, maxSteps: this.config.maxSteps, executionId: context.executionId },
       { agentId: context.agentId, executionId: context.executionId }
     );
 
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
     try {
-      const timeoutId = setTimeout(() => {
+      timeoutId = setTimeout(() => {
         this.abortController.abort();
+        this.state.executionContext?.abort('timeout', `Execution timeout after ${this.config.timeout}ms`);
       }, this.config.timeout);
 
       const relevantMemories = await this.retrieveRelevantMemories(input);
@@ -126,8 +166,18 @@ export class ReActEngine {
         : '';
 
       for (let step = 1; step <= this.config.maxSteps; step++) {
-        if (this.abortController.signal.aborted) {
-          throw new Error('Thinking process aborted');
+        // 检查执行上下文是否已中止
+        if (this.abortController.signal.aborted || this.state.executionContext?.isAborted()) {
+          const reason = this.state.executionContext?.getAbortReason();
+          this.logger.warn('[ReAct] Thinking process aborted', { reason });
+          throw new Error(`Thinking process aborted: ${reason?.message || 'Unknown reason'}`);
+        }
+
+        // 检查是否可以继续执行
+        if (!this.state.executionContext?.canContinue()) {
+          const reason = this.state.executionContext?.getAbortReason();
+          this.logger.warn('[ReAct] Execution limits reached', { reason });
+          throw new Error(`Execution limits reached: ${reason?.message || 'Unknown reason'}`);
         }
 
         this.state.currentStep = step;
@@ -148,7 +198,7 @@ export class ReActEngine {
           this.state.isComplete = true;
           this.state.answer = answer;
 
-          clearTimeout(timeoutId);
+          if (timeoutId) clearTimeout(timeoutId);
 
           const result = this.buildResult(true, answer);
 
@@ -157,6 +207,9 @@ export class ReActEngine {
             { result, steps: this.state.steps },
             { agentId: context.agentId, executionId: context.executionId }
           );
+
+          // 清理执行上下文
+          removeExecutionContext(context.executionId);
 
           return result;
         }
@@ -200,7 +253,7 @@ export class ReActEngine {
         });
       }
 
-      clearTimeout(timeoutId);
+      if (timeoutId) clearTimeout(timeoutId);
       const partialAnswer = this.synthesizePartialAnswer();
       const result = this.buildResult(false, partialAnswer, 'Max steps reached');
 
@@ -210,8 +263,12 @@ export class ReActEngine {
         { agentId: context.agentId, executionId: context.executionId }
       );
 
+      // 清理执行上下文
+      removeExecutionContext(context.executionId);
+
       return result;
     } catch (error) {
+      if (timeoutId) clearTimeout(timeoutId);
       this.logger.error('[ReAct] Thinking process failed', {}, error as Error);
 
       this.eventBus.publish(
@@ -219,6 +276,9 @@ export class ReActEngine {
         { error: (error as Error).message },
         { agentId: context.agentId, executionId: context.executionId }
       );
+
+      // 清理执行上下文
+      removeExecutionContext(context.executionId);
 
       const partialAnswer = this.synthesizePartialAnswer();
       return this.buildResult(false, partialAnswer, (error as Error).message);
@@ -235,6 +295,15 @@ export class ReActEngine {
   ): AsyncGenerator<ThinkingStreamEvent> {
     this.reset();
 
+    // 创建执行上下文
+    this.state.executionContext = createExecutionContext({
+      executionId: context.executionId,
+      agentId: context.agentId,
+      sessionId: context.sessionId,
+      limits: this.config.executionLimits,
+      eventBus: this.eventBus,
+    });
+
     yield { type: 'start', input };
 
     try {
@@ -244,8 +313,18 @@ export class ReActEngine {
         : '';
 
       for (let step = 1; step <= this.config.maxSteps; step++) {
-        if (this.abortController.signal.aborted) {
-          throw new Error('Thinking process aborted');
+        // 检查执行上下文是否已中止
+        if (this.abortController.signal.aborted || this.state.executionContext?.isAborted()) {
+          const reason = this.state.executionContext?.getAbortReason();
+          yield { type: 'error', error: `Thinking process aborted: ${reason?.message || 'Unknown reason'}` };
+          return;
+        }
+
+        // 检查是否可以继续执行
+        if (!this.state.executionContext?.canContinue()) {
+          const reason = this.state.executionContext?.getAbortReason();
+          yield { type: 'error', error: `Execution limits reached: ${reason?.message || 'Unknown reason'}` };
+          return;
         }
 
         this.state.currentStep = step;
@@ -261,6 +340,8 @@ export class ReActEngine {
         if (finishAction) {
           const answer = finishAction.parameters.answer as string;
           yield { type: 'complete', answer, steps: this.state.steps };
+          // 清理执行上下文
+          removeExecutionContext(context.executionId);
           return;
         }
 
@@ -289,7 +370,13 @@ export class ReActEngine {
 
       const partialAnswer = this.synthesizePartialAnswer();
       yield { type: 'complete', answer: partialAnswer, steps: this.state.steps, incomplete: true };
+      // 清理执行上下文
+      removeExecutionContext(context.executionId);
     } catch (error) {
+      // 清理执行上下文
+      if (this.state.executionContext) {
+        removeExecutionContext(this.state.executionContext['executionId']);
+      }
       yield { type: 'error', error: (error as Error).message };
     }
   }
@@ -310,6 +397,7 @@ export class ReActEngine {
       toolsUsed: new Set(),
       startTime: Date.now(),
       isComplete: false,
+      executionContext: undefined,
     };
     this.abortController = new AbortController();
   }
@@ -394,6 +482,12 @@ export class ReActEngine {
   ): Promise<string> {
     this.logger.info(`[ReAct Step ${step}] Executing: ${action.type}:${action.name}`);
 
+    // 检查执行上下文是否允许进入
+    if (!this.state.executionContext?.enterAction(action.type, action.name)) {
+      const reason = this.state.executionContext?.getAbortReason();
+      return `Error: Execution blocked - ${reason?.message || 'Unknown reason'}`;
+    }
+
     try {
       switch (action.type) {
         case 'tool': {
@@ -410,6 +504,7 @@ export class ReActEngine {
               toolName: action.name,
               logger: this.logger,
               signal: this.abortController.signal,
+              executionContext: this.state.executionContext,
             }
           );
 
@@ -434,6 +529,7 @@ export class ReActEngine {
             memory: this.memory,
             tools: this.tools,
             signal: this.abortController.signal,
+            executionContext: this.state.executionContext,
           });
 
           return JSON.stringify(skillResult.data || skillResult);
@@ -453,6 +549,9 @@ export class ReActEngine {
     } catch (error) {
       this.logger.error(`[ReAct] Action failed: ${action.type}:${action.name}`, {}, error as Error);
       return `Error: ${(error as Error).message}`;
+    } finally {
+      // 退出执行层级
+      this.state.executionContext?.exitAction(action.type, action.name);
     }
   }
 
@@ -508,7 +607,7 @@ Step ${step}: Analyze the current situation and think about what to do next.
 Provide your thought process:`;
   }
 
-  private buildActionPrompt(thought: string, step: number): string {
+  private buildActionPrompt(thought: string, _step: number): string {
     const tools = this.formatTools();
 
     return `Your Thought: ${thought}

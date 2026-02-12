@@ -87,20 +87,20 @@ const COMMANDS: Command[] = [
   { name: 'help', description: '显示帮助信息', alias: ['h', '?'], category: 'general' },
   { name: 'clear', description: '清空对话历史', alias: ['c'], category: 'general' },
   { name: 'exit', description: '退出 CLI', alias: ['quit', 'q'], category: 'general' },
-  { name: 'config', description: '显示/修改配置', usage: 'config [key=value]', category: 'settings' },
+  { name: 'config', description: '显示/修改配置', usage: 'config [key=value]', examples: ['config', 'config theme=dark', 'config baseUrl=https://api.example.com'], category: 'settings' },
   { name: 'skills', description: '列出可用技能', alias: ['ls'], category: 'capabilities' },
-  { name: 'skill', description: '执行技能', usage: 'skill <name> [params]', examples: ['skill translate text="Hello" targetLanguage="zh"'], category: 'capabilities' },
+  { name: 'skill', description: '执行技能', usage: 'skill <name> [params]', examples: ['skill translate text="Hello" targetLanguage="zh"', 'skill code --help'], category: 'capabilities' },
   { name: 'tools', description: '列出可用工具', category: 'capabilities' },
-  { name: 'model', description: '切换/显示模型', usage: 'model [model-id]', category: 'settings' },
-  { name: 'provider', description: '切换提供商', usage: 'provider [name]', category: 'settings' },
-  { name: 'theme', description: '切换主题', usage: 'theme [theme-name]', category: 'settings' },
-  { name: 'session', description: '会话管理', usage: 'session <list|save|load|delete|auto>', examples: ['session list', 'session save', 'session delete'], category: 'session' },
+  { name: 'model', description: '切换/显示模型', usage: 'model [model-id]', examples: ['model', 'model gpt-4'], category: 'settings' },
+  { name: 'provider', description: '切换提供商', usage: 'provider [name] [--baseUrl=url]', examples: ['provider', 'provider openai', 'provider openai --baseUrl=https://api.example.com/v1'], category: 'settings' },
+  { name: 'theme', description: '切换主题', usage: 'theme [theme-name]', examples: ['theme', 'theme dark'], category: 'settings' },
+  { name: 'session', description: '会话管理', usage: 'session <list|save|load|delete|auto>', examples: ['session list', 'session save', 'session load', 'session delete'], category: 'session' },
   { name: 'stats', description: '显示使用统计', category: 'info' },
   { name: 'history', description: '显示命令历史', alias: ['hist'], category: 'info' },
-  { name: 'export', description: '导出对话', usage: 'export [format]', examples: ['export markdown', 'export json'], category: 'session' },
+  { name: 'export', description: '导出对话', usage: 'export [format]', examples: ['export', 'export markdown', 'export json', 'export txt'], category: 'session' },
   { name: 'redo', description: '重新执行上一条命令', category: 'general' },
   { name: 'undo', description: '撤销上一条消息', category: 'general' },
-  { name: 'compact', description: '压缩对话历史 (保留最近N条消息)', usage: 'compact [count]', category: 'general' },
+  { name: 'compact', description: '压缩对话历史 (保留最近N条消息)', usage: 'compact [count]', examples: ['compact', 'compact 10'], category: 'general' },
 ];
 
 // ============================================
@@ -133,7 +133,11 @@ function saveCLIConfig(config: Partial<SDKWorkConfig>): void {
 function loadHistory(): HistoryEntry[] {
   try {
     if (existsSync(HISTORY_FILE)) {
-      return JSON.parse(readFileSync(HISTORY_FILE, 'utf-8'));
+      const content = readFileSync(HISTORY_FILE, 'utf-8');
+      const history = JSON.parse(content);
+      if (Array.isArray(history)) {
+        return history.filter(h => h && typeof h.input === 'string');
+      }
     }
   } catch {}
   return [];
@@ -163,7 +167,15 @@ function loadSessions(): Session[] {
     if (existsSync(SESSIONS_DIR)) {
       for (const file of readdirSync(SESSIONS_DIR)) {
         if (file.endsWith('.json')) {
-          sessions.push(JSON.parse(readFileSync(join(SESSIONS_DIR, file), 'utf-8')));
+          try {
+            const content = readFileSync(join(SESSIONS_DIR, file), 'utf-8');
+            const session = JSON.parse(content);
+            if (session && session.id && Array.isArray(session.messages)) {
+              sessions.push(session);
+            }
+          } catch {
+            // 跳过无效的会话文件
+          }
         }
       }
     }
@@ -325,7 +337,27 @@ async function showConfigWizard(renderer: TUIRenderer): Promise<SDKWorkConfig | 
 
 async function loadConfig(renderer: TUIRenderer): Promise<SDKWorkConfig | null> {
   const cliConfig = loadCLIConfig();
-  const apiKey = process.env.OPENAI_API_KEY || (cliConfig.llm && typeof cliConfig.llm === 'object' && 'apiKey' in cliConfig.llm ? cliConfig.llm.apiKey : undefined);
+  
+  // 支持多个提供商的 API Key 环境变量
+  const envApiKeys: Record<string, string | undefined> = {
+    openai: process.env.OPENAI_API_KEY,
+    anthropic: process.env.ANTHROPIC_API_KEY,
+    google: process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY,
+    moonshot: process.env.MOONSHOT_API_KEY,
+    minimax: process.env.MINIMAX_API_KEY,
+    zhipu: process.env.ZHIPU_API_KEY,
+    qwen: process.env.QWEN_API_KEY || process.env.DASHSCOPE_API_KEY,
+    deepseek: process.env.DEEPSEEK_API_KEY,
+    doubao: process.env.DOUBAO_API_KEY,
+  };
+  
+  // 优先使用配置文件中的 API Key，其次使用环境变量
+  const configApiKey = cliConfig.llm && typeof cliConfig.llm === 'object' && 'apiKey' in cliConfig.llm 
+    ? cliConfig.llm.apiKey 
+    : undefined;
+  
+  const provider = cliConfig.provider || 'openai';
+  const apiKey = configApiKey || envApiKeys[provider] || envApiKeys.openai;
 
   if (!apiKey) {
     return await showConfigWizard(renderer);
@@ -367,13 +399,15 @@ interface UsageStats {
 }
 
 function loadStats(): UsageStats {
+  const defaultStats: UsageStats = { totalMessages: 0, totalTokens: 0, sessionsCount: 0, toolsUsed: {}, commandsUsed: {}, startTime: Date.now() };
   try {
     const statsFile = join(CONFIG_DIR, 'stats.json');
     if (existsSync(statsFile)) {
-      return JSON.parse(readFileSync(statsFile, 'utf-8'));
+      const loaded = JSON.parse(readFileSync(statsFile, 'utf-8'));
+      return { ...defaultStats, ...loaded };
     }
   } catch {}
-  return { totalMessages: 0, totalTokens: 0, sessionsCount: 0, toolsUsed: {}, commandsUsed: {}, startTime: Date.now() };
+  return defaultStats;
 }
 
 function saveStats(stats: UsageStats): void {
@@ -389,8 +423,49 @@ function saveStats(stats: UsageStats): void {
 
 function getCompletions(input: string, skills: Skill[], commands: Command[]): string[] {
   const completions: string[] = [];
-  
-  if (input.startsWith('/')) {
+
+  if (input.startsWith('/skill ')) {
+    // 技能名称补全
+    const partial = input.slice(7).toLowerCase();
+    skills.forEach(skill => {
+      if (skill.name.toLowerCase().startsWith(partial)) {
+        completions.push(`/skill ${skill.name}`);
+      }
+    });
+  } else if (input.startsWith('/session ')) {
+    // 会话命令补全
+    const partial = input.slice(9).toLowerCase();
+    ['list', 'save', 'load', 'delete', 'auto'].forEach(cmd => {
+      if (cmd.startsWith(partial)) {
+        completions.push(`/session ${cmd}`);
+      }
+    });
+  } else if (input.startsWith('/provider ')) {
+    // 提供商补全
+    const partial = input.slice(10).toLowerCase();
+    Object.keys(PREDEFINED_PROVIDERS).forEach(provider => {
+      if (provider.startsWith(partial)) {
+        completions.push(`/provider ${provider}`);
+      }
+    });
+  } else if (input.startsWith('/theme ')) {
+    // 主题补全
+    const partial = input.slice(7).toLowerCase();
+    Object.keys(THEMES).forEach(theme => {
+      if (theme.startsWith(partial)) {
+        completions.push(`/theme ${theme}`);
+      }
+    });
+  } else if (input.startsWith('/config ')) {
+    // 配置项补全
+    const partial = input.slice(8).toLowerCase();
+    ['theme=', 'model=', 'provider=', 'baseUrl=', 'autoSave=', 'showTokens=', 'streamOutput='].forEach(cfg => {
+      if (cfg.toLowerCase().startsWith(partial)) {
+        completions.push(`/config ${cfg}`);
+      }
+    });
+  } else if (input.startsWith('/')) {
+    // 命令补全
     const partial = input.slice(1).toLowerCase();
     commands.forEach(cmd => {
       if (cmd.name.startsWith(partial)) {
@@ -402,15 +477,8 @@ function getCompletions(input: string, skills: Skill[], commands: Command[]): st
         }
       });
     });
-  } else if (input.startsWith('/skill ')) {
-    const partial = input.slice(7).toLowerCase();
-    skills.forEach(skill => {
-      if (skill.name.toLowerCase().startsWith(partial)) {
-        completions.push(`/skill ${skill.name}`);
-      }
-    });
   }
-  
+
   return completions;
 }
 
@@ -512,6 +580,10 @@ export async function main(): Promise<void> {
         '按 ↑/↓ 浏览历史记录',
         '使用 /skill <name> 执行技能',
         '使用 /session save 保存会话',
+        '使用 /model 切换 AI 模型',
+        '使用 /config 查看和修改配置',
+        '使用 /compact 压缩对话历史',
+        '使用 /export 导出对话记录',
       ];
       const hint = hints[Math.floor(Math.random() * hints.length)];
       console.log(renderer.dim(`💡 ${hint}`));
@@ -530,6 +602,72 @@ export async function main(): Promise<void> {
       
       stats.commandsUsed[command] = (stats.commandsUsed[command] || 0) + 1;
       
+      // 处理 --help 参数
+      if (args.trim() === '--help') {
+        const cmd = COMMANDS.find(c => c.name === command);
+        if (cmd) {
+          const helpDetail = [
+            '',
+            renderer.bold(`📖 /${cmd.name}`),
+            '',
+            `  ${cmd.description}`,
+            '',
+            renderer.bold('用法:'),
+            `  ${renderer.primary(cmd.usage || `/${cmd.name}`)}`,
+          ];
+          if (cmd.alias && cmd.alias.length > 0) {
+            helpDetail.push('');
+            helpDetail.push(renderer.bold('别名:'));
+            helpDetail.push(`  ${cmd.alias.map(a => renderer.primary('/' + a)).join(', ')}`);
+          }
+          if (cmd.examples && cmd.examples.length > 0) {
+            helpDetail.push('');
+            helpDetail.push(renderer.bold('示例:'));
+            cmd.examples.forEach(ex => {
+              helpDetail.push(`  ${renderer.primary('$')} ${ex}`);
+            });
+          }
+          helpDetail.push('');
+          renderer.box(helpDetail, '❓ 命令帮助');
+          return true;
+        }
+      }
+
+      // 处理 /help <command>
+      if (command === 'help' && args.trim()) {
+        const targetCmd = args.trim().replace(/^\//, '');
+        const cmd = COMMANDS.find(c => c.name === targetCmd || c.alias?.includes(targetCmd));
+        if (cmd) {
+          const helpDetail = [
+            '',
+            renderer.bold(`📖 /${cmd.name}`),
+            '',
+            `  ${cmd.description}`,
+            '',
+            renderer.bold('用法:'),
+            `  ${renderer.primary(cmd.usage || `/${cmd.name}`)}`,
+          ];
+          if (cmd.alias && cmd.alias.length > 0) {
+            helpDetail.push('');
+            helpDetail.push(renderer.bold('别名:'));
+            helpDetail.push(`  ${cmd.alias.map(a => renderer.primary('/' + a)).join(', ')}`);
+          }
+          if (cmd.examples && cmd.examples.length > 0) {
+            helpDetail.push('');
+            helpDetail.push(renderer.bold('示例:'));
+            cmd.examples.forEach(ex => {
+              helpDetail.push(`  ${renderer.primary('$')} ${ex}`);
+            });
+          }
+          helpDetail.push('');
+          renderer.box(helpDetail, '❓ 命令帮助');
+          return true;
+        } else {
+          renderer.systemMessage(`未知命令: ${args}`, 'error');
+          return true;
+        }
+      }
+
       switch (command) {
         case 'help':
         case 'h':
@@ -541,27 +679,40 @@ export async function main(): Promise<void> {
             if (!categorized.has(cat)) categorized.set(cat, []);
             categorized.get(cat)!.push(cmd);
           });
-          
-          const helpLines: string[] = ['', renderer.bold('可用命令:'), ''];
+
+          const helpLines: string[] = ['', renderer.bold('📋 可用命令:'), ''];
           categoryOrder.forEach(cat => {
             const cmds = categorized.get(cat);
             if (cmds && cmds.length > 0) {
-              helpLines.push(renderer.dim(`  ${cat}:`));
+              const catNames: Record<string, string> = {
+                general: '通用',
+                session: '会话',
+                capabilities: '功能',
+                settings: '设置',
+                info: '信息',
+              };
+              helpLines.push(renderer.dim(`  ${catNames[cat] || cat}:`));
               cmds.forEach(cmd => {
                 const aliases = cmd.alias ? renderer.dim(` (${cmd.alias.join(', ')})`) : '';
                 helpLines.push(`    ${renderer.primary(`/${cmd.name}`.padEnd(12))} - ${cmd.description}${aliases}`);
               });
+              helpLines.push('');
             }
           });
+
+          helpLines.push(renderer.bold('💡 提示:'));
+          helpLines.push(`  输入 ${renderer.primary('/help <command>')} 查看详细用法`);
+          helpLines.push(`  输入 ${renderer.primary('/<command> --help')} 查看命令帮助`);
           helpLines.push('');
-          helpLines.push(renderer.secondary('快捷键:'));
-          helpLines.push(`  ${renderer.primary('Tab')}        自动补全`);
-          helpLines.push(`  ${renderer.primary('Ctrl+C')}    退出`);
+
+          helpLines.push(renderer.bold('⌨️  快捷键:'));
+          helpLines.push(`  ${renderer.primary('Tab')}        自动补全命令/技能`);
+          helpLines.push(`  ${renderer.primary('Ctrl+C')}    退出 (按两次确认)`);
           helpLines.push(`  ${renderer.primary('Ctrl+L')}    清屏`);
-          helpLines.push(`  ${renderer.primary('↑/↓')}       历史记录`);
+          helpLines.push(`  ${renderer.primary('↑/↓')}       浏览历史记录`);
           helpLines.push('');
-          
-          renderer.box(helpLines, '帮助');
+
+          renderer.box(helpLines, '❓ 帮助');
           break;
 
         case 'clear':
@@ -603,24 +754,31 @@ export async function main(): Promise<void> {
             const value = valueParts.join('=');
             if (key && value) {
               // 验证配置键
-              const validKeys = ['theme', 'model', 'provider', 'autoSave', 'showTokens', 'streamOutput'];
+              const validKeys = ['theme', 'model', 'provider', 'baseUrl', 'autoSave', 'showTokens', 'streamOutput'];
               const trimmedKey = key.trim();
-              
+
               if (!validKeys.includes(trimmedKey)) {
                 renderer.systemMessage(`无效的配置项: ${trimmedKey}`, 'error');
                 console.log(renderer.secondary('有效配置项: ' + validKeys.join(', ')));
                 break;
               }
-              
+
               const configObj = config as unknown as Record<string, unknown>;
-              
+
               // 类型转换
               let parsedValue: unknown = value.trim();
               if (trimmedKey === 'autoSave' || trimmedKey === 'showTokens' || trimmedKey === 'streamOutput') {
                 parsedValue = value.trim().toLowerCase() === 'true';
               }
-              
+
               configObj[trimmedKey] = parsedValue;
+
+              // 如果设置 baseUrl，同时更新 llm 配置
+              if (trimmedKey === 'baseUrl') {
+                config.llm = { ...config.llm, baseUrl: value.trim() } as SDKWorkConfig['llm'];
+                agentInstance.setLLM(config.llm);
+              }
+
               saveCLIConfig(config);
               renderer.systemMessage(`配置已更新: ${trimmedKey} = ${parsedValue}`, 'success');
             } else if (key && !value) {
@@ -634,6 +792,8 @@ export async function main(): Promise<void> {
             const configOptions = [
               { value: 'theme', label: '主题', description: String(config.theme) },
               { value: 'model', label: '模型', description: String(config.model) },
+              { value: 'provider', label: '提供商', description: String(config.provider) },
+              { value: 'baseUrl', label: 'Base URL', description: (config.llm as { baseUrl?: string })?.baseUrl ? '已设置' : '默认' },
               { value: 'autoSave', label: '自动保存', description: config.autoSave ? '启用' : '禁用' },
               { value: 'showTokens', label: '显示Token', description: config.showTokens ? '启用' : '禁用' },
               { value: 'streamOutput', label: '流式输出', description: config.streamOutput ? '启用' : '禁用' },
@@ -677,6 +837,16 @@ export async function main(): Promise<void> {
                 if (newModel) {
                   config.model = newModel;
                   saveCLIConfig(config);
+                }
+              } else if (selectedConfig === 'baseUrl') {
+                // 设置 Base URL
+                const currentBaseUrl = (config.llm as { baseUrl?: string })?.baseUrl || '';
+                const newBaseUrl = await prompt('请输入 Base URL (留空使用默认)', currentBaseUrl);
+                if (newBaseUrl !== null) {
+                  config.llm = { ...config.llm, baseUrl: newBaseUrl || undefined } as SDKWorkConfig['llm'];
+                  agentInstance.setLLM(config.llm);
+                  saveCLIConfig(config);
+                  renderer.systemMessage(`Base URL 已${newBaseUrl ? '设置为: ' + newBaseUrl : '重置为默认'}`, 'success');
                 }
               } else if (selectedConfig === 'autoSave' || selectedConfig === 'showTokens' || selectedConfig === 'streamOutput') {
                 // 切换布尔值
@@ -747,7 +917,7 @@ export async function main(): Promise<void> {
             const skillOptions = allSkills.map(s => ({
               value: s.name,
               label: s.name,
-              description: s.description.slice(0, 50),
+              description: (s.description || '').slice(0, 50),
             }));
             
             const selectedSkill = await select('🔧 选择技能:', skillOptions, {
@@ -1023,6 +1193,8 @@ export async function main(): Promise<void> {
         case 'model':
           if (args) {
             config.model = args.trim();
+            config.llm = { ...config.llm, model: config.model } as SDKWorkConfig['llm'];
+            agentInstance.setLLM(config.llm);
             saveCLIConfig(config);
             renderer.systemMessage(`模型已切换为: ${args}`, 'success');
           } else {
@@ -1032,9 +1204,16 @@ export async function main(): Promise<void> {
               label: m.name,
               description: m.id === config.model ? '(当前)' : '',
             })) || [];
-            
+
+            // 添加自定义输入选项
+            modelOptions.push({
+              value: '__custom__',
+              label: '📝 自定义模型',
+              description: '输入自定义模型 ID',
+            });
+
             const currentIdx = provider?.models.findIndex(m => m.id === config.model) || 0;
-            
+
             const selectedModel = await select('🤖 选择模型:', modelOptions, {
               defaultIndex: currentIdx >= 0 ? currentIdx : 0,
               pageSize: 8,
@@ -1047,10 +1226,50 @@ export async function main(): Promise<void> {
                 active: '',
               },
             });
-            
-            if (selectedModel) {
-              config.model = selectedModel;
-              saveCLIConfig(config);
+
+            if (selectedModel === '__custom__') {
+              // 自定义模型输入 - 优化交互体验
+              console.log('');
+              renderer.systemMessage('自定义模型模式', 'info');
+              console.log(renderer.dim('提示: 输入任意模型 ID，如 gpt-4-turbo、claude-3-opus 等'));
+              console.log(renderer.dim(`当前模型: ${config.model || '无'}`));
+              console.log('');
+
+              const customModel = await prompt('📝 模型 ID', config.model);
+
+              if (customModel && customModel.trim()) {
+                const trimmedModel = customModel.trim();
+
+                // 确认切换
+                const confirmed = await confirm(`确认切换到模型: ${trimmedModel}?`, true);
+
+                if (confirmed) {
+                  try {
+                    config.model = trimmedModel;
+                    config.llm = { ...config.llm, model: config.model } as SDKWorkConfig['llm'];
+                    agentInstance.setLLM(config.llm);
+                    saveCLIConfig(config);
+                    renderer.successBox('模型切换成功', `当前模型: ${trimmedModel}`);
+                  } catch (error) {
+                    renderer.errorBox('模型切换失败', error instanceof Error ? error.message : String(error), '请检查模型 ID 是否正确');
+                  }
+                } else {
+                  renderer.systemMessage('已取消切换', 'warning');
+                }
+              } else if (customModel !== null) {
+                renderer.systemMessage('模型 ID 不能为空', 'error');
+              }
+            } else if (selectedModel) {
+              // 预设模型切换
+              try {
+                config.model = selectedModel;
+                config.llm = { ...config.llm, model: config.model } as SDKWorkConfig['llm'];
+                agentInstance.setLLM(config.llm);
+                saveCLIConfig(config);
+                renderer.successBox('模型切换成功', `当前模型: ${selectedModel}`);
+              } catch (error) {
+                renderer.errorBox('模型切换失败', error instanceof Error ? error.message : String(error), '请检查模型配置');
+              }
             }
           }
           break;
@@ -1165,26 +1384,25 @@ export async function main(): Promise<void> {
           break;
 
         case 'stats':
-          const statsData = loadStats();
-          const uptime = Math.floor((Date.now() - statsData.startTime) / 1000);
+          const uptime = Math.floor((Date.now() - stats.startTime) / 1000);
           const hours = Math.floor(uptime / 3600);
           const minutes = Math.floor((uptime % 3600) / 60);
           
           renderer.box([
             '',
             `${renderer.primary('运行时间:')} ${hours}h ${minutes}m`,
-            `${renderer.primary('总消息数:')} ${statsData.totalMessages}`,
-            `${renderer.primary('总 Token 数:')} ${statsData.totalTokens.toLocaleString()}`,
-            `${renderer.primary('会话数:')} ${statsData.sessionsCount}`,
+            `${renderer.primary('总消息数:')} ${stats.totalMessages}`,
+            `${renderer.primary('总 Token 数:')} ${stats.totalTokens.toLocaleString()}`,
+            `${renderer.primary('会话数:')} ${stats.sessionsCount}`,
             '',
             renderer.bold('技能使用统计:'),
-            ...Object.entries(statsData.toolsUsed)
+            ...Object.entries(stats.toolsUsed)
               .sort((a, b) => b[1] - a[1])
               .slice(0, 5)
               .map(([tool, count]) => `  ${renderer.primary('•')} ${tool}: ${count} 次`),
             '',
             renderer.bold('命令使用统计:'),
-            ...Object.entries(statsData.commandsUsed)
+            ...Object.entries(stats.commandsUsed)
               .sort((a, b) => b[1] - a[1])
               .slice(0, 5)
               .map(([cmd, count]) => `  ${renderer.primary('•')} /${cmd}: ${count} 次`),
@@ -1322,26 +1540,39 @@ export async function main(): Promise<void> {
 
         case 'provider':
           if (args) {
-            const providerName = args.trim() as ModelProvider;
+            // 解析参数，支持 providerName 或 providerName --baseUrl=url
+            const parts = args.trim().split(/\s+/);
+            const providerName = parts[0] as ModelProvider;
+            const baseUrlMatch = args.match(/--baseUrl=(.+)/);
+            const baseUrl = baseUrlMatch ? baseUrlMatch[1].trim() : undefined;
+
             if (PREDEFINED_PROVIDERS[providerName]) {
               config.provider = providerName;
-              // 切换提供商时重置模型为该提供商的第一个模型
               config.model = PREDEFINED_PROVIDERS[providerName].models[0]?.id;
+              config.llm = {
+                ...config.llm,
+                provider: providerName,
+                model: config.model,
+                ...(baseUrl && { baseUrl }),
+              } as SDKWorkConfig['llm'];
+              agentInstance.setLLM(config.llm);
               saveCLIConfig(config);
               renderer.systemMessage(`提供商已切换为: ${PREDEFINED_PROVIDERS[providerName].displayName}`, 'success');
               renderer.systemMessage(`模型已切换为: ${config.model}`, 'info');
+              if (baseUrl) {
+                renderer.systemMessage(`Base URL 已设置为: ${baseUrl}`, 'info');
+              }
             } else {
               renderer.systemMessage(`未知提供商: ${args}`, 'error');
               console.log(renderer.secondary('可用提供商: ' + Object.keys(PREDEFINED_PROVIDERS).join(', ')));
             }
           } else {
-            // 交互式选择提供商
             const providerOptions = Object.entries(PREDEFINED_PROVIDERS).map(([key, p]) => ({
               value: key,
               label: p.displayName,
               description: key === config.provider ? '(当前)' : `${p.models.length} 个模型`,
             }));
-            
+
             const selectedProvider = await select('🔌 选择提供商:', providerOptions, {
               pageSize: 6,
               theme: {
@@ -1353,13 +1584,44 @@ export async function main(): Promise<void> {
                 active: '',
               },
             });
-            
-            if (selectedProvider && selectedProvider !== config.provider) {
-              const provider = selectedProvider as ModelProvider;
-              config.provider = provider;
-              config.model = PREDEFINED_PROVIDERS[provider].models[0]?.id;
-              saveCLIConfig(config);
-              renderer.systemMessage(`提供商已切换为: ${PREDEFINED_PROVIDERS[provider].displayName}`, 'success');
+
+            if (selectedProvider) {
+              if (selectedProvider === config.provider) {
+                // 选择相同提供商，询问是否修改 Base URL
+                const currentBaseUrl = (config.llm as { baseUrl?: string })?.baseUrl;
+                const modifyBaseUrl = await confirm(`当前提供商已是 ${PREDEFINED_PROVIDERS[selectedProvider].displayName}，是否修改 Base URL?`, false);
+                if (modifyBaseUrl) {
+                  const newBaseUrl = await prompt('请输入 Base URL (留空重置)', currentBaseUrl || '');
+                  if (newBaseUrl !== null) {
+                    config.llm = { ...config.llm, baseUrl: newBaseUrl || undefined } as SDKWorkConfig['llm'];
+                    agentInstance.setLLM(config.llm);
+                    saveCLIConfig(config);
+                    renderer.systemMessage(`Base URL 已${newBaseUrl ? '设置为: ' + newBaseUrl : '重置为默认'}`, 'success');
+                  }
+                }
+              } else {
+                // 切换提供商
+                const provider = selectedProvider as ModelProvider;
+                config.provider = provider;
+                config.model = PREDEFINED_PROVIDERS[provider].models[0]?.id;
+                config.llm = { ...config.llm, provider: provider, model: config.model } as SDKWorkConfig['llm'];
+                agentInstance.setLLM(config.llm);
+                saveCLIConfig(config);
+                renderer.systemMessage(`提供商已切换为: ${PREDEFINED_PROVIDERS[provider].displayName}`, 'success');
+                renderer.systemMessage(`模型已切换为: ${config.model}`, 'info');
+
+                // 询问是否设置 Base URL
+                const setBaseUrl = await confirm(`是否设置 Base URL?`, false);
+                if (setBaseUrl) {
+                  const newBaseUrl = await prompt('请输入 Base URL', '');
+                  if (newBaseUrl !== null && newBaseUrl.trim()) {
+                    config.llm = { ...config.llm, baseUrl: newBaseUrl.trim() } as SDKWorkConfig['llm'];
+                    agentInstance.setLLM(config.llm);
+                    saveCLIConfig(config);
+                    renderer.systemMessage(`Base URL 已设置为: ${newBaseUrl.trim()}`, 'success');
+                  }
+                }
+              }
             }
           }
           break;
@@ -1432,15 +1694,27 @@ export async function main(): Promise<void> {
       return true;
     };
 
+    // 确保 readline 状态正确的辅助函数
+    const ensureReadlineReady = () => {
+      try {
+        // 确保光标可见
+        process.stdout.write('\x1b[?25h');
+        // 确保提示符显示
+        rl.prompt(true);
+      } catch {
+        // 忽略错误
+      }
+    };
+
     // 处理输入
     rl.on('line', async (input) => {
       const trimmed = input.trim();
-      if (!trimmed) { rl.prompt(); return; }
+      if (!trimmed) { ensureReadlineReady(); return; }
 
       // 添加到历史
       history = addToHistory(history, trimmed);
       historyIndex = history.length;
-      
+
       // 定期保存历史
       if (history.length % 10 === 0) {
         saveHistory(history);
@@ -1455,8 +1729,13 @@ export async function main(): Promise<void> {
       // 命令处理
       if (trimmed.startsWith('/')) {
         const parts = trimmed.slice(1).split(' ');
-        await handleCommand(parts[0].toLowerCase(), parts.slice(1).join(' '));
-        rl.prompt();
+        try {
+          await handleCommand(parts[0].toLowerCase(), parts.slice(1).join(' '));
+        } catch (cmdError) {
+          renderer.errorBox('命令执行错误', cmdError instanceof Error ? cmdError.message : String(cmdError));
+        }
+        // 使用 setTimeout 确保 readline 状态恢复
+        setTimeout(ensureReadlineReady, 10);
         return;
       }
 
@@ -1464,44 +1743,134 @@ export async function main(): Promise<void> {
       messages.push({ role: 'user', content: trimmed, timestamp: Date.now() });
       renderer.userMessage(trimmed);
 
+      let requestFailed = false;
+
       try {
-        renderer.startLoading('Thinking...', '🧠');
+        if (config.streamOutput) {
+          // 流式输出模式
+          let fullContent = '';
+          let promptTokens = 0;
+          let completionTokens = 0;
 
-        const response = await agentInstance.chat({
-          messages: messages.map(m => ({
-            role: m.role,
-            content: m.content,
-            id: crypto.randomUUID(),
-            timestamp: m.timestamp,
-          })),
-        });
+          process.stdout.write(renderer.primary('\n🤖 '));
 
-        renderer.succeedLoading('完成');
+          const stream = agentInstance.chatStream({
+            messages: messages.map(m => ({
+              role: m.role,
+              content: m.content,
+              id: crypto.randomUUID(),
+              timestamp: m.timestamp,
+            })),
+          });
 
-        const content = response.choices[0]?.message?.content;
-        if (content && typeof content === 'string') {
-          messages.push({ role: 'assistant', content, timestamp: Date.now() });
-          renderer.assistantMessage(content);
-
-          stats.totalMessages += 2;
-          if (response.usage) {
-            stats.totalTokens += response.usage.totalTokens;
-            if (config.showTokens) {
-              renderer.tokenUsage(response.usage.promptTokens, response.usage.completionTokens);
+          for await (const chunk of stream) {
+            const delta = chunk.choices[0]?.delta;
+            if (delta?.content) {
+              process.stdout.write(delta.content);
+              fullContent += delta.content;
+            }
+            // 捕获 usage 信息 (通常在最后一个 chunk)
+            if (chunk.usage) {
+              promptTokens = chunk.usage.promptTokens;
+              completionTokens = chunk.usage.completionTokens;
             }
           }
-          saveStats(stats);
+
+          process.stdout.write('\n\n');
+
+          if (fullContent) {
+            messages.push({ role: 'assistant', content: fullContent, timestamp: Date.now() });
+            stats.totalMessages += 2;
+            stats.totalTokens += promptTokens + completionTokens;
+            if (config.showTokens && (promptTokens || completionTokens)) {
+              renderer.tokenUsage(promptTokens, completionTokens);
+            }
+            saveStats(stats);
+          }
+        } else {
+          // 非流式输出模式
+          renderer.startLoading('Thinking...', '🧠');
+
+          const response = await agentInstance.chat({
+            messages: messages.map(m => ({
+              role: m.role,
+              content: m.content,
+              id: crypto.randomUUID(),
+              timestamp: m.timestamp,
+            })),
+          });
+
+          renderer.succeedLoading('完成');
+
+          const content = response.choices[0]?.message?.content;
+          if (content && typeof content === 'string') {
+            messages.push({ role: 'assistant', content, timestamp: Date.now() });
+            renderer.assistantMessage(content);
+
+            stats.totalMessages += 2;
+            if (response.usage) {
+              stats.totalTokens += response.usage.totalTokens;
+              if (config.showTokens) {
+                renderer.tokenUsage(response.usage.promptTokens, response.usage.completionTokens);
+              }
+            }
+            saveStats(stats);
+          }
         }
       } catch (error) {
-        renderer.failLoading('失败');
-        renderer.errorBox('错误', error instanceof Error ? error.message : String(error), '请检查 API Key 和网络连接');
+        requestFailed = true;
+
+        if (!config.streamOutput) {
+          renderer.failLoading('失败');
+        }
+
+        // 确保输出换行，避免错误框与流式输出混在一起
+        if (config.streamOutput) {
+          process.stdout.write('\n\n');
+        }
+
+        // 根据错误类型提供不同的提示
+        let errorMessage = error instanceof Error ? error.message : String(error);
+        let hint = '请检查 API Key 和网络连接';
+
+        if (errorMessage.includes('401') || errorMessage.includes('Unauthorized')) {
+          hint = 'API Key 无效或已过期，请检查配置';
+        } else if (errorMessage.includes('429') || errorMessage.includes('rate limit')) {
+          hint = '请求过于频繁，请稍后重试';
+        } else if (errorMessage.includes('ENOTFOUND') || errorMessage.includes('ECONNREFUSED')) {
+          hint = '网络连接失败，请检查网络设置';
+        } else if (errorMessage.includes('timeout')) {
+          hint = '请求超时，请检查网络或稍后重试';
+        } else if (errorMessage.includes('insufficient_quota')) {
+          hint = 'API 配额不足，请充值后重试';
+        } else if (errorMessage.includes('model')) {
+          hint = '模型不可用，请使用 /model 切换模型';
+        }
+
+        renderer.errorBox('错误', errorMessage, hint);
+
+        // 移除失败的用户消息
+        if (messages.length > 0 && messages[messages.length - 1].role === 'user') {
+          messages.pop();
+        }
       }
 
-      rl.prompt();
+      // 确保 readline 提示符正确显示
+      setTimeout(ensureReadlineReady, 10);
     });
 
     // 处理 Ctrl+C
+    let sigintCount = 0;
     rl.on('SIGINT', () => {
+      sigintCount++;
+      
+      if (sigintCount === 1) {
+        console.log('\n' + renderer.secondary('按 Ctrl+C 再次退出，或输入命令继续...'));
+        setTimeout(() => { sigintCount = 0; }, 2000);
+        rl.prompt();
+        return;
+      }
+      
       // 保存状态
       if (config.autoSave && messages.length > 0) {
         saveAutosave({

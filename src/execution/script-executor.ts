@@ -20,6 +20,9 @@ import type {
   ExecutionResult,
   ExecutionStep,
 } from './index.js';
+import { getLogger } from '../utils/logger.js';
+
+const logger = getLogger('execution');
 
 /**
  * 脚本语言类型
@@ -354,7 +357,7 @@ export class ScriptExecutor {
   ): Promise<unknown> {
     // 简化实现：实际应该使用Python子进程或WASM
     // 这里返回一个模拟结果
-    console.warn('Python execution not fully implemented, using mock');
+    logger.warn('Python execution not fully implemented, using mock');
     return {
       success: true,
       message: 'Python execution would run here',
@@ -372,7 +375,7 @@ export class ScriptExecutor {
     _sandbox: Record<string, unknown>
   ): Promise<unknown> {
     // 简化实现：实际应该使用子进程
-    console.warn('Shell execution not fully implemented, using mock');
+    logger.warn('Shell execution not fully implemented, using mock');
     return {
       success: true,
       message: 'Shell execution would run here',

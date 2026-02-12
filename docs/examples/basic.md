@@ -1,38 +1,36 @@
 # 基础示例
 
-本文档提供 SDKWork Agent 的基础使用示例。
+本文档提供 SDKWork Browser Agent 的基础使用示例。
 
 ## Hello World
 
 最简单的 Agent 示例：
 
 ```typescript
-import { createAgent } from 'sdkwork-agent';
-import { OpenAIProvider } from 'sdkwork-agent/llm';
+import { createAgent } from '@sdkwork/browser-agent';
+import { OpenAIProvider } from '@sdkwork/browser-agent/llm';
 
 async function main() {
-  // 创建 Agent
-  const agent = createAgent({
-    name: 'HelloAgent',
-    llm: new OpenAIProvider({
-      apiKey: process.env.OPENAI_API_KEY!,
-      model: 'gpt-4'
-    })
+  const llm = new OpenAIProvider({
+    apiKey: process.env.OPENAI_API_KEY!,
+    model: 'gpt-4-turbo-preview',
   });
 
-  // 初始化
+  const agent = createAgent(llm, {
+    name: 'HelloAgent',
+    description: 'A simple greeting agent',
+  });
+
   await agent.initialize();
 
-  // 对话
   const response = await agent.chat({
     messages: [
-      { role: 'user', content: '你好！' }
+      { id: '1', role: 'user', content: '你好！', timestamp: Date.now() }
     ]
   });
 
   console.log(response.choices[0].message.content);
 
-  // 清理
   await agent.destroy();
 }
 
@@ -44,24 +42,21 @@ main().catch(console.error);
 创建一个简单的问候 Skill：
 
 ```typescript
-import { createAgent, defineSkill } from 'sdkwork-agent';
-import { OpenAIProvider } from 'sdkwork-agent/llm';
+import { createAgent } from '@sdkwork/browser-agent';
+import { OpenAIProvider } from '@sdkwork/browser-agent/llm';
+import type { Skill } from '@sdkwork/browser-agent';
 
 async function main() {
-  const agent = createAgent({
-    name: 'SkillAgent',
-    llm: new OpenAIProvider({
-      apiKey: process.env.OPENAI_API_KEY!
-    })
+  const llm = new OpenAIProvider({
+    apiKey: process.env.OPENAI_API_KEY!,
+    model: 'gpt-4-turbo-preview',
   });
 
-  await agent.initialize();
-
-  // 定义并注册 Skill
-  const greetingSkill = defineSkill({
+  const greetingSkill: Skill = {
     id: 'greeting',
     name: 'Greeting',
     description: 'Generate personalized greeting',
+    version: '1.0.0',
     script: {
       lang: 'typescript',
       code: `
@@ -79,7 +74,8 @@ async function main() {
             timestamp: Date.now()
           };
         }
-      `
+      `,
+      entry: 'main'
     },
     input: {
       type: 'object',
@@ -94,18 +90,19 @@ async function main() {
         timestamp: { type: 'number' }
       }
     }
+  };
+
+  const agent = createAgent(llm, {
+    name: 'SkillAgent',
+    skills: [greetingSkill],
   });
 
-  agent.skills.register(greetingSkill);
+  await agent.initialize();
 
-  // 执行 Skill
-  const result = await agent.executeSkill('greeting', JSON.stringify({
-    name: 'Alice'
-  }));
+  const result = await agent.executeSkill('greeting', JSON.stringify({ name: 'Alice' }));
 
   if (result.success) {
-    console.log(result.data.message);
-    // 输出: Good morning, Alice! (根据时间变化)
+    console.log(result.data);
   }
 
   await agent.destroy();
@@ -119,22 +116,18 @@ main().catch(console.error);
 创建文件读取 Tool：
 
 ```typescript
-import { createAgent, defineTool } from 'sdkwork-agent';
-import { OpenAIProvider } from 'sdkwork-agent/llm';
+import { createAgent } from '@sdkwork/browser-agent';
+import { OpenAIProvider } from '@sdkwork/browser-agent/llm';
+import type { Tool } from '@sdkwork/browser-agent';
 import { readFile } from 'fs/promises';
 
 async function main() {
-  const agent = createAgent({
-    name: 'ToolAgent',
-    llm: new OpenAIProvider({
-      apiKey: process.env.OPENAI_API_KEY!
-    })
+  const llm = new OpenAIProvider({
+    apiKey: process.env.OPENAI_API_KEY!,
+    model: 'gpt-4-turbo-preview',
   });
 
-  await agent.initialize();
-
-  // 定义文件读取 Tool
-  const fileReadTool = defineTool({
+  const fileReadTool: Tool = {
     id: 'file-read',
     name: 'File Read',
     description: 'Read file content',
@@ -155,9 +148,10 @@ async function main() {
         size: { type: 'number' }
       }
     },
-    execute: async (input, context) => {
+    execute: async (input) => {
       try {
-        const content = await readFile(input.path, input.encoding);
+        const { path, encoding = 'utf8' } = input as { path: string; encoding?: string };
+        const content = await readFile(path, encoding as BufferEncoding);
         return {
           success: true,
           data: {
@@ -169,21 +163,24 @@ async function main() {
         return {
           success: false,
           error: {
-            message: `Failed to read file: ${error.message}`,
-            code: 'FILE_READ_ERROR'
+            code: 'FILE_READ_ERROR',
+            message: `Failed to read file: ${(error as Error).message}`,
+            toolId: 'file-read',
+            recoverable: true
           }
         };
       }
     }
+  };
+
+  const agent = createAgent(llm, {
+    name: 'ToolAgent',
+    tools: [fileReadTool],
   });
 
-  agent.tools.register(fileReadTool);
+  await agent.initialize();
 
-  // 执行 Tool
-  const result = await agent.executeTool('file-read', JSON.stringify({
-    path: './package.json',
-    encoding: 'utf8'
-  }));
+  const result = await agent.executeTool('file-read', JSON.stringify({ path: './package.json' }));
 
   if (result.success) {
     console.log('File content:', result.data.content);
@@ -203,50 +200,41 @@ main().catch(console.error);
 监听 Agent 的各种事件：
 
 ```typescript
-import { createAgent } from 'sdkwork-agent';
-import { OpenAIProvider } from 'sdkwork-agent/llm';
+import { createAgent } from '@sdkwork/browser-agent';
+import { OpenAIProvider } from '@sdkwork/browser-agent/llm';
 
 async function main() {
-  const agent = createAgent({
-    name: 'EventAgent',
-    llm: new OpenAIProvider({
-      apiKey: process.env.OPENAI_API_KEY!
-    })
+  const llm = new OpenAIProvider({
+    apiKey: process.env.OPENAI_API_KEY!,
+    model: 'gpt-4-turbo-preview',
   });
 
-  // 监听生命周期事件
+  const agent = createAgent(llm, {
+    name: 'EventAgent',
+    description: 'An agent with event monitoring',
+  });
+
   agent.on('agent:initialized', (event) => {
     console.log('✓ Agent initialized:', event.payload.agentId);
   });
 
-  agent.on('agent:started', (event) => {
-    console.log('✓ Agent started');
-    console.log('  Capabilities:', event.payload.capabilities);
-  });
-
-  // 监听对话事件
   agent.on('chat:started', (event) => {
     console.log('→ Chat started:', event.payload.executionId);
   });
 
   agent.on('chat:completed', (event) => {
     console.log('✓ Chat completed');
-    console.log('  Duration:', event.payload.duration, 'ms');
-    console.log('  Token usage:', event.payload.tokenUsage);
   });
 
-  // 监听错误事件
   agent.on('agent:error', (event) => {
     console.error('✗ Agent error:', event.payload.error);
   });
 
-  // 初始化
   await agent.initialize();
 
-  // 对话
   const response = await agent.chat({
     messages: [
-      { role: 'user', content: 'Hello!' }
+      { id: '1', role: 'user', content: 'Hello!', timestamp: Date.now() }
     ]
   });
 
@@ -258,69 +246,43 @@ async function main() {
 main().catch(console.error);
 ```
 
-## 使用记忆系统
+## 流式对话
 
-存储和检索记忆：
+使用流式输出：
 
 ```typescript
-import { createAgent } from 'sdkwork-agent';
-import { OpenAIProvider } from 'sdkwork-agent/llm';
+import { createAgent } from '@sdkwork/browser-agent';
+import { OpenAIProvider } from '@sdkwork/browser-agent/llm';
 
 async function main() {
-  const agent = createAgent({
-    name: 'MemoryAgent',
-    llm: new OpenAIProvider({
-      apiKey: process.env.OPENAI_API_KEY!
-    }),
-    memory: {
-      maxTokens: 8000,
-      limit: 1000
-    }
+  const llm = new OpenAIProvider({
+    apiKey: process.env.OPENAI_API_KEY!,
+    model: 'gpt-4-turbo-preview',
+  });
+
+  const agent = createAgent(llm, {
+    name: 'StreamAgent',
+    description: 'An agent with streaming support',
   });
 
   await agent.initialize();
 
-  // 存储记忆
-  await agent.memory.store({
-    id: 'user-preference-1',
-    content: '用户喜欢使用 TypeScript 编程',
-    type: 'semantic',
-    source: 'conversation',
-    timestamp: Date.now(),
-    metadata: {
-      userId: 'user-123',
-      tags: ['preference', 'typescript', 'programming']
+  console.log('Assistant: ');
+
+  const stream = agent.chatStream({
+    messages: [
+      { id: '1', role: 'user', content: '讲一个简短的故事', timestamp: Date.now() }
+    ]
+  });
+
+  for await (const chunk of stream) {
+    const content = chunk.choices[0]?.delta?.content;
+    if (content) {
+      process.stdout.write(content);
     }
-  });
+  }
 
-  await agent.memory.store({
-    id: 'conversation-1',
-    content: '用户询问如何学习 TypeScript',
-    type: 'episodic',
-    source: 'conversation',
-    timestamp: Date.now(),
-    metadata: {
-      sessionId: 'session-1',
-      userId: 'user-123'
-    }
-  });
-
-  // 搜索记忆
-  const results = await agent.memory.search({
-    content: 'TypeScript',
-    type: 'semantic',
-    limit: 5
-  });
-
-  console.log('Found memories:');
-  results.forEach(result => {
-    console.log(`  [${result.memory.type}] ${result.memory.content}`);
-    console.log(`  Score: ${result.score}`);
-  });
-
-  // 获取统计
-  const stats = await agent.memory.getStats();
-  console.log('Memory stats:', stats);
+  console.log('\n');
 
   await agent.destroy();
 }
@@ -328,58 +290,54 @@ async function main() {
 main().catch(console.error);
 ```
 
-## 多轮对话
+## 会话管理
 
 维护对话上下文：
 
 ```typescript
-import { createAgent } from 'sdkwork-agent';
-import { OpenAIProvider } from 'sdkwork-agent/llm';
+import { createAgent } from '@sdkwork/browser-agent';
+import { OpenAIProvider } from '@sdkwork/browser-agent/llm';
 
 async function main() {
-  const agent = createAgent({
+  const llm = new OpenAIProvider({
+    apiKey: process.env.OPENAI_API_KEY!,
+    model: 'gpt-4-turbo-preview',
+  });
+
+  const agent = createAgent(llm, {
     name: 'ChatAgent',
-    llm: new OpenAIProvider({
-      apiKey: process.env.OPENAI_API_KEY!,
-      model: 'gpt-4'
-    })
+    description: 'A conversational agent',
   });
 
   await agent.initialize();
 
   // 创建会话
   const sessionId = agent.createSession();
-  console.log('Session created:', sessionId);
-
-  // 对话历史
-  const messages = [
-    { role: 'system', content: '你是一个有帮助的助手。' },
-    { role: 'user', content: '我叫 Alice' }
-  ];
 
   // 第一轮对话
-  let response = await agent.chat({
-    messages,
+  const response1 = await agent.chat({
+    messages: [
+      { id: '1', role: 'user', content: '我叫 Alice', timestamp: Date.now() }
+    ],
     sessionId
   });
+  console.log('Assistant:', response1.choices[0].message.content);
 
-  console.log('Assistant:', response.choices[0].message.content);
-  messages.push(response.choices[0].message);
-
-  // 第二轮对话（保持上下文）
-  messages.push({ role: 'user', content: '我叫什么名字？' });
-
-  response = await agent.chat({
-    messages,
+  // 第二轮对话（会记住上下文）
+  const response2 = await agent.chat({
+    messages: [
+      { id: '2', role: 'user', content: '我叫什么名字？', timestamp: Date.now() }
+    ],
     sessionId
   });
-
-  console.log('Assistant:', response.choices[0].message.content);
-  // 应该回答：你叫 Alice
+  console.log('Assistant:', response2.choices[0].message.content);
 
   // 获取会话历史
-  const session = agent.getSession(sessionId);
-  console.log('Session messages:', session?.length);
+  const history = agent.getSession(sessionId);
+  console.log('History length:', history?.length);
+
+  // 清除会话
+  agent.clearSession(sessionId);
 
   await agent.destroy();
 }
@@ -392,38 +350,22 @@ main().catch(console.error);
 综合使用所有功能：
 
 ```typescript
-import { createAgent, defineSkill, defineTool } from 'sdkwork-agent';
-import { OpenAIProvider } from 'sdkwork-agent/llm';
+import { createAgent } from '@sdkwork/browser-agent';
+import { OpenAIProvider } from '@sdkwork/browser-agent/llm';
+import type { Skill, Tool } from '@sdkwork/browser-agent';
 
 async function main() {
-  // 创建 Agent
-  const agent = createAgent({
-    name: 'FullFeaturedAgent',
-    llm: new OpenAIProvider({
-      apiKey: process.env.OPENAI_API_KEY!,
-      model: 'gpt-4'
-    }),
-    memory: { maxTokens: 8000 }
+  const llm = new OpenAIProvider({
+    apiKey: process.env.OPENAI_API_KEY!,
+    model: 'gpt-4-turbo-preview',
   });
 
-  // 监听事件
-  agent.on('chat:completed', (event) => {
-    console.log(`[Event] Chat completed in ${event.payload.duration}ms`);
-  });
-
-  agent.on('skill:completed', (event) => {
-    console.log(`[Event] Skill ${event.payload.skillId} executed`);
-  });
-
-  // 初始化
-  await agent.initialize();
-  console.log('✓ Agent initialized\n');
-
-  // 注册 Skill
-  agent.skills.register(defineSkill({
+  // 定义 Skill
+  const calculatorSkill: Skill = {
     id: 'calculator',
     name: 'Calculator',
     description: 'Perform calculations',
+    version: '1.0.0',
     script: {
       lang: 'typescript',
       code: `
@@ -441,7 +383,8 @@ async function main() {
           
           return { result, operation };
         }
-      `
+      `,
+      entry: 'main'
     },
     input: {
       type: 'object',
@@ -452,26 +395,45 @@ async function main() {
       },
       required: ['a', 'b', 'operation']
     }
-  }));
+  };
 
-  // 注册 Tool
-  agent.tools.register(defineTool({
+  // 定义 Tool
+  const timestampTool: Tool = {
     id: 'timestamp',
     name: 'Timestamp',
+    description: 'Get current timestamp',
     category: 'system',
     confirm: 'none',
     execute: async () => ({
       success: true,
       data: { timestamp: Date.now() }
     })
-  }));
+  };
+
+  // 创建 Agent
+  const agent = createAgent(llm, {
+    name: 'FullFeaturedAgent',
+    skills: [calculatorSkill],
+    tools: [timestampTool],
+  });
+
+  // 事件监听
+  agent.on('chat:completed', (event) => {
+    console.log(`[Event] Chat completed`);
+  });
+
+  agent.on('skill:completed', (event) => {
+    console.log(`[Event] Skill ${event.payload.skillId} executed`);
+  });
+
+  await agent.initialize();
+  console.log('✓ Agent initialized\n');
 
   // 对话
   console.log('→ Chat');
   const response = await agent.chat({
     messages: [
-      { role: 'system', content: '你是一个数学助手。' },
-      { role: 'user', content: '你好！' }
+      { id: '1', role: 'user', content: '你好！', timestamp: Date.now() }
     ]
   });
   console.log('Assistant:', response.choices[0].message.content, '\n');
@@ -490,28 +452,17 @@ async function main() {
   const toolResult = await agent.executeTool('timestamp', '{}');
   console.log('Timestamp:', toolResult.data, '\n');
 
-  // 存储记忆
-  console.log('→ Store Memory');
-  await agent.memory.store({
-    id: 'calc-result',
-    content: `计算结果: 10 * 5 = ${skillResult.data.result}`,
-    type: 'episodic',
-    source: 'system',
-    timestamp: Date.now()
-  });
-
-  // 搜索记忆
-  console.log('→ Search Memory');
-  const memories = await agent.memory.search({
-    content: '计算',
-    limit: 5
-  });
-  console.log('Found:', memories.length, 'memories\n');
-
-  // 清理
   await agent.destroy();
   console.log('✓ Agent destroyed');
 }
 
 main().catch(console.error);
 ```
+
+## 最佳实践
+
+1. **资源管理** - 始终在完成后调用 `destroy()` 释放资源
+2. **错误处理** - 使用 try-catch 处理可能的错误
+3. **状态检查** - 在执行操作前检查 `agent.state`
+4. **会话管理** - 使用 sessionId 维护对话上下文
+5. **事件监听** - 利用事件系统实现可观测性

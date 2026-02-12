@@ -21,13 +21,16 @@ import type {
   Tool,
   ToolId,
   LLMService,
-  SkillRegistry,
   MemoryService,
   Logger,
   ThinkingResult,
   ThinkingStrategy,
 } from './domain/types.js';
 import { AgentState } from './domain/types.js';
+import {
+  createExecutionContext,
+  removeExecutionContext,
+} from '../execution/execution-context.js';
 import {
   EventBus,
   createEventBus,
@@ -261,7 +264,7 @@ export class Agent {
         throw new Error('Last message must be from user');
       }
 
-      const managedMessages = this.manageContextWindow(request.messages);
+      this.manageContextWindow(request.messages);
 
       for await (const event of this.thinkStream(extractTextContent(lastMessage.content), {
         sessionId,
@@ -382,24 +385,71 @@ export class Agent {
     }
   }
 
-  async executeSkill<T>(skillId: SkillId, input: unknown): Promise<unknown> {
+  async executeSkill(skillId: SkillId, input: unknown): Promise<unknown> {
     this.setState(AgentState.EXECUTING);
 
+    const executionId = `exec-${Date.now()}`;
+    const executionContext = createExecutionContext({
+      executionId,
+      agentId: this.id,
+      limits: {
+        maxDepth: 5,
+        maxSteps: 20,
+        maxSameActionRepeat: 3,
+        timeout: 60000,
+        maxTotalTime: 120000,
+      },
+      eventBus: this.eventBus,
+    });
+
     try {
+      // 检查是否可以执行
+      if (!executionContext.enterAction('skill', skillId)) {
+        const reason = executionContext.getAbortReason();
+        throw new Error(`Skill execution blocked: ${reason?.message || 'Unknown reason'}`);
+      }
+
       const result = await this.skillRegistry.execute(skillId, input, {
-        executionId: `exec-${Date.now()}`,
+        executionId,
         agentId: this.id,
         input,
         logger: this.logger,
         llm: this.llm,
         memory: this.memory,
         tools: this.toolRegistry,
+        executionContext,
       });
+
+      executionContext.exitAction('skill', skillId);
+
+      // 检查执行结果
+      if (!result.success && result.error) {
+        this.logger.error(`[Agent:${this.name}] Skill execution failed`, {
+          skillId,
+          error: result.error.message,
+        });
+      }
+
+      // 清理执行上下文
+      removeExecutionContext(executionId);
 
       this.setState(AgentState.READY);
       return result;
     } catch (error) {
+      executionContext.exitAction('skill', skillId);
       this.setState(AgentState.ERROR);
+
+      this.logger.error(`[Agent:${this.name}] Skill execution error`, { skillId }, error as Error);
+
+      this.eventBus.publish(
+        'skill:error',
+        { skillId, error: (error as Error).message, executionId },
+        { agentId: this.id, executionId }
+      );
+
+      // 清理执行上下文
+      removeExecutionContext(executionId);
+
       throw error;
     }
   }
@@ -450,6 +500,9 @@ export class Agent {
 
     this.thinkingEngine.abort();
     this.sessions.clear();
+
+    // 清理事件总线订阅
+    this.eventBus.clear();
 
     this.eventBus.publish(
       'agent:destroyed',

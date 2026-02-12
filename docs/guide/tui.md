@@ -1,6 +1,6 @@
 # TUI 终端界面
 
-SDKWork Agent 提供专业级的终端用户界面（TUI），支持多提供者、多模型、主题切换、会话管理等丰富功能。
+SDKWork Browser Agent 提供专业级的终端用户界面（TUI），支持多提供者、多模型、主题切换、会话管理等丰富功能。
 
 ## 功能特性
 
@@ -8,7 +8,7 @@ SDKWork Agent 提供专业级的终端用户界面（TUI），支持多提供者
 
 - **多 LLM 提供者支持** - OpenAI, Anthropic, Google, Moonshot, MiniMax, Zhipu, Qwen, DeepSeek, Doubao
 - **65+ 模型选择** - 覆盖主流大语言模型
-- **9 种主题** - default, ocean, sunset, forest, dark, neon, monochrome, cyberpunk, nord
+- **多种主题** - 内置多种精美主题
 - **会话管理** - 保存、加载、删除会话
 - **自动补全** - 命令和历史记录补全
 - **Markdown 渲染** - 支持代码高亮和格式化
@@ -20,20 +20,15 @@ SDKWork Agent 提供专业级的终端用户界面（TUI），支持多提供者
 ### 方式 1：直接导入
 
 ```typescript
-import { main } from '@sdkwork/agent/tui/cli';
+import { main } from '@sdkwork/browser-agent/tui';
 
-// 启动交互式 TUI
 main();
 ```
 
 ### 方式 2：命令行
 
 ```bash
-# 安装后运行
-npx @sdkwork/agent
-
-# 或
-node -e "require('@sdkwork/agent/tui/cli').main()"
+npx @sdkwork/browser-agent
 ```
 
 ## 界面说明
@@ -42,8 +37,8 @@ node -e "require('@sdkwork/agent/tui/cli').main()"
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  SDKWork Agent CLI v3.0.0                                   │
-│  Provider: OpenAI | Model: gpt-4 | Theme: ocean             │
+│  SDKWork Browser Agent CLI v3.0.0                           │
+│  Provider: OpenAI | Model: gpt-4 | Theme: default           │
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
 │  🤖 Assistant                                               │
@@ -89,7 +84,7 @@ node -e "require('@sdkwork/agent/tui/cli').main()"
 首次启动时会自动进入配置向导：
 
 ```
-🚀 Welcome to SDKWork Agent CLI!
+🚀 Welcome to SDKWork Browser Agent CLI!
 
 Step 1: Choose LLM Provider
   [1] OpenAI
@@ -125,18 +120,9 @@ Step 4: Choose Theme
 ### 内置主题
 
 ```typescript
-// 9 种精美主题
-const themes = {
-  default:  '默认主题 - 蓝紫渐变',
-  ocean:    '海洋主题 - 深蓝配色',
-  sunset:   '日落主题 - 橙红渐变',
-  forest:   '森林主题 - 绿色系',
-  dark:     '暗黑主题 - 纯黑背景',
-  neon:     '霓虹主题 - 高对比度',
-  monochrome: '单色主题 - 黑白配',
-  cyberpunk: '赛博朋克 - 紫青配色',
-  nord:     'Nord 主题 - 极地配色'
-};
+import { THEMES, DEFAULT_THEME } from '@sdkwork/browser-agent/tui';
+
+console.log('Available themes:', Object.keys(THEMES));
 ```
 
 ### 切换主题
@@ -147,13 +133,13 @@ const themes = {
 ┌─────────────────────────────────────┐
 │  🎨 Select Theme                    │
 │                                     │
-│  [1] default    [6] neon           │
-│  [2] ocean      [7] monochrome     │
-│  [3] sunset     [8] cyberpunk      │
-│  [4] forest     [9] nord           │
-│  [5] dark                           │
+│  [1] default                        │
+│  [2] ocean                          │
+│  [3] sunset                         │
+│  [4] forest                         │
+│  ...                                │
 │                                     │
-│  Current: ocean                     │
+│  Current: default                   │
 └─────────────────────────────────────┘
 ```
 
@@ -194,80 +180,98 @@ const themes = {
 
 ## 渲染器
 
-### 基础渲染器
+### TUIRenderer
 
 提供基本的终端渲染功能：
 
 ```typescript
-import { TUIRenderer } from '@sdkwork/agent/tui/renderer';
+import { TUIRenderer, createRenderer, DEFAULT_THEME } from '@sdkwork/browser-agent/tui';
 
-const renderer = new TUIRenderer();
+const renderer = createRenderer({ theme: DEFAULT_THEME });
 
-// 渲染标题
-renderer.renderTitle('SDKWork Agent');
+renderer.renderTitle('SDKWork Browser Agent');
 
-// 渲染消息气泡
 renderer.renderMessage('Hello!', 'assistant');
 renderer.renderMessage('Hi!', 'user');
 
-// 渲染代码块
 renderer.renderCodeBlock(`const x = 1;`, 'typescript');
 
-// 渲染加载动画
 const spinner = renderer.renderSpinner('Thinking...');
 spinner.stop();
 ```
 
-### 增强渲染器
+### LoadingIndicator
 
-提供更多视觉效果：
+加载动画指示器：
 
 ```typescript
-import { EnhancedTUIRenderer } from '@sdkwork/agent/tui/renderer-enhanced';
+import { LoadingIndicator } from '@sdkwork/browser-agent/tui';
 
-const renderer = new EnhancedTUIRenderer({ theme: 'ocean' });
+const indicator = new LoadingIndicator({
+  text: 'Loading...',
+  color: 'cyan'
+});
 
-// 5 种加载动画样式
-renderer.renderSpinner('Loading...', { style: 'dots' });
-renderer.renderSpinner('Loading...', { style: 'line' });
-renderer.renderSpinner('Loading...', { style: 'arrow' });
-renderer.renderSpinner('Loading...', { style: 'bounce' });
-renderer.renderSpinner('Loading...', { style: 'pulse' });
-
-// 进度条
-renderer.renderProgressBar(50, 100, { showEta: true });
-
-// 通知
-renderer.renderNotification('Success!', 'success');
-renderer.renderNotification('Warning!', 'warning');
-renderer.renderNotification('Error!', 'error');
-renderer.renderNotification('Info', 'info');
+indicator.start();
+await doSomething();
+indicator.stop();
 ```
 
-### 完美级渲染器
+### ProgressBar
 
-最高质量的渲染效果：
+进度条组件：
 
 ```typescript
-import { PerfectTUIRenderer } from '@sdkwork/agent/tui/renderer-perfect';
+import { ProgressBar } from '@sdkwork/browser-agent/tui';
 
-const renderer = new PerfectTUIRenderer({ theme: 'cyberpunk' });
+const progress = new ProgressBar({
+  total: 100,
+  width: 40,
+  showEta: true
+});
 
-// 8 种加载动画
-renderer.renderSpinner('Loading...', { style: 'star' });
-renderer.renderSpinner('Loading...', { style: 'moon' });
-renderer.renderSpinner('Loading...', { style: 'earth' });
-
-// 流式输出（打字机效果）
-const stream = renderer.createStreamRenderer();
-for await (const chunk of llmStream) {
-  stream.write(chunk.content);
+for (let i = 0; i <= 100; i++) {
+  progress.update(i);
+  await doWork();
 }
 
-// 渐变文字
-renderer.renderGradientText('SDKWork Agent', {
-  colors: ['#646cff', '#bd34fe']
+progress.complete();
+```
+
+### ThinkingDisplay
+
+思考过程显示：
+
+```typescript
+import { ThinkingDisplay } from '@sdkwork/browser-agent/tui';
+
+const thinking = new ThinkingDisplay();
+
+thinking.start('Analyzing...');
+thinking.addThought('First, I need to understand the problem...');
+thinking.addThought('Then, I will break it down into steps...');
+thinking.stop();
+```
+
+## 流式输出
+
+### StreamRenderer
+
+流式输出渲染器：
+
+```typescript
+import { StreamRenderer, createStreamRenderer } from '@sdkwork/browser-agent/tui';
+
+const streamRenderer = createStreamRenderer({
+  prefix: '> ',
+  color: 'green'
 });
+
+for await (const chunk of llmStream) {
+  streamRenderer.write(chunk.content);
+}
+
+streamRenderer.end();
 ```
 
 ## 多行输入
@@ -275,14 +279,13 @@ renderer.renderGradientText('SDKWork Agent', {
 支持复杂的输入场景：
 
 ```typescript
-import { MultilineInput } from '@sdkwork/agent/tui/multiline-input';
+import { MultilineInput, readMultiline } from '@sdkwork/browser-agent/tui';
 
-const input = new MultilineInput({
+const text = await readMultiline({
   placeholder: 'Enter your message... (Shift+Enter for new line)',
   maxLines: 10
 });
 
-const text = await input.read();
 console.log('Input:', text);
 ```
 
@@ -291,9 +294,7 @@ console.log('Input:', text);
 支持完整的 Markdown 语法：
 
 ```typescript
-import { MarkdownRenderer } from '@sdkwork/agent/tui/markdown-renderer';
-
-const renderer = new MarkdownRenderer();
+import { MarkdownRenderer, renderMarkdown, printMarkdown } from '@sdkwork/browser-agent/tui';
 
 const markdown = `
 # Heading 1
@@ -312,7 +313,50 @@ console.log(x);
 > Quote block
 `;
 
-renderer.render(markdown);
+printMarkdown(markdown);
+```
+
+## 交互式选择器
+
+### 单选选择器
+
+```typescript
+import { select, confirm, prompt } from '@sdkwork/browser-agent/tui';
+
+const answer = await select({
+  message: 'Choose a model:',
+  options: [
+    { value: 'gpt-4', label: 'GPT-4' },
+    { value: 'gpt-3.5', label: 'GPT-3.5' },
+  ]
+});
+
+const confirmed = await confirm({
+  message: 'Are you sure?',
+  default: false
+});
+
+const name = await prompt({
+  message: 'Enter your name:',
+  default: 'Guest'
+});
+```
+
+### 多选选择器
+
+```typescript
+import { InteractiveSelector, MultiSelector } from '@sdkwork/browser-agent/tui';
+
+const multiSelect = new MultiSelector({
+  message: 'Select features:',
+  options: [
+    { value: 'streaming', label: 'Streaming Output' },
+    { value: 'memory', label: 'Memory System' },
+    { value: 'tools', label: 'Tool Support' },
+  ]
+});
+
+const selected = await multiSelect.run();
 ```
 
 ## 自定义 TUI
@@ -320,24 +364,20 @@ renderer.render(markdown);
 ### 创建自定义界面
 
 ```typescript
-import { EnhancedTUIRenderer } from '@sdkwork/agent/tui/renderer-enhanced';
-import { main as cliMain } from '@sdkwork/agent/tui/cli';
+import { TUIRenderer, createRenderer, THEMES } from '@sdkwork/browser-agent/tui';
+import { main as cliMain } from '@sdkwork/browser-agent/tui';
 
-// 使用自定义配置启动
 async function customTUI() {
-  const renderer = new EnhancedTUIRenderer({
-    theme: 'cyberpunk',
-    animations: true
+  const renderer = createRenderer({
+    theme: THEMES.cyberpunk || THEMES.default
   });
   
-  // 自定义欢迎界面
   renderer.renderBox({
     title: 'My Custom Agent',
     content: 'Welcome to my custom TUI!',
     style: 'double'
   });
   
-  // 启动标准 CLI
   await cliMain();
 }
 
@@ -347,8 +387,9 @@ customTUI();
 ### 自定义主题
 
 ```typescript
-// 创建自定义主题
-const myTheme = {
+import type { Theme } from '@sdkwork/browser-agent/tui';
+
+const myTheme: Theme = {
   name: 'my-theme',
   colors: {
     primary: '#646cff',
@@ -363,36 +404,24 @@ const myTheme = {
     textMuted: '#9ca3af'
   }
 };
-
-// 保存主题
-await fs.writeFile(
-  '~/.sdkwork/themes/my-theme.json',
-  JSON.stringify(myTheme, null, 2)
-);
 ```
 
 ## 最佳实践
 
-### 1. 选择合适的渲染器
+### 1. 选择合适的组件
 
 ```typescript
-// 简单场景 - 基础渲染器
-import { TUIRenderer } from '@sdkwork/agent/tui/renderer';
+import { TUIRenderer } from '@sdkwork/browser-agent/tui';
 
-// 复杂场景 - 增强渲染器
-import { EnhancedTUIRenderer } from '@sdkwork/agent/tui/renderer-enhanced';
-
-// 高端场景 - 完美级渲染器
-import { PerfectTUIRenderer } from '@sdkwork/agent/tui/renderer-perfect';
+const renderer = new TUIRenderer({ theme: myTheme });
 ```
 
 ### 2. 处理长时间运行任务
 
 ```typescript
-const renderer = new EnhancedTUIRenderer();
+import { ProgressBar } from '@sdkwork/browser-agent/tui';
 
-// 显示进度
-const progress = renderer.renderProgressBar(0, 100);
+const progress = new ProgressBar({ total: 100 });
 
 for (let i = 0; i <= 100; i++) {
   await doWork();
@@ -405,13 +434,14 @@ progress.complete();
 ### 3. 优雅处理错误
 
 ```typescript
+import { TUIRenderer } from '@sdkwork/browser-agent/tui';
+
+const renderer = new TUIRenderer();
+
 try {
   await agent.chat({ messages });
 } catch (error) {
-  renderer.renderNotification(
-    `Error: ${error.message}`,
-    'error'
-  );
+  renderer.renderError(`Error: ${(error as Error).message}`);
 }
 ```
 

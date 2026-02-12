@@ -1,232 +1,122 @@
 # Agent API
 
-Agent 是 SDKWork 的核心聚合根，提供完整的智能体能力。
+Agent 是 SDKWork Browser Agent 的核心智能体实现，基于 DDD 架构和微内核设计。
 
 ## createAgent
 
-创建一个新的 Agent 实例。
+创建 Agent 实例的工厂函数。
+
+### 签名
 
 ```typescript
-function createAgent(config: AgentConfig): Agent
+function createAgent(
+  llmProvider: LLMProvider, 
+  options?: CreateAgentOptions
+): AgentImpl
 ```
 
-### AgentConfig
+### 参数
+
+#### LLMProvider
+
+LLM 提供者实例，支持多种 LLM 服务：
 
 ```typescript
-interface AgentConfig {
-  // 身份
-  id?: string;                   // 可选，自动生成
-  name: string;                  // 必需，Agent 名称
-  description?: string;          // 可选，描述
-  
-  // LLM 配置 - 支持两种方式
-  // 方式1：使用 Provider 实例
-  llm: LLMProvider;
-  
-  // 方式2：使用配置对象
-  llm: {
-    provider: 'openai' | 'anthropic' | 'google' | 'moonshot' | 'minimax' | 'zhipu' | 'qwen' | 'deepseek' | 'doubao';
-    apiKey: string;
-    model?: string;
-    baseUrl?: string;
-    defaults?: {
-      temperature?: number;
-      maxTokens?: number;
-      topP?: number;
-    };
-  };
-  
-  // 可选能力 - 配置即启用
-  skills?: Skill[];              // 初始 Skill 列表
-  tools?: Tool[];                // 初始 Tool 列表
-  mcp?: MCPServerConfig[];       // MCP 服务器配置
-  memory?: MemoryConfig;         // 记忆系统配置
+import { OpenAIProvider } from '@sdkwork/browser-agent/llm';
+import { AnthropicProvider } from '@sdkwork/browser-agent/llm';
+import { GeminiProvider } from '@sdkwork/browser-agent/llm';
+import { DeepSeekProvider } from '@sdkwork/browser-agent/llm';
+import { MoonshotProvider } from '@sdkwork/browser-agent/llm';
+import { MiniMaxProvider } from '@sdkwork/browser-agent/llm';
+import { ZhipuProvider } from '@sdkwork/browser-agent/llm';
+import { QwenProvider } from '@sdkwork/browser-agent/llm';
+import { DoubaoProvider } from '@sdkwork/browser-agent/llm';
+```
+
+#### CreateAgentOptions
+
+```typescript
+interface CreateAgentOptions {
+  /** Agent 名称 */
+  name?: string;
+  /** Agent 描述 */
+  description?: string;
+  /** 技能列表 */
+  skills?: Skill[];
+  /** 工具列表 */
+  tools?: Tool[];
 }
 ```
 
 ### 示例
 
 ```typescript
-import { createAgent } from 'sdkwork-agent';
-import { OpenAIProvider } from 'sdkwork-agent/llm';
+import { createAgent } from '@sdkwork/browser-agent';
+import { OpenAIProvider } from '@sdkwork/browser-agent/llm';
 
-// 方式1：使用 Provider 实例
-const agent1 = createAgent({
+const llm = new OpenAIProvider({
+  apiKey: process.env.OPENAI_API_KEY!,
+  model: 'gpt-4-turbo-preview',
+});
+
+const agent = createAgent(llm, {
   name: 'MyAgent',
-  llm: new OpenAIProvider({
-    apiKey: process.env.OPENAI_API_KEY!,
-    model: 'gpt-4'
-  })
+  description: 'A helpful AI assistant',
 });
 
-// 方式2：使用配置对象
-const agent2 = createAgent({
-  name: 'MyAgent',
-  llm: {
-    provider: 'openai',
-    apiKey: process.env.OPENAI_API_KEY!,
-    model: 'gpt-4',
-    defaults: {
-      temperature: 0.7,
-      maxTokens: 2000
-    }
-  }
-});
-
-// 完整配置
-const agent3 = createAgent({
-  id: 'agent-001',
-  name: 'FullFeaturedAgent',
-  description: 'A full-featured agent',
-  llm: new OpenAIProvider({ apiKey: process.env.OPENAI_API_KEY! }),
-  skills: [skill1, skill2],
-  tools: [tool1, tool2],
-  memory: { maxTokens: 8000 }
-});
+await agent.initialize();
 ```
 
-## Agent 属性
+## AgentImpl
 
-### id
+Agent 实现类，提供完整的智能体功能。
 
-Agent 的唯一标识符。
+### 属性
+
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| `id` | `AgentId` | Agent 唯一标识 |
+| `name` | `string` | Agent 名称 |
+| `description` | `string \| undefined` | Agent 描述 |
+| `state` | `AgentState` | 当前状态 |
+| `llm` | `LLMProvider` | LLM 提供者 |
+| `skills` | `SkillRegistry` | 技能注册表 |
+| `tools` | `ToolRegistry` | 工具注册表 |
+| `memory` | `MemoryStore` | 记忆存储 |
+| `execution` | `ExecutionEngine` | 执行引擎 |
+
+### AgentState
 
 ```typescript
-readonly id: string;
+enum AgentState {
+  IDLE = 'idle',
+  INITIALIZING = 'initializing',
+  READY = 'ready',
+  CHATTING = 'chatting',
+  EXECUTING = 'executing',
+  THINKING = 'thinking',
+  ERROR = 'error',
+  DESTROYED = 'destroyed',
+}
 ```
 
-### name
+### 生命周期方法
 
-Agent 的名称。
+#### initialize
 
-```typescript
-readonly name: string;
-```
-
-### description
-
-Agent 的描述。
-
-```typescript
-readonly description?: string;
-```
-
-### state
-
-Agent 的当前状态。
-
-```typescript
-readonly state: AgentState;
-
-type AgentState = 
-  | 'idle'           // 空闲
-  | 'initializing'   // 初始化中
-  | 'ready'          // 就绪
-  | 'chatting'       // 对话中
-  | 'executing'      // 执行中
-  | 'error'          // 错误
-  | 'destroyed';     // 已销毁
-```
-
-### llm
-
-LLM Provider 实例。
-
-```typescript
-readonly llm: LLMProvider;
-```
-
-### skills
-
-Skill 注册表。
-
-```typescript
-readonly skills: SkillRegistry;
-```
-
-### tools
-
-Tool 注册表。
-
-```typescript
-readonly tools: ToolRegistry;
-```
-
-### memory
-
-记忆存储。
-
-```typescript
-readonly memory: MemoryStore;
-```
-
-### execution
-
-执行引擎。
-
-```typescript
-readonly execution: ExecutionEngine;
-```
-
-### kernel
-
-微内核实例（高级）。
-
-```typescript
-readonly kernel: Microkernel;
-```
-
-## 生命周期方法
-
-### initialize
-
-初始化 Agent，启动所有服务。
+初始化 Agent。
 
 ```typescript
 async initialize(): Promise<void>
 ```
 
-**状态流转**: `idle` → `initializing` → `ready`
-
-**示例**:
+**示例：**
 
 ```typescript
-try {
-  await agent.initialize();
-  console.log('Agent initialized successfully');
-} catch (error) {
-  console.error('Failed to initialize agent:', error);
-}
+await agent.initialize();
 ```
 
-**事件触发**:
-- `agent:initialized` - 初始化完成
-- `agent:started` - 启动完成
-- `agent:error` - 初始化失败
-
-### reset
-
-重置 Agent 状态，用于从错误状态恢复。
-
-```typescript
-async reset(): Promise<void>
-```
-
-**状态流转**: `error` → `idle` → `initializing` → `ready`
-
-**示例**:
-
-```typescript
-if (agent.state === 'error') {
-  await agent.reset();
-  console.log('Agent reset and reinitialized');
-}
-```
-
-**事件触发**:
-- `agent:reset` - 重置完成
-
-### destroy
+#### destroy
 
 销毁 Agent，释放所有资源。
 
@@ -234,69 +124,71 @@ if (agent.state === 'error') {
 async destroy(): Promise<void>
 ```
 
-**状态流转**: `*` → `destroyed`
-
-**示例**:
+**示例：**
 
 ```typescript
 await agent.destroy();
-console.log('Agent destroyed');
 ```
 
-**事件触发**:
-- `agent:destroyed` - 销毁完成
+#### reset
 
-## 对话方法
+重置 Agent 状态，用于从 ERROR 状态恢复。
 
-### chat
+```typescript
+async reset(): Promise<void>
+```
 
-进行对话，返回完整响应。
+**示例：**
+
+```typescript
+if (agent.state === AgentState.ERROR) {
+  await agent.reset();
+}
+```
+
+### 对话方法
+
+#### chat
+
+执行对话，返回完整响应。
 
 ```typescript
 async chat(request: ChatRequest): Promise<ChatResponse>
 ```
 
-### ChatRequest
+#### ChatRequest
 
 ```typescript
 interface ChatRequest {
-  // 必需
+  /** 消息列表 */
   messages: ChatMessage[];
-  
-  // 可选
+  /** 模型名称 */
   model?: string;
-  stream?: boolean;
-  temperature?: number;
-  maxTokens?: number;
-  topP?: number;
-  frequencyPenalty?: number;
-  presencePenalty?: number;
-  stop?: string | string[];
-  tools?: ToolDefinition[];
-  toolChoice?: 'none' | 'auto' | 'required' | { type: 'function'; function: { name: string } };
-  responseFormat?: { type: 'text' | 'json_object' | 'json_schema'; schema?: unknown };
+  /** 会话 ID */
   sessionId?: string;
-  metadata?: Record<string, unknown>;
+  /** 温度参数 */
+  temperature?: number;
+  /** 最大 Token 数 */
+  maxTokens?: number;
 }
+```
 
+#### ChatMessage
+
+```typescript
 interface ChatMessage {
-  id?: string;
-  role: 'system' | 'user' | 'assistant' | 'tool';
-  content: string | ChatContentPart[];
+  id: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string | MessageContentPart[];
   name?: string;
+  timestamp: number;
   toolCalls?: ToolCall[];
   toolCallId?: string;
   metadata?: Record<string, unknown>;
-  timestamp?: number;
 }
-
-type ChatContentPart =
-  | { type: 'text'; text: string }
-  | { type: 'image_url'; imageUrl: { url: string; detail?: 'low' | 'high' | 'auto' } }
-  | { type: 'file'; file: { name: string; content: string; mimeType: string } };
 ```
 
-### ChatResponse
+#### ChatResponse
 
 ```typescript
 interface ChatResponse {
@@ -310,87 +202,51 @@ interface ChatResponse {
     completionTokens: number;
     totalTokens: number;
   };
-  systemFingerprint?: string;
-}
-
-interface ChatChoice {
-  index: number;
-  message: ChatMessage;
-  finishReason: 'stop' | 'length' | 'tool_calls' | 'content_filter' | null;
 }
 ```
 
-**示例**:
+**示例：**
 
 ```typescript
 const response = await agent.chat({
   messages: [
-    { role: 'system', content: '你是一个有帮助的助手。' },
-    { role: 'user', content: '你好！' }
+    { id: '1', role: 'user', content: 'Hello!', timestamp: Date.now() }
   ],
-  temperature: 0.7,
-  maxTokens: 1000
 });
 
 console.log(response.choices[0].message.content);
-console.log(`Token usage: ${response.usage.totalTokens}`);
 ```
 
-**事件触发**:
-- `chat:started` - 对话开始
-- `chat:completed` - 对话完成
-- `chat:error` - 对话错误
+#### chatStream
 
-### chatStream
-
-进行流式对话，返回异步生成器。
+执行流式对话。
 
 ```typescript
 async *chatStream(request: ChatRequest): AsyncGenerator<ChatStreamChunk>
 ```
 
-### ChatStreamChunk
-
-```typescript
-interface ChatStreamChunk {
-  id: string;
-  object: 'chat.completion.chunk';
-  created: number;
-  model: string;
-  choices: StreamChoice[];
-}
-
-interface StreamChoice {
-  index: number;
-  delta: {
-    role?: 'system' | 'user' | 'assistant' | 'tool';
-    content?: string;
-    toolCalls?: ToolCall[];
-  };
-  finishReason: 'stop' | 'length' | 'tool_calls' | 'content_filter' | null;
-}
-```
-
-**示例**:
+**示例：**
 
 ```typescript
 const stream = agent.chatStream({
-  messages: [{ role: 'user', content: '讲一个故事' }]
+  messages: [
+    { id: '1', role: 'user', content: 'Tell me a story', timestamp: Date.now() }
+  ],
 });
 
 for await (const chunk of stream) {
-  const content = chunk.choices[0].delta.content;
+  const content = chunk.choices[0]?.delta?.content;
   if (content) {
     process.stdout.write(content);
   }
 }
 ```
 
-## Skill 管理
+### Skill 方法
 
-### executeSkill
+#### executeSkill
 
-执行指定的 Skill。
+执行指定 Skill。
 
 ```typescript
 async executeSkill(
@@ -400,28 +256,25 @@ async executeSkill(
 ): Promise<SkillResult>
 ```
 
-**示例**:
+**示例：**
 
 ```typescript
-const result = await agent.executeSkill('data-processor', '{"data": [1, 2, 3]}');
+const result = await agent.executeSkill('calculator', JSON.stringify({
+  a: 10,
+  b: 5,
+  operation: 'multiply'
+}));
 
 if (result.success) {
   console.log('Result:', result.data);
-} else {
-  console.error('Error:', result.error);
 }
 ```
 
-**事件触发**:
-- `skill:invoking` - 开始执行
-- `skill:completed` - 执行完成
-- `skill:failed` - 执行失败
+### Tool 方法
 
-## Tool 管理
+#### executeTool
 
-### executeTool
-
-执行指定的 Tool。
+执行指定 Tool。
 
 ```typescript
 async executeTool(
@@ -431,45 +284,127 @@ async executeTool(
 ): Promise<ToolResult>
 ```
 
-**示例**:
+**示例：**
 
 ```typescript
-const result = await agent.executeTool('file-read', '{"path": "./data.txt"}');
+const result = await agent.executeTool('file-read', JSON.stringify({
+  path: './data.txt'
+}));
 
 if (result.success) {
-  console.log('Content:', result.data.content);
+  console.log('Content:', result.data);
 }
 ```
 
-**事件触发**:
-- `tool:invoking` - 开始执行
-- `tool:completed` - 执行完成
-- `tool:failed` - 执行失败
+### 会话管理
 
-## Plugin 管理
+#### createSession
 
-### loadPlugin
+创建新会话。
 
-加载并激活插件。
+```typescript
+createSession(): SessionId
+```
+
+#### getSession
+
+获取会话历史。
+
+```typescript
+getSession(sessionId: SessionId): ChatMessage[] | undefined
+```
+
+#### clearSession
+
+清除会话。
+
+```typescript
+clearSession(sessionId: SessionId): void
+```
+
+**示例：**
+
+```typescript
+const sessionId = agent.createSession();
+
+const response1 = await agent.chat({
+  messages: [{ id: '1', role: 'user', content: 'Hi', timestamp: Date.now() }],
+  sessionId,
+});
+
+const response2 = await agent.chat({
+  messages: [{ id: '2', role: 'user', content: 'What did I say?', timestamp: Date.now() }],
+  sessionId,
+});
+
+const history = agent.getSession(sessionId);
+console.log('History length:', history?.length);
+
+agent.clearSession(sessionId);
+```
+
+### 事件系统
+
+#### on
+
+订阅事件。
+
+```typescript
+on<T>(
+  eventType: AgentEventType, 
+  handler: (event: AgentEvent<T>) => void
+): () => void
+```
+
+#### AgentEventType
+
+```typescript
+type AgentEventType =
+  | 'agent:initialized'
+  | 'agent:started'
+  | 'agent:destroyed'
+  | 'agent:error'
+  | 'agent:reset'
+  | 'chat:started'
+  | 'chat:completed'
+  | 'chat:error'
+  | 'skill:invoking'
+  | 'skill:completed'
+  | 'skill:failed'
+  | 'tool:invoking'
+  | 'tool:completed'
+  | 'tool:failed'
+  | 'execution:step'
+  | 'execution:failed'
+  | 'memory:stored'
+  | '*';
+```
+
+**示例：**
+
+```typescript
+// 订阅特定事件
+agent.on('chat:completed', (event) => {
+  console.log('Chat completed:', event.payload);
+});
+
+// 订阅所有事件
+agent.on('*', (event) => {
+  console.log('Event:', event.type, event.payload);
+});
+```
+
+### Plugin 管理
+
+#### loadPlugin
+
+加载插件。
 
 ```typescript
 async loadPlugin(config: PluginConfig): Promise<void>
 ```
 
-**示例**:
-
-```typescript
-await agent.loadPlugin({
-  id: 'my-plugin',
-  name: 'My Plugin',
-  version: '1.0.0',
-  activate: async (context) => {
-    // 插件激活逻辑
-  }
-});
-```
-
-### unloadPlugin
+#### unloadPlugin
 
 卸载插件。
 
@@ -477,9 +412,9 @@ await agent.loadPlugin({
 async unloadPlugin(pluginId: string): Promise<void>
 ```
 
-## MCP 管理
+### MCP 管理
 
-### connectMCP
+#### connectMCP
 
 连接 MCP 服务器。
 
@@ -487,18 +422,7 @@ async unloadPlugin(pluginId: string): Promise<void>
 async connectMCP(config: MCPServerConfig): Promise<void>
 ```
 
-**示例**:
-
-```typescript
-await agent.connectMCP({
-  id: 'my-mcp-server',
-  transport: 'stdio',
-  command: 'node',
-  args: ['./mcp-server.js']
-});
-```
-
-### disconnectMCP
+#### disconnectMCP
 
 断开 MCP 服务器连接。
 
@@ -506,159 +430,56 @@ await agent.connectMCP({
 async disconnectMCP(serverId: string): Promise<void>
 ```
 
-## 会话管理
-
-### createSession
-
-创建新会话。
-
-```typescript
-createSession(): string
-```
-
-**示例**:
-
-```typescript
-const sessionId = agent.createSession();
-console.log('New session:', sessionId);
-```
-
-### getSession
-
-获取会话消息历史。
-
-```typescript
-getSession(sessionId: string): ChatMessage[] | undefined
-```
-
-### clearSession
-
-清空会话。
-
-```typescript
-clearSession(sessionId: string): void
-```
-
-## 事件系统
-
-### on
-
-订阅事件。
-
-```typescript
-on<T>(event: AgentEventType, handler: (event: AgentEvent<T>) => void): void
-```
-
-### off
-
-取消订阅事件。
-
-```typescript
-off<T>(event: AgentEventType, handler: (event: AgentEvent<T>) => void): void
-```
-
-### emit
-
-触发自定义事件。
-
-```typescript
-emit<T>(event: AgentEventType, payload: T): void
-```
-
-### 事件类型
-
-```typescript
-type AgentEventType =
-  // 生命周期
-  | 'agent:initialized'
-  | 'agent:started'
-  | 'agent:stopped'
-  | 'agent:destroyed'
-  | 'agent:error'
-  | 'agent:reset'
-  // 对话
-  | 'chat:started'
-  | 'chat:message'
-  | 'chat:stream'
-  | 'chat:completed'
-  | 'chat:aborted'
-  | 'chat:error'
-  // 执行
-  | 'execution:started'
-  | 'execution:step'
-  | 'execution:progress'
-  | 'execution:completed'
-  | 'execution:failed'
-  // 工具
-  | 'tool:invoking'
-  | 'tool:invoked'
-  | 'tool:completed'
-  | 'tool:failed'
-  // Skill
-  | 'skill:invoking'
-  | 'skill:invoked'
-  | 'skill:completed'
-  | 'skill:failed'
-  // 记忆
-  | 'memory:stored'
-  | 'memory:retrieved'
-  | 'memory:searched';
-```
-
-**示例**:
-
-```typescript
-// 监听对话完成
-agent.on('chat:completed', (event) => {
-  console.log('Chat completed:', event.payload);
-});
-
-// 监听所有事件
-agent.on('*', (event) => {
-  console.log('Event:', event.type, event.payload);
-});
-```
-
 ## 完整示例
 
 ```typescript
-import { createAgent, defineSkill, defineTool } from 'sdkwork-agent';
-import { OpenAIProvider } from 'sdkwork-agent/llm';
+import { createAgent } from '@sdkwork/browser-agent';
+import { OpenAIProvider } from '@sdkwork/browser-agent/llm';
+import type { Skill, Tool } from '@sdkwork/browser-agent';
 
 async function main() {
-  // 创建 Agent
-  const agent = createAgent({
-    name: 'DemoAgent',
-    llm: new OpenAIProvider({
-      apiKey: process.env.OPENAI_API_KEY!,
-      model: 'gpt-4'
-    })
+  // 创建 LLM 提供者
+  const llm = new OpenAIProvider({
+    apiKey: process.env.OPENAI_API_KEY!,
+    model: 'gpt-4-turbo-preview',
   });
 
-  // 监听事件
-  agent.on('chat:completed', (event) => {
-    console.log(`Chat completed in ${event.payload.duration}ms`);
-  });
-
-  // 初始化
-  await agent.initialize();
-
-  // 注册 Skill
-  agent.skills.register(defineSkill({
-    id: 'greeting',
-    name: 'Greeting',
+  // 定义 Skill
+  const calculatorSkill: Skill = {
+    id: 'calculator',
+    name: 'Calculator',
+    description: 'Perform calculations',
+    version: '1.0.0',
     script: {
       lang: 'typescript',
       code: `
         async function main() {
-          return { message: 'Hello, ' + $input.name };
+          const { a, b, operation } = $input;
+          let result;
+          switch (operation) {
+            case 'add': result = a + b; break;
+            case 'subtract': result = a - b; break;
+            case 'multiply': result = a * b; break;
+            case 'divide': result = a / b; break;
+          }
+          return { result };
         }
-      `
-    }
-  }));
+      `,
+      entry: 'main',
+    },
+    input: {
+      type: 'object',
+      properties: {
+        a: { type: 'number' },
+        b: { type: 'number' },
+        operation: { type: 'string' },
+      },
+      required: ['a', 'b', 'operation'],
+    },
+  };
 
-  // 注册 Tool
-  agent.tools.register(defineTool({
+  // 定义 Tool
+  const timestampTool: Tool = {
     id: 'timestamp',
     name: 'Timestamp',
     description: 'Get current timestamp',
@@ -666,23 +487,45 @@ async function main() {
     confirm: 'none',
     execute: async () => ({
       success: true,
-      data: { timestamp: Date.now() }
-    })
-  }));
+      data: { timestamp: Date.now() },
+    }),
+  };
+
+  // 创建 Agent
+  const agent = createAgent(llm, {
+    name: 'DemoAgent',
+    description: 'A demo agent',
+    skills: [calculatorSkill],
+    tools: [timestampTool],
+  });
+
+  // 订阅事件
+  agent.on('chat:completed', (event) => {
+    console.log('Chat completed');
+  });
+
+  // 初始化
+  await agent.initialize();
 
   // 对话
   const response = await agent.chat({
-    messages: [{ role: 'user', content: '你好！' }]
+    messages: [
+      { id: '1', role: 'user', content: 'Hello!', timestamp: Date.now() }
+    ],
   });
-  console.log(response.choices[0].message.content);
+  console.log('Response:', response.choices[0].message.content);
 
   // 执行 Skill
-  const skillResult = await agent.executeSkill('greeting', '{"name": "World"}');
-  console.log(skillResult.data);
+  const skillResult = await agent.executeSkill('calculator', JSON.stringify({
+    a: 10,
+    b: 5,
+    operation: 'multiply',
+  }));
+  console.log('Skill result:', skillResult.data);
 
   // 执行 Tool
   const toolResult = await agent.executeTool('timestamp', '{}');
-  console.log(toolResult.data);
+  console.log('Tool result:', toolResult.data);
 
   // 销毁
   await agent.destroy();
@@ -690,3 +533,11 @@ async function main() {
 
 main().catch(console.error);
 ```
+
+## 最佳实践
+
+1. **资源管理** - 始终在完成后调用 `destroy()` 释放资源
+2. **错误处理** - 使用 try-catch 处理可能的错误
+3. **状态检查** - 在执行操作前检查 `agent.state`
+4. **会话管理** - 使用 sessionId 维护对话上下文
+5. **事件监听** - 利用事件系统实现可观测性

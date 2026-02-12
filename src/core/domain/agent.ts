@@ -235,6 +235,11 @@ export interface ChatStreamChunk {
   model: string;
   choices: StreamChoice[];
   systemFingerprint?: string;
+  usage?: {
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+  };
 }
 
 export interface StreamChoice {

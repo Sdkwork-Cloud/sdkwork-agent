@@ -402,6 +402,8 @@ export interface SkillContext {
   tools: ToolRegistry;
   /** 中止信号 */
   signal?: AbortSignal;
+  /** 执行上下文管理器 (用于循环检测和深度控制) */
+  executionContext?: import('../../execution/execution-context.js').ExecutionContextManager;
 }
 
 /**

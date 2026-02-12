@@ -1,94 +1,81 @@
 # 贡献指南
 
-感谢你对 SDKWork Agent 的兴趣！我们欢迎各种形式的贡献。
+感谢您对 SDKWork Browser Agent 的关注！本文档将帮助您了解如何为项目做出贡献。
 
-## 如何贡献
+## 开发环境
 
-### 报告问题
+### 环境要求
 
-如果你发现了 bug 或有功能建议：
+- Node.js 18+
+- pnpm 8+
+- TypeScript 5+
 
-1. 先搜索 [Issues](https://github.com/Sdkwork-Cloud/sdkwork-agent/issues) 看是否已存在
-2. 如果没有，创建一个新的 Issue
-3. 使用相应的模板（Bug 报告或功能请求）
-4. 提供尽可能详细的信息
-
-### 提交代码
-
-#### 1. Fork 仓库
+### 克隆项目
 
 ```bash
-# Fork 仓库到你的 GitHub 账号
-# 然后克隆你的 fork
-git clone https://github.com/YOUR_USERNAME/agent.git
-cd agent
+git clone https://github.com/sdkwork/browser-agent.git
+cd browser-agent
 ```
 
-#### 2. 创建分支
+### 安装依赖
 
 ```bash
-# 创建功能分支
-git checkout -b feature/your-feature-name
-
-# 或修复分支
-git checkout -b fix/issue-description
+pnpm install
 ```
 
-#### 3. 安装依赖
+### 运行测试
 
 ```bash
-npm install
+pnpm test
 ```
 
-#### 4. 开发
+### 构建项目
 
 ```bash
-# 启动开发服务器
-npm run dev
-
-# 运行测试
-npm test
-
-# 检查类型
-npm run typecheck
-
-# 检查代码风格
-npm run lint
+pnpm build
 ```
 
-#### 5. 提交更改
+## 项目结构
 
-```bash
-# 添加更改
-git add .
-
-# 提交（遵循 Conventional Commits 规范）
-git commit -m "feat: add new feature"
-
-# 推送到你的 fork
-git push origin feature/your-feature-name
+```
+src/
+├── core/           # 核心层
+├── agent/          # Agent 模块
+├── skills/         # Skill 模块
+├── tools/          # Tool 模块
+├── memory/         # Memory 模块
+├── execution/      # Execution 模块
+├── llm/            # LLM 提供者
+├── plugin/         # 插件系统
+├── mcp/            # MCP 协议
+├── algorithms/     # 算法模块
+├── tui/            # TUI 界面
+└── index.ts        # 主入口
 ```
 
-#### 6. 创建 Pull Request
+## 代码规范
 
-1. 访问原仓库的 Pull Requests 页面
-2. 点击 "New Pull Request"
-3. 选择你的分支
-4. 填写 PR 描述（使用模板）
-5. 提交 PR
-
-## 开发规范
-
-### 代码风格
+### TypeScript
 
 - 使用 TypeScript 编写所有代码
-- 遵循 ESLint 配置
-- 使用 Prettier 格式化代码
-- 保持代码简洁、可读
+- 遵循现有的代码风格
+- 添加适当的类型注解
 
-### 提交信息规范
+### 命名规范
 
-我们遵循 [Conventional Commits](https://www.conventionalcommits.org/) 规范：
+- 文件名：kebab-case
+- 类名：PascalCase
+- 函数名：camelCase
+- 常量：UPPER_SNAKE_CASE
+
+### 注释
+
+- 为公共 API 添加 JSDoc 注释
+- 为复杂逻辑添加解释性注释
+
+## 提交规范
+
+### Commit 格式
 
 ```
 <type>(<scope>): <subject>
@@ -98,191 +85,64 @@ git push origin feature/your-feature-name
 <footer>
 ```
 
-**类型 (type)：**
+### Type 类型
 
-- `feat`: 新功能
-- `fix`: 修复
-- `docs`: 文档
-- `style`: 代码格式（不影响功能）
+- `feat`: 新特性
+- `fix`: 修复 Bug
+- `docs`: 文档更新
+- `style`: 代码格式
 - `refactor`: 重构
-- `perf`: 性能优化
 - `test`: 测试
 - `chore`: 构建/工具
 
-**示例：**
+### 示例
 
 ```
-feat(skill): add Python script support
+feat(agent): add streaming support
 
-- Add Python runtime integration
-- Support pip dependencies
-- Add error handling for Python exceptions
+Add streaming support for chat method.
 
 Closes #123
 ```
 
-### 测试要求
+## Pull Request
 
-- 所有新功能必须有测试覆盖
-- 保持测试通过率 100%
-- 使用描述性的测试名称
+### PR 流程
 
-```typescript
-// 好的测试
-describe('SkillExecutor', () => {
-  it('should execute TypeScript skill successfully', async () => {
-    // 测试代码
-  });
-  
-  it('should handle skill execution errors', async () => {
-    // 测试代码
-  });
-});
-```
+1. Fork 项目
+2. 创建特性分支 (`git checkout -b feature/amazing-feature`)
+3. 提交更改 (`git commit -m 'feat: add amazing feature'`)
+4. 推送到分支 (`git push origin feature/amazing-feature`)
+5. 创建 Pull Request
 
-### 文档要求
+### PR 检查清单
 
-- 更新 API 文档
-- 添加使用示例
-- 更新 README（如需要）
+- [ ] 代码通过所有测试
+- [ ] 代码符合项目规范
+- [ ] 添加了必要的文档
+- [ ] 更新了 CHANGELOG.md
 
-## 项目结构
+## 问题反馈
 
-```
-sdkwork-agent/
-├── src/
-│   ├── core/
-│   │   ├── domain/          # 领域层
-│   │   │   ├── agent.ts
-│   │   │   ├── skill.ts
-│   │   │   ├── tool.ts
-│   │   │   ├── memory.ts
-│   │   │   └── events.ts
-│   │   ├── application/     # 应用层
-│   │   │   ├── agent-impl.ts
-│   │   │   ├── skill-executor.ts
-│   │   │   └── tool-executor.ts
-│   │   └── infrastructure/  # 基础设施层
-│   │       ├── microkernel.ts
-│   │       └── memory-store.ts
-│   ├── llm/                 # LLM Provider
-│   │   ├── provider.ts
-│   │   └── providers/
-│   ├── utils/               # 工具函数
-│   └── index.ts            # 入口
-├── tests/                   # 测试
-├── docs/                    # 文档
-└── package.json
-```
+### Bug 报告
 
-## 开发工作流
+请提供以下信息：
 
-### 1. 设置开发环境
+- 操作系统和版本
+- Node.js 版本
+- 复现步骤
+- 预期行为
+- 实际行为
+- 错误日志
 
-```bash
-# 克隆仓库
-git clone https://github.com/Sdkwork-Cloud/sdkwork-agent.git
-cd agent
+### 功能请求
 
-# 安装依赖
-npm install
+请描述：
 
-# 创建 .env 文件
-cp .env.example .env
-# 编辑 .env 添加你的 API 密钥
-```
-
-### 2. 运行测试
-
-```bash
-# 运行所有测试
-npm test
-
-# 运行特定测试
-npm test -- skill-executor
-
-# 监视模式
-npm test -- --watch
-```
-
-### 3. 构建项目
-
-```bash
-# 构建
-npm run build
-
-# 构建文档
-npm run docs:build
-```
-
-### 4. 代码检查
-
-```bash
-# 类型检查
-npm run typecheck
-
-# 代码检查
-npm run lint
-
-# 自动修复
-npm run lint:fix
-```
-
-## 代码审查
-
-所有 PR 都需要经过代码审查：
-
-1. 至少一个维护者批准
-2. 所有 CI 检查通过
-3. 没有冲突
-
-### 审查清单
-
-- [ ] 代码符合项目风格
-- [ ] 有适当的测试覆盖
-- [ ] 文档已更新
-- [ ] 没有 console.log 等调试代码
-- [ ] 错误处理完善
-
-## 发布流程
-
-1. 更新版本号
-   ```bash
-   npm version patch|minor|major
-   ```
-
-2. 更新 CHANGELOG.md
-
-3. 创建发布 PR
-
-4. 合并后自动发布
-
-## 行为准则
-
-### 我们的承诺
-
-为了营造一个开放和友好的环境，我们作为贡献者和维护者承诺：
-
-- 尊重所有参与者
-- 接受建设性批评
-- 关注对社区最有利的事情
-- 对其他社区成员表示同理心
-
-### 不可接受的行为
-
-- 使用性别化语言或图像
-- 发表侮辱性评论
-- 进行人身攻击或政治攻击
-- 公开或私下骚扰
-- 发布他人私人信息
-- 其他不道德或不专业的行为
-
-## 获取帮助
-
-- [GitHub Discussions](https://github.com/Sdkwork-Cloud/sdkwork-agent/discussions)
-- [Discord 社区](https://discord.gg/sdkwork)
-- [邮件联系](mailto:team@sdkwork.io)
+- 功能描述
+- 使用场景
+- 期望实现
 
 ## 许可证
 
-通过提交代码，你同意你的贡献将在 MIT 许可证下发布。
+本项目基于 MIT 许可证发布。贡献的代码将采用相同的许可证。

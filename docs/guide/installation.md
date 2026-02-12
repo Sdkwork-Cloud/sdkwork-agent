@@ -12,19 +12,19 @@
 ## 使用 npm 安装
 
 ```bash
-npm install sdkwork-agent
+npm install @sdkwork/browser-agent
 ```
 
 ## 使用 yarn 安装
 
 ```bash
-yarn add sdkwork-agent
+yarn add @sdkwork/browser-agent
 ```
 
 ## 使用 pnpm 安装
 
 ```bash
-pnpm add sdkwork-agent
+pnpm add @sdkwork/browser-agent
 ```
 
 ## 环境配置
@@ -63,18 +63,25 @@ GOOGLE_API_KEY=your-google-api-key
 创建一个测试文件 `test.ts`：
 
 ```typescript
-import { createAgent } from 'sdkwork-agent';
-import { OpenAIProvider } from 'sdkwork-agent/llm';
+import { createAgent } from '@sdkwork/browser-agent';
+import { OpenAIProvider } from '@sdkwork/browser-agent/llm';
 
-const agent = createAgent({
-  name: 'TestAgent',
-  llm: new OpenAIProvider({
-    apiKey: process.env.OPENAI_API_KEY!
-  })
+const llm = new OpenAIProvider({
+  apiKey: process.env.OPENAI_API_KEY!,
+  model: 'gpt-4-turbo-preview',
 });
 
-console.log('SDKWork Agent 安装成功！');
+const agent = createAgent(llm, {
+  name: 'TestAgent',
+  description: 'A test agent',
+});
+
+await agent.initialize();
+
+console.log('SDKWork Browser Agent 安装成功！');
 console.log('Agent ID:', agent.id);
+
+await agent.destroy();
 ```
 
 运行测试：

@@ -295,24 +295,32 @@ export class SkillRegistry {
         }
 
         const executePromise = entry.skill.execute(input, context);
+        
+        // 创建带清理的超时 Promise
+        let timeoutId: ReturnType<typeof setTimeout>;
         const timeoutPromise = new Promise<never>((_, reject) => {
-          setTimeout(() => reject(new Error('Skill execution timeout')), timeout);
+          timeoutId = setTimeout(() => reject(new Error('Skill execution timeout')), timeout);
         });
 
-        const result = await Promise.race([executePromise, timeoutPromise]);
-
-        return {
-          ...result,
-          metadata: {
-            ...result.metadata,
-            executionId: context.executionId,
-            skillId,
-            skillName: entry.skill.name,
-            startTime,
-            endTime: Date.now(),
-            duration: Date.now() - startTime,
-          },
-        };
+        try {
+          const result = await Promise.race([executePromise, timeoutPromise]);
+          clearTimeout(timeoutId!);
+          return {
+            ...result,
+            metadata: {
+              ...result.metadata,
+              executionId: context.executionId,
+              skillId,
+              skillName: entry.skill.name,
+              startTime,
+              endTime: Date.now(),
+              duration: Date.now() - startTime,
+            },
+          };
+        } catch (raceError) {
+          clearTimeout(timeoutId!);
+          throw raceError;
+        }
       } catch (error) {
         lastError = error as Error;
 
@@ -731,6 +739,30 @@ export class SkillRegistry {
       stats.lastAccessed = new Date();
       stats.accessCount++;
     }
+  }
+
+  /**
+   * 销毁注册表，清理所有资源
+   */
+  destroy(): void {
+    // 停止文件监视器
+    if (this.watcher) {
+      this.watcher.unwatchAll();
+      this.watcher = undefined;
+    }
+
+    // 清理缓存
+    this.cache.clear();
+
+    // 清理所有 Map
+    this.entries.clear();
+    this.nameToId.clear();
+    this.accessStats.clear();
+    this.index.byName.clear();
+    this.index.byCategory.clear();
+    this.index.byTag.clear();
+
+    this.logger?.info('[SkillRegistry] Destroyed');
   }
 }
 

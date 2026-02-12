@@ -1,578 +1,442 @@
 # 微内核架构
 
-SDKWork Agent 采用微内核架构作为基础设施层的核心，提供服务注册发现、依赖注入和生命周期管理。
+SDKWork Browser Agent 采用微内核架构（Microkernel Architecture），提供高度可扩展的插件化系统。
 
-## 核心概念
-
-### 微内核设计原则
-
-1. **最小核心** - 内核只提供最基础的服务管理能力
-2. **插件化扩展** - 所有功能通过服务插件实现
-3. **依赖注入** - 服务间通过依赖注入解耦
-4. **生命周期管理** - 统一的服务生命周期管理
-
-### 架构图
+## 架构图
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                      Microkernel Core                        │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │                 Service Registry                     │   │
-│  │  - 服务注册与发现                                     │   │
-│  │  - 依赖拓扑排序                                       │   │
-│  │  - 循环依赖检测                                       │   │
-│  └─────────────────────────────────────────────────────┘   │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │              Dependency Injection                    │   │
-│  │  - 依赖解析                                           │   │
-│  │  - 延迟加载                                           │   │
-│  │  - 单例/多例管理                                      │   │
-│  └─────────────────────────────────────────────────────┘   │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │            Lifecycle Management                      │   │
-│  │  - initialize()                                       │   │
-│  │  - destroy()                                          │   │
-│  │  - pause() / resume()                                 │   │
-│  └─────────────────────────────────────────────────────┘   │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │                 Event Bus                            │   │
-│  │  - 服务间通信                                         │   │
-│  │  - 事件发布订阅                                       │   │
-│  └─────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────┘
-                              │
-        ┌─────────────────────┼─────────────────────┐
-        │                     │                     │
-        ▼                     ▼                     ▼
-┌──────────────┐    ┌──────────────┐    ┌──────────────┐
-│ LLM Service  │    │Skill Service │    │Tool Service  │
-│  (LLM提供者)  │    │ (Skill注册)  │    │ (Tool注册)   │
-└──────────────┘    └──────────────┘    └──────────────┘
-┌──────────────┐    ┌──────────────┐    ┌──────────────┐
-│Memory Service│    │Event Service │    │Logger Service│
-│ (记忆存储)   │    │ (事件总线)   │    │ (日志服务)   │
-└──────────────┘    └──────────────┘    └──────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│                           Applications                               │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐ │
+│  │   CLI App   │  │   TUI App   │  │  Web App    │  │ Custom App  │ │
+│  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘ │
+├─────────────────────────────────────────────────────────────────────┤
+│                           Plugin System                              │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐ │
+│  │    Skills   │  │    Tools    │  │   Plugins   │  │    MCPs     │ │
+│  │   Plugin    │  │   Plugin    │  │   Plugin    │  │   Plugin    │ │
+│  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘ │
+├─────────────────────────────────────────────────────────────────────┤
+│                           Extension Points                           │
+│  ┌─────────────────────────────────────────────────────────────────┐ │
+│  │  - SkillRegistry                                                │ │
+│  │  - ToolRegistry                                                 │ │
+│  │  - PluginManager                                                │ │
+│  │  - MCPClient                                                    │ │
+│  │  - EventSystem                                                  │ │
+│  └─────────────────────────────────────────────────────────────────┘ │
+├─────────────────────────────────────────────────────────────────────┤
+│                           Core System                                │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐ │
+│  │    Agent    │  │   Events    │  │    Types    │  │   Errors    │ │
+│  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘ │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
-## Service 接口
+## 核心系统
 
-### 基础接口
+核心系统提供最小功能集，确保系统可运行：
+
+### 核心组件
 
 ```typescript
-interface Service {
-  /** 服务唯一标识 */
-  id: string;
+// src/core/index.ts
+export * from './types';
+export * from './errors';
+export * from './events';
+
+// 核心类型
+export interface Agent {
+  readonly id: AgentId;
+  readonly name: string;
+  readonly state: AgentState;
   
-  /** 服务版本 */
-  version: string;
-  
-  /** 依赖的服务ID列表 */
-  dependencies: string[];
-  
-  /** 初始化服务 */
   initialize(): Promise<void>;
-  
-  /** 销毁服务 */
   destroy(): Promise<void>;
-  
-  /** 暂停服务（可选） */
-  pause?(): Promise<void>;
-  
-  /** 恢复服务（可选） */
-  resume?(): Promise<void>;
+  chat(request: ChatRequest): Promise<ChatResponse>;
+}
+
+// 核心事件
+export interface AgentEvent<T = unknown> {
+  readonly type: string;
+  readonly payload: T;
+  readonly timestamp: number;
+}
+
+// 核心错误
+export class AgentError extends Error {
+  constructor(
+    message: string,
+    public readonly code: string,
+    public readonly recoverable: boolean = true
+  ) {
+    super(message);
+  }
 }
 ```
 
-### 服务示例
+### 最小核心
 
 ```typescript
-// LLM 服务
-const llmService: Service = {
-  id: 'llm-service',
-  version: '1.0.0',
-  dependencies: [],
+// src/agent/agent.ts
+export class AgentImpl implements Agent {
+  private _state: AgentState = AgentState.IDLE;
+  private readonly eventBus: EventBus;
   
-  async initialize() {
-    console.log('Initializing LLM service...');
-    // 初始化 LLM Provider
+  constructor(
+    public readonly id: AgentId,
+    public readonly name: string,
+    public readonly llm: LLMProvider
+  ) {
+    this.eventBus = new EventBus();
+  }
+  
+  async initialize(): Promise<void> {
+    this._state = AgentState.INITIALIZING;
+    // 核心初始化逻辑
+    this._state = AgentState.READY;
+    this.eventBus.emit({ type: 'agent:initialized', payload: { agentId: this.id } });
+  }
+  
+  async destroy(): Promise<void> {
+    this._state = AgentState.DESTROYED;
+    this.eventBus.emit({ type: 'agent:destroyed', payload: { agentId: this.id } });
+  }
+  
+  on<T>(eventType: string, handler: (event: AgentEvent<T>) => void): () => void {
+    return this.eventBus.subscribe(eventType, handler);
+  }
+}
+```
+
+## 扩展点
+
+扩展点定义了插件可以扩展的接口：
+
+### SkillRegistry 扩展点
+
+```typescript
+// src/skills/registry.ts
+export interface SkillRegistryExtension {
+  register(skill: Skill): void;
+  unregister(skillId: string): void;
+  get(skillId: string): Skill | undefined;
+  list(): Skill[];
+  search(query: string): Skill[];
+}
+
+export class SkillRegistry implements SkillRegistryExtension {
+  private readonly skills: Map<string, Skill> = new Map();
+  
+  register(skill: Skill): void {
+    this.skills.set(skill.id, skill);
+  }
+  
+  unregister(skillId: string): void {
+    this.skills.delete(skillId);
+  }
+  
+  get(skillId: string): Skill | undefined {
+    return this.skills.get(skillId);
+  }
+  
+  list(): Skill[] {
+    return Array.from(this.skills.values());
+  }
+  
+  search(query: string): Skill[] {
+    return this.list().filter(s => 
+      s.name.includes(query) || s.description.includes(query)
+    );
+  }
+}
+```
+
+### ToolRegistry 扩展点
+
+```typescript
+// src/tools/registry.ts
+export interface ToolRegistryExtension {
+  register(tool: Tool): void;
+  unregister(toolId: string): void;
+  get(toolId: string): Tool | undefined;
+  list(): Tool[];
+  getByCategory(category: ToolCategory): Tool[];
+}
+
+export class ToolRegistry implements ToolRegistryExtension {
+  private readonly tools: Map<string, Tool> = new Map();
+  private readonly byCategory: Map<ToolCategory, Set<string>> = new Map();
+  
+  register(tool: Tool): void {
+    this.tools.set(tool.id, tool);
+    
+    if (!this.byCategory.has(tool.category)) {
+      this.byCategory.set(tool.category, new Set());
+    }
+    this.byCategory.get(tool.category)!.add(tool.id);
+  }
+  
+  getByCategory(category: ToolCategory): Tool[] {
+    const ids = this.byCategory.get(category);
+    if (!ids) return [];
+    return Array.from(ids).map(id => this.tools.get(id)!);
+  }
+}
+```
+
+## 插件系统
+
+### Plugin 接口
+
+```typescript
+// src/plugin/types.ts
+export interface Plugin {
+  readonly id: string;
+  readonly name: string;
+  readonly version: string;
+  readonly description?: string;
+  
+  skills?: Skill[];
+  tools?: Tool[];
+  hooks?: PluginHooks;
+  
+  install(agent: Agent): Promise<void>;
+  uninstall(agent: Agent): Promise<void>;
+}
+
+export interface PluginHooks {
+  'agent:initialized'?: (event: AgentEvent, agent: Agent) => Promise<void>;
+  'chat:started'?: (event: AgentEvent, agent: Agent) => Promise<void>;
+  'chat:completed'?: (event: AgentEvent, agent: Agent) => Promise<void>;
+  'skill:executing'?: (event: AgentEvent, agent: Agent) => Promise<void>;
+  'tool:invoking'?: (event: AgentEvent, agent: Agent) => Promise<void>;
+}
+```
+
+### PluginManager
+
+```typescript
+// src/plugin/manager.ts
+export class PluginManager {
+  private readonly plugins: Map<string, Plugin> = new Map();
+  private readonly agent: Agent;
+  
+  constructor(agent: Agent) {
+    this.agent = agent;
+  }
+  
+  async load(plugin: Plugin): Promise<void> {
+    if (this.plugins.has(plugin.id)) {
+      throw new PluginAlreadyLoadedError(plugin.id);
+    }
+    
+    // 注册 Skills
+    if (plugin.skills) {
+      for (const skill of plugin.skills) {
+        this.agent.skills.register(skill);
+      }
+    }
+    
+    // 注册 Tools
+    if (plugin.tools) {
+      for (const tool of plugin.tools) {
+        this.agent.tools.register(tool);
+      }
+    }
+    
+    // 注册 Hooks
+    if (plugin.hooks) {
+      for (const [eventType, handler] of Object.entries(plugin.hooks)) {
+        this.agent.on(eventType, (event) => handler(event, this.agent));
+      }
+    }
+    
+    // 调用安装钩子
+    await plugin.install(this.agent);
+    
+    this.plugins.set(plugin.id, plugin);
+  }
+  
+  async unload(pluginId: string): Promise<void> {
+    const plugin = this.plugins.get(pluginId);
+    if (!plugin) {
+      throw new PluginNotFoundError(pluginId);
+    }
+    
+    // 调用卸载钩子
+    await plugin.uninstall(this.agent);
+    
+    // 注销 Skills
+    if (plugin.skills) {
+      for (const skill of plugin.skills) {
+        this.agent.skills.unregister(skill.id);
+      }
+    }
+    
+    // 注销 Tools
+    if (plugin.tools) {
+      for (const tool of plugin.tools) {
+        this.agent.tools.unregister(tool.id);
+      }
+    }
+    
+    this.plugins.delete(pluginId);
+  }
+}
+```
+
+### 创建插件
+
+```typescript
+import type { Plugin, Skill, Tool } from '@sdkwork/browser-agent';
+
+const myPlugin: Plugin = {
+  id: 'my-plugin',
+  name: 'My Plugin',
+  version: '1.0.0',
+  description: 'A custom plugin',
+  
+  skills: [
+    {
+      id: 'plugin-skill',
+      name: 'Plugin Skill',
+      description: 'A skill from plugin',
+      version: '1.0.0',
+      script: {
+        lang: 'typescript',
+        code: `async function main() { return { message: 'Hello from plugin!' }; }`,
+        entry: 'main'
+      }
+    }
+  ],
+  
+  tools: [
+    {
+      id: 'plugin-tool',
+      name: 'Plugin Tool',
+      description: 'A tool from plugin',
+      category: 'custom',
+      confirm: 'none',
+      execute: async () => ({ success: true, data: { message: 'Tool from plugin' } })
+    }
+  ],
+  
+  hooks: {
+    'agent:initialized': async (event, agent) => {
+      console.log('Plugin: Agent initialized');
+    },
+    'chat:completed': async (event, agent) => {
+      console.log('Plugin: Chat completed');
+    }
   },
   
-  async destroy() {
-    console.log('Destroying LLM service...');
-    // 清理资源
+  async install(agent) {
+    console.log('Plugin installed');
+  },
+  
+  async uninstall(agent) {
+    console.log('Plugin uninstalled');
   }
 };
-
-// Skill 执行器服务
-const skillExecutorService: Service = {
-  id: 'skill-executor-service',
-  version: '1.0.0',
-  dependencies: ['llm-service', 'tool-executor-service'],
-  
-  async initialize() {
-    console.log('Initializing skill executor...');
-    // 依赖 llm-service 和 tool-executor-service
-  },
-  
-  async destroy() {
-    console.log('Destroying skill executor...');
-  }
-};
 ```
 
-## Microkernel 接口
+## MCP 协议
 
-### 核心方法
+Model Context Protocol (MCP) 提供标准化的工具集成：
+
+### MCPClient
 
 ```typescript
-interface Microkernel {
-  /** 注册服务 */
-  registerService(service: Service): void;
+// src/mcp/client.ts
+export interface MCPServerConfig {
+  id: string;
+  name: string;
+  transport: MCPTransport;
+}
+
+export class MCPClient {
+  private readonly servers: Map<string, MCPServerConnection> = new Map();
   
-  /** 注销服务 */
-  unregisterService(serviceId: string): void;
+  async connect(config: MCPServerConfig): Promise<void> {
+    const connection = await this.createConnection(config.transport);
+    this.servers.set(config.id, connection);
+    
+    // 发现并注册工具
+    const tools = await connection.listTools();
+    for (const tool of tools) {
+      this.agent.tools.register(this.convertTool(tool));
+    }
+  }
   
-  /** 获取服务实例 */
-  getService<T>(serviceId: string): T;
-  
-  /** 检查服务是否存在 */
-  hasService(serviceId: string): boolean;
-  
-  /** 初始化所有服务 */
-  initializeAll(): Promise<void>;
-  
-  /** 销毁所有服务 */
-  destroyAll(): Promise<void>;
-  
-  /** 暂停所有服务 */
-  pauseAll(): Promise<void>;
-  
-  /** 恢复所有服务 */
-  resumeAll(): Promise<void>;
-  
-  /** 订阅内核事件 */
-  subscribeEvent(event: string, handler: (data: unknown) => void): void;
-  
-  /** 取消订阅内核事件 */
-  unsubscribeEvent(event: string, handler: (data: unknown) => void): void;
+  async disconnect(serverId: string): Promise<void> {
+    const connection = this.servers.get(serverId);
+    if (connection) {
+      await connection.close();
+      this.servers.delete(serverId);
+    }
+  }
 }
 ```
 
-### 创建微内核
+### 连接 MCP 服务器
 
 ```typescript
-import { createMicrokernel } from 'sdkwork-agent';
+import { createAgent } from '@sdkwork/browser-agent';
+import { OpenAIProvider } from '@sdkwork/browser-agent/llm';
 
-const kernel = createMicrokernel({
-  // 服务超时时间（毫秒）
-  serviceTimeout: 30000,
-  
-  // 是否启用熔断器
-  enableCircuitBreaker: true,
-  
-  // 熔断器阈值
-  circuitBreakerThreshold: 5,
-  
-  // 重试次数
-  retryAttempts: 3,
-  
-  // 重试延迟（毫秒）
-  retryDelay: 1000
-});
-```
+const agent = createAgent(llm, { name: 'MCPAgent' });
+await agent.initialize();
 
-## 服务注册与发现
-
-### 注册服务
-
-```typescript
-// 注册 LLM 服务
-kernel.registerService({
-  id: 'llm-service',
-  version: '1.0.0',
-  dependencies: [],
-  
-  async initialize() {
-    this.llmProvider = new OpenAIProvider({
-      apiKey: process.env.OPENAI_API_KEY
-    });
-  },
-  
-  async destroy() {
-    this.llmProvider = null;
+// 连接 MCP 服务器
+await agent.connectMCP({
+  id: 'filesystem-mcp',
+  name: 'Filesystem MCP',
+  transport: {
+    type: 'stdio',
+    command: 'node',
+    args: ['mcp-server-filesystem', '/path/to/allowed/dir']
   }
 });
 
-// 注册 Skill 执行器（依赖 LLM 服务）
-kernel.registerService({
-  id: 'skill-executor-service',
-  version: '1.0.0',
-  dependencies: ['llm-service'],
-  
-  async initialize() {
-    // 获取依赖的服务
-    const llmService = kernel.getService('llm-service');
-    
-    this.skillExecutor = new SkillExecutorImpl({
-      llm: llmService.llmProvider
-    });
-  },
-  
-  async destroy() {
-    this.skillExecutor = null;
-  }
+// 使用 MCP 提供的工具
+const response = await agent.chat({
+  messages: [{ id: '1', role: 'user', content: 'List files', timestamp: Date.now() }]
 });
 ```
 
-### 服务发现
-
-```typescript
-// 获取服务
-const llmService = kernel.getService('llm-service');
-const skillExecutor = kernel.getService('skill-executor-service');
-
-// 检查服务是否存在
-if (kernel.hasService('memory-service')) {
-  const memoryService = kernel.getService('memory-service');
-}
-```
-
-## 依赖管理
-
-### 自动拓扑排序
-
-微内核会自动处理服务依赖关系，按正确顺序初始化：
-
-```typescript
-// 注册顺序不影响初始化顺序
-kernel.registerService({
-  id: 'skill-service',
-  dependencies: ['llm-service']  // 依赖 llm-service
-});
-
-kernel.registerService({
-  id: 'llm-service',
-  dependencies: []  // 无依赖
-});
-
-kernel.registerService({
-  id: 'tool-service',
-  dependencies: ['llm-service']  // 依赖 llm-service
-});
-
-// 初始化顺序：llm-service → tool-service → skill-service
-await kernel.initializeAll();
-```
-
-### 循环依赖检测
-
-```typescript
-// 这会抛出错误，因为存在循环依赖
-kernel.registerService({
-  id: 'service-a',
-  dependencies: ['service-b']
-});
-
-kernel.registerService({
-  id: 'service-b',
-  dependencies: ['service-a']  // 循环依赖！
-});
-
-// Error: Circular dependency detected: service-a -> service-b -> service-a
-await kernel.initializeAll();
-```
-
-## 生命周期管理
-
-### 初始化流程
+## 生命周期
 
 ```
-1. 拓扑排序（根据依赖关系）
-2. 按顺序调用每个服务的 initialize()
-3. 如果失败，回滚已初始化的服务
-4. 发布 service:initialized 事件
-```
-
-```typescript
-try {
-  await kernel.initializeAll();
-  console.log('All services initialized');
-} catch (error) {
-  console.error('Failed to initialize services:', error);
-  // 已初始化的服务会自动销毁
-}
-```
-
-### 销毁流程
-
-```
-1. 按相反顺序调用每个服务的 destroy()
-2. 处理销毁过程中的错误
-3. 发布 service:destroyed 事件
-```
-
-```typescript
-try {
-  await kernel.destroyAll();
-  console.log('All services destroyed');
-} catch (error) {
-  console.error('Error during service destruction:', error);
-}
-```
-
-### 暂停/恢复
-
-```typescript
-// 暂停所有服务（用于维护）
-await kernel.pauseAll();
-console.log('All services paused');
-
-// 恢复所有服务
-await kernel.resumeAll();
-console.log('All services resumed');
-```
-
-## 事件系统
-
-### 内核事件
-
-```typescript
-// 订阅服务初始化事件
-kernel.subscribeEvent('service:initialized', (event) => {
-  console.log(`Service ${event.serviceId} initialized`);
-});
-
-// 订阅服务错误事件
-kernel.subscribeEvent('service:error', (event) => {
-  console.error(`Service ${event.serviceId} error:`, event.error);
-});
-
-// 订阅服务销毁事件
-kernel.subscribeEvent('service:destroyed', (event) => {
-  console.log(`Service ${event.serviceId} destroyed`);
-});
-```
-
-### 服务间通信
-
-```typescript
-// 服务 A 发布事件
-class ServiceA {
-  async doSomething() {
-    // 执行业务逻辑
-    
-    // 发布事件
-    kernel.publishEvent('data:processed', {
-      data: processedData,
-      timestamp: Date.now()
-    });
-  }
-}
-
-// 服务 B 订阅事件
-class ServiceB {
-  initialize() {
-    kernel.subscribeEvent('data:processed', (event) => {
-      console.log('Received processed data:', event.data);
-    });
-  }
-}
-```
-
-## 高级特性
-
-### 服务装饰器
-
-```typescript
-// 日志装饰器
-function withLogging(service: Service): Service {
-  const originalInitialize = service.initialize.bind(service);
-  const originalDestroy = service.destroy.bind(service);
-  
-  return {
-    ...service,
-    async initialize() {
-      console.log(`Initializing ${service.id}...`);
-      const startTime = Date.now();
-      await originalInitialize();
-      console.log(`${service.id} initialized in ${Date.now() - startTime}ms`);
-    },
-    async destroy() {
-      console.log(`Destroying ${service.id}...`);
-      await originalDestroy();
-      console.log(`${service.id} destroyed`);
-    }
-  };
-}
-
-// 使用装饰器
-kernel.registerService(withLogging({
-  id: 'my-service',
-  version: '1.0.0',
-  dependencies: [],
-  async initialize() { /* ... */ },
-  async destroy() { /* ... */ }
-}));
-```
-
-### 服务健康检查
-
-```typescript
-interface HealthCheckable {
-  healthCheck(): Promise<HealthStatus>;
-}
-
-const healthCheckableService: Service & HealthCheckable = {
-  id: 'database-service',
-  version: '1.0.0',
-  dependencies: [],
-  
-  async initialize() {
-    this.db = createDatabaseConnection();
-  },
-  
-  async destroy() {
-    await this.db.close();
-  },
-  
-  async healthCheck() {
-    try {
-      await this.db.ping();
-      return { status: 'healthy', timestamp: Date.now() };
-    } catch (error) {
-      return { status: 'unhealthy', error: error.message };
-    }
-  }
-};
-
-// 执行健康检查
-const status = await healthCheckableService.healthCheck();
-```
-
-### 优雅降级
-
-```typescript
-kernel.registerService({
-  id: 'optional-service',
-  version: '1.0.0',
-  dependencies: [],
-  
-  async initialize() {
-    try {
-      this.client = await createExpensiveClient();
-    } catch (error) {
-      console.warn('Optional service failed to initialize, continuing without it');
-      this.client = null;  // 优雅降级
-    }
-  },
-  
-  async destroy() {
-    if (this.client) {
-      await this.client.close();
-    }
-  }
-});
-```
-
-## 完整示例
-
-```typescript
-import { createMicrokernel } from 'sdkwork-agent';
-
-async function main() {
-  // 创建微内核
-  const kernel = createMicrokernel({
-    serviceTimeout: 30000,
-    enableCircuitBreaker: true
-  });
-  
-  // 订阅内核事件
-  kernel.subscribeEvent('service:initialized', (event) => {
-    console.log(`✓ ${event.serviceId} initialized`);
-  });
-  
-  kernel.subscribeEvent('service:error', (event) => {
-    console.error(`✗ ${event.serviceId} error:`, event.error);
-  });
-  
-  // 注册 LLM 服务
-  kernel.registerService({
-    id: 'llm-service',
-    version: '1.0.0',
-    dependencies: [],
-    
-    async initialize() {
-      this.provider = new OpenAIProvider({
-        apiKey: process.env.OPENAI_API_KEY
-      });
-    },
-    
-    async destroy() {
-      this.provider = null;
-    }
-  });
-  
-  // 注册记忆服务
-  kernel.registerService({
-    id: 'memory-service',
-    version: '1.0.0',
-    dependencies: [],
-    
-    async initialize() {
-      this.store = createMemoryStore();
-    },
-    
-    async destroy() {
-      await this.store.clear();
-    }
-  });
-  
-  // 注册 Skill 执行器（依赖 LLM 和记忆服务）
-  kernel.registerService({
-    id: 'skill-executor',
-    version: '1.0.0',
-    dependencies: ['llm-service', 'memory-service'],
-    
-    async initialize() {
-      const llmService = kernel.getService('llm-service');
-      const memoryService = kernel.getService('memory-service');
-      
-      this.executor = new SkillExecutorImpl({
-        llm: llmService.provider,
-        memory: memoryService.store
-      });
-    },
-    
-    async destroy() {
-      this.executor = null;
-    }
-  });
-  
-  // 初始化所有服务
-  console.log('Initializing services...');
-  await kernel.initializeAll();
-  console.log('All services initialized\n');
-  
-  // 使用服务
-  const skillExecutor = kernel.getService('skill-executor');
-  const result = await skillExecutor.execute(skill, input);
-  
-  // 销毁所有服务
-  console.log('\nDestroying services...');
-  await kernel.destroyAll();
-  console.log('All services destroyed');
-}
-
-main().catch(console.error);
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+│   Created   │────▶│ Initializing│────▶│    Ready    │
+└─────────────┘     └─────────────┘     └─────────────┘
+                                               │
+                                               │
+    ┌──────────────────────────────────────────┘
+    │
+    ▼
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+│   Loading   │────▶│  Running    │────▶│  Unloading  │
+│   Plugins   │     │   Plugins   │     │   Plugins   │
+└─────────────┘     └─────────────┘     └─────────────┘
+                                               │
+                                               ▼
+                                        ┌─────────────┐
+                                        │  Destroyed  │
+                                        └─────────────┘
 ```
 
 ## 最佳实践
 
-1. **单一职责** - 每个服务只负责一个功能
-2. **明确依赖** - 显式声明所有依赖
-3. **错误处理** - 在 initialize/destroy 中处理错误
-4. **资源清理** - 在 destroy 中释放所有资源
-5. **超时控制** - 设置合理的初始化超时时间
-6. **优雅降级** - 非关键服务失败时不影响整体
-7. **健康检查** - 为关键服务实现健康检查
-8. **事件驱动** - 使用事件进行服务间通信
+1. **最小核心** - 核心系统只包含必要功能
+2. **明确扩展点** - 通过接口定义扩展点
+3. **插件隔离** - 插件之间相互独立
+4. **版本兼容** - 插件声明兼容的核心版本
+5. **错误隔离** - 插件错误不影响核心系统
+6. **热插拔** - 支持运行时加载/卸载插件
+
+## 相关文档
+
+- [架构概览](./overview.md) - 整体架构设计
+- [DDD 架构](./ddd.md) - 领域驱动设计详解

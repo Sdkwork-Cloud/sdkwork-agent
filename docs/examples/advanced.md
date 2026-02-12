@@ -1,643 +1,400 @@
 # 高级示例
 
-本文档展示 SDKWork Agent 的高级使用场景和最佳实践。
+本文档提供 SDKWork Browser Agent 的高级使用示例。
 
-## RAG 知识库问答
+## 多 LLM 提供者
 
-构建一个基于文档的问答系统：
+SDKWork Browser Agent 支持多种 LLM 提供者：
 
 ```typescript
-import { createAgent, defineSkill } from 'sdkwork-agent';
-import { OpenAIProvider } from 'sdkwork-agent/llm';
-import { readFile } from 'fs/promises';
-import { glob } from 'glob';
+import { createAgent } from '@sdkwork/browser-agent';
+import { OpenAIProvider } from '@sdkwork/browser-agent/llm';
+import { AnthropicProvider } from '@sdkwork/browser-agent/llm';
+import { GeminiProvider } from '@sdkwork/browser-agent/llm';
+import { DeepSeekProvider } from '@sdkwork/browser-agent/llm';
+import { MoonshotProvider } from '@sdkwork/browser-agent/llm';
+import { MiniMaxProvider } from '@sdkwork/browser-agent/llm';
+import { ZhipuProvider } from '@sdkwork/browser-agent/llm';
+import { QwenProvider } from '@sdkwork/browser-agent/llm';
+import { DoubaoProvider } from '@sdkwork/browser-agent/llm';
 
-async function createRAGAgent() {
-  const agent = createAgent({
-    name: 'RAGAgent',
-    llm: new OpenAIProvider({
-      apiKey: process.env.OPENAI_API_KEY!,
-      model: 'gpt-4'
-    }),
-    memory: {
-      maxTokens: 32000,
-      embeddingModel: 'text-embedding-3-small'
-    }
+async function main() {
+  // OpenAI
+  const openai = new OpenAIProvider({
+    apiKey: process.env.OPENAI_API_KEY!,
+    model: 'gpt-4-turbo-preview',
+  });
+
+  // Anthropic
+  const anthropic = new AnthropicProvider({
+    apiKey: process.env.ANTHROPIC_API_KEY!,
+    model: 'claude-3-opus-20240229',
+  });
+
+  // Google Gemini
+  const gemini = new GeminiProvider({
+    apiKey: process.env.GOOGLE_API_KEY!,
+    model: 'gemini-pro',
+  });
+
+  // DeepSeek
+  const deepseek = new DeepSeekProvider({
+    apiKey: process.env.DEEPSEEK_API_KEY!,
+    model: 'deepseek-chat',
+  });
+
+  // Moonshot
+  const moonshot = new MoonshotProvider({
+    apiKey: process.env.MOONSHOT_API_KEY!,
+    model: 'moonshot-v1-8k',
+  });
+
+  // MiniMax
+  const minimax = new MiniMaxProvider({
+    apiKey: process.env.MINIMAX_API_KEY!,
+    model: 'abab5.5-chat',
+    groupId: process.env.MINIMAX_GROUP_ID!,
+  });
+
+  // Zhipu
+  const zhipu = new ZhipuProvider({
+    apiKey: process.env.ZHIPU_API_KEY!,
+    model: 'glm-4',
+  });
+
+  // Qwen
+  const qwen = new QwenProvider({
+    apiKey: process.env.QWEN_API_KEY!,
+    model: 'qwen-turbo',
+  });
+
+  // Doubao
+  const doubao = new DoubaoProvider({
+    apiKey: process.env.DOUBAO_API_KEY!,
+    model: 'doubao-pro-4k',
+    endpointId: process.env.DOUBAO_ENDPOINT_ID!,
+  });
+
+  const agent = createAgent(openai, {
+    name: 'MultiLLMAgent',
+    description: 'An agent supporting multiple LLM providers',
   });
 
   await agent.initialize();
-
-  // 加载文档到知识库
-  async function loadDocuments(docsPath: string) {
-    const files = await glob('**/*.md', { cwd: docsPath });
-    
-    for (const file of files) {
-      const content = await readFile(`${docsPath}/${file}`, 'utf-8');
-      
-      // 将文档分块存储
-      const chunks = content.split('\n\n').filter(chunk => chunk.length > 100);
-      
-      for (let i = 0; i < chunks.length; i++) {
-        await agent.memory.store({
-          id: `doc-${file}-${i}`,
-          content: chunks[i],
-          type: 'semantic',
-          source: 'document',
-          timestamp: Date.now(),
-          metadata: {
-            sourcePath: file,
-            chunkIndex: i,
-            category: 'documentation'
-          }
-        });
-      }
-    }
-    
-    console.log(`Loaded ${files.length} documents`);
-  }
-
-  // 问答 Skill
-  const ragSkill = defineSkill({
-    id: 'rag-qa',
-    name: 'RAG QA',
-    description: 'Answer questions based on knowledge base',
-    script: {
-      lang: 'typescript',
-      code: `
-        async function main() {
-          const question = $input.question;
-          
-          // 1. 检索相关文档
-          const relevantDocs = await $memory.search({
-            content: question,
-            type: 'semantic',
-            limit: 5
-          });
-          
-          // 2. 构建上下文
-          const context = relevantDocs
-            .map(r => r.memory.content)
-            .join('\n\n');
-          
-          // 3. 使用 LLM 生成答案
-          const response = await $llm(question, {
-            systemPrompt: \`基于以下文档回答问题。如果文档中没有相关信息，请说明。
-
-文档内容：
-\${context}\`
-          });
-          
-          return {
-            answer: response,
-            sources: relevantDocs.map(r => ({
-              path: r.memory.metadata?.sourcePath,
-              score: r.score
-            }))
-          };
-        }
-      `
-    }
-  });
-
-  agent.skills.register(ragSkill);
-
-  return { agent, loadDocuments };
-}
-
-// 使用
-async function main() {
-  const { agent, loadDocuments } = await createRAGAgent();
-  
-  // 加载文档
-  await loadDocuments('./docs');
-  
-  // 提问
-  const result = await agent.executeSkill('rag-qa', JSON.stringify({
-    question: '什么是 DDD 分层架构？'
-  }));
-  
-  console.log('Answer:', result.data.answer);
-  console.log('Sources:', result.data.sources);
-  
   await agent.destroy();
 }
 
 main().catch(console.error);
 ```
 
-## 多 Agent 协作系统
+## 插件系统
 
-创建多个 Agent 协作完成复杂任务：
+创建和使用插件：
 
 ```typescript
-import { createAgent } from 'sdkwork-agent';
-import { OpenAIProvider } from 'sdkwork-agent/llm';
+import { createAgent } from '@sdkwork/browser-agent';
+import { OpenAIProvider } from '@sdkwork/browser-agent/llm';
+import type { PluginConfig, Skill, Tool } from '@sdkwork/browser-agent';
 
-// 创建专业 Agent
-async function createSpecializedAgents() {
-  // 研究 Agent
-  const researcher = createAgent({
-    name: 'Researcher',
-    llm: new OpenAIProvider({
-      apiKey: process.env.OPENAI_API_KEY!,
-      model: 'gpt-4'
-    })
-  });
-
-  // 写作 Agent
-  const writer = createAgent({
-    name: 'Writer',
-    llm: new OpenAIProvider({
-      apiKey: process.env.OPENAI_API_KEY!,
-      model: 'gpt-4'
-    })
-  });
-
-  // 编辑 Agent
-  const editor = createAgent({
-    name: 'Editor',
-    llm: new OpenAIProvider({
-      apiKey: process.env.OPENAI_API_KEY!,
-      model: 'gpt-4'
-    })
-  });
-
-  await Promise.all([
-    researcher.initialize(),
-    writer.initialize(),
-    editor.initialize()
-  ]);
-
-  return { researcher, writer, editor };
-}
-
-// 协作工作流
-async function collaborativeWriting(topic: string) {
-  const { researcher, writer, editor } = await createSpecializedAgents();
-
-  try {
-    // 步骤1: 研究
-    console.log('🔍 Researching...');
-    const researchResult = await researcher.chat({
-      messages: [{
-        role: 'user',
-        content: `Research the topic "${topic}" and provide key points, facts, and outline.`
-      }]
-    });
-    const research = researchResult.choices[0].message.content;
-
-    // 步骤2: 写作
-    console.log('✍️ Writing...');
-    const writingResult = await writer.chat({
-      messages: [{
-        role: 'user',
-        content: `Write an article about "${topic}" based on this research:\n\n${research}`
-      }]
-    });
-    const draft = writingResult.choices[0].message.content;
-
-    // 步骤3: 编辑
-    console.log('📝 Editing...');
-    const editingResult = await editor.chat({
-      messages: [{
-        role: 'user',
-        content: `Edit and improve this article:\n\n${draft}`
-      }]
-    });
-    const finalArticle = editingResult.choices[0].message.content;
-
-    return {
-      research,
-      draft,
-      finalArticle
-    };
-
-  } finally {
-    await Promise.all([
-      researcher.destroy(),
-      writer.destroy(),
-      editor.destroy()
-    ]);
+// 定义插件
+const myPlugin: PluginConfig = {
+  id: 'my-plugin',
+  name: 'My Plugin',
+  version: '1.0.0',
+  description: 'A custom plugin',
+  skills: [
+    {
+      id: 'plugin-skill',
+      name: 'Plugin Skill',
+      description: 'A skill from plugin',
+      version: '1.0.0',
+      script: {
+        lang: 'typescript',
+        code: `
+          async function main() {
+            return { message: 'Hello from plugin!' };
+          }
+        `,
+        entry: 'main'
+      }
+    }
+  ],
+  tools: [
+    {
+      id: 'plugin-tool',
+      name: 'Plugin Tool',
+      description: 'A tool from plugin',
+      category: 'custom',
+      confirm: 'none',
+      execute: async () => ({
+        success: true,
+        data: { message: 'Tool from plugin' }
+      })
+    }
+  ],
+  hooks: {
+    'agent:initialized': async (event, agent) => {
+      console.log('Plugin: Agent initialized');
+    },
+    'chat:completed': async (event, agent) => {
+      console.log('Plugin: Chat completed');
+    }
   }
-}
+};
 
-// 使用
-collaborativeWriting('人工智能的未来发展')
-  .then(result => {
-    console.log('\n=== Final Article ===');
-    console.log(result.finalArticle);
-  })
-  .catch(console.error);
-```
+async function main() {
+  const llm = new OpenAIProvider({
+    apiKey: process.env.OPENAI_API_KEY!,
+    model: 'gpt-4-turbo-preview',
+  });
 
-## 自动化工作流
-
-创建一个自动化的数据处理工作流：
-
-```typescript
-import { createAgent, defineSkill, defineTool } from 'sdkwork-agent';
-import { OpenAIProvider } from 'sdkwork-agent/llm';
-
-async function createWorkflowAgent() {
-  const agent = createAgent({
-    name: 'WorkflowAgent',
-    llm: new OpenAIProvider({
-      apiKey: process.env.OPENAI_API_KEY!
-    })
+  const agent = createAgent(llm, {
+    name: 'PluginAgent',
+    description: 'An agent with plugins',
   });
 
   await agent.initialize();
 
-  // 数据提取 Tool
-  agent.tools.register(defineTool({
-    id: 'extract-data',
-    name: 'Extract Data',
-    category: 'data',
-    confirm: 'none',
-    input: {
-      type: 'object',
-      properties: {
-        text: { type: 'string' },
-        schema: { type: 'object' }
-      }
-    },
-    execute: async (input, context) => {
-      // 使用 LLM 提取结构化数据
-      const response = await agent.chat({
-        messages: [{
-          role: 'user',
-          content: `Extract data from this text according to the schema:\n\nText: ${input.text}\n\nSchema: ${JSON.stringify(input.schema)}`
-        }]
-      });
+  // 加载插件
+  await agent.loadPlugin(myPlugin);
 
-      try {
-        const data = JSON.parse(response.choices[0].message.content);
-        return { success: true, data };
-      } catch (error) {
-        return { success: false, error: { message: 'Failed to parse extracted data' } };
-      }
-    }
-  }));
+  // 使用插件提供的 Skill
+  const skillResult = await agent.executeSkill('plugin-skill', '{}');
+  console.log(skillResult.data);
 
-  // 数据处理 Skill
-  const processDataSkill = defineSkill({
-    id: 'process-data-pipeline',
-    name: 'Process Data Pipeline',
-    script: {
-      lang: 'typescript',
-      code: `
-        async function main() {
-          const { inputFile, processingSteps } = $input;
-          
-          // 1. 读取数据
-          const rawData = await $tool('file-read', { path: inputFile });
-          
-          // 2. 提取结构化数据
-          const extracted = await $tool('extract-data', {
-            text: rawData.content,
-            schema: processingSteps.extractSchema
-          });
-          
-          // 3. 转换数据
-          let transformed = extracted.data;
-          for (const step of processingSteps.transformations || []) {
-            transformed = await applyTransformation(transformed, step);
-          }
-          
-          // 4. 验证数据
-          const validation = await validateData(transformed, processingSteps.validationRules);
-          
-          // 5. 保存结果
-          await $tool('file-write', {
-            path: processingSteps.outputFile,
-            content: JSON.stringify(transformed, null, 2)
-          });
-          
-          return {
-            inputRecords: extracted.data.length,
-            outputRecords: transformed.length,
-            validationErrors: validation.errors,
-            outputFile: processingSteps.outputFile
-          };
-        }
-        
-        async function applyTransformation(data, step) {
-          // 应用转换逻辑
-          return data.map(item => {
-            const result = { ...item };
-            if (step.type === 'map') {
-              result[step.field] = eval(step.expression);
-            }
-            return result;
-          });
-        }
-        
-        async function validateData(data, rules) {
-          const errors = [];
-          for (const item of data) {
-            for (const rule of rules) {
-              if (!eval(rule.condition)) {
-                errors.push({ item, rule: rule.name });
-              }
-            }
-          }
-          return { valid: errors.length === 0, errors };
-        }
-      `
-    }
-  });
+  // 使用插件提供的 Tool
+  const toolResult = await agent.executeTool('plugin-tool', '{}');
+  console.log(toolResult.data);
 
-  agent.skills.register(processDataSkill);
-
-  return agent;
-}
-
-// 使用工作流
-async function runWorkflow() {
-  const agent = await createWorkflowAgent();
-
-  const result = await agent.executeSkill('process-data-pipeline', JSON.stringify({
-    inputFile: './raw-data.csv',
-    processingSteps: {
-      extractSchema: {
-        name: 'string',
-        email: 'string',
-        age: 'number'
-      },
-      transformations: [
-        { type: 'map', field: 'age', expression: 'item.age * 1' }
-      ],
-      validationRules: [
-        { name: 'valid-email', condition: 'item.email.includes("@")' },
-        { name: 'positive-age', condition: 'item.age > 0' }
-      ],
-      outputFile: './processed-data.json'
-    }
-  }));
-
-  console.log('Workflow result:', result.data);
+  // 卸载插件
+  await agent.unloadPlugin('my-plugin');
 
   await agent.destroy();
 }
 
-runWorkflow().catch(console.error);
+main().catch(console.error);
 ```
 
-## 智能客服系统
+## MCP 服务器
 
-构建一个带有记忆功能的智能客服：
+连接 Model Context Protocol 服务器：
 
 ```typescript
-import { createAgent, defineSkill } from 'sdkwork-agent';
-import { OpenAIProvider } from 'sdkwork-agent/llm';
+import { createAgent } from '@sdkwork/browser-agent';
+import { OpenAIProvider } from '@sdkwork/browser-agent/llm';
+import type { MCPServerConfig } from '@sdkwork/browser-agent';
 
-async function createCustomerServiceAgent() {
-  const agent = createAgent({
-    name: 'CustomerService',
-    llm: new OpenAIProvider({
-      apiKey: process.env.OPENAI_API_KEY!,
-      model: 'gpt-4'
-    }),
-    memory: {
-      maxTokens: 16000,
-      limit: 5000
-    }
+async function main() {
+  const llm = new OpenAIProvider({
+    apiKey: process.env.OPENAI_API_KEY!,
+    model: 'gpt-4-turbo-preview',
+  });
+
+  const agent = createAgent(llm, {
+    name: 'MCPAgent',
+    description: 'An agent connected to MCP servers',
   });
 
   await agent.initialize();
 
-  // 意图识别 Skill
-  const intentSkill = defineSkill({
-    id: 'intent-recognition',
-    name: 'Intent Recognition',
-    script: {
-      lang: 'typescript',
-      code: `
-        async function main() {
-          const message = $input.message;
-          
-          const response = await $llm(message, {
-            systemPrompt: \`分析用户消息意图，返回 JSON 格式：
-{
-  "intent": "query|complaint|purchase|support|other",
-  "category": "具体分类",
-  "urgency": "high|medium|low",
-  "entities": ["提取的实体"],
-  "sentiment": "positive|neutral|negative"
-}\`
-          });
-          
-          return JSON.parse(response);
-        }
-      `
+  // 连接 MCP 服务器
+  const mcpConfig: MCPServerConfig = {
+    id: 'filesystem-mcp',
+    name: 'Filesystem MCP',
+    transport: {
+      type: 'stdio',
+      command: 'node',
+      args: ['mcp-server-filesystem', '/path/to/allowed/dir']
     }
+  };
+
+  await agent.connectMCP(mcpConfig);
+
+  // 使用 MCP 提供的工具
+  const response = await agent.chat({
+    messages: [
+      { id: '1', role: 'user', content: 'List files in the current directory', timestamp: Date.now() }
+    ]
   });
 
-  // 回复生成 Skill
-  const responseSkill = defineSkill({
-    id: 'generate-response',
-    name: 'Generate Response',
+  console.log(response.choices[0].message.content);
+
+  // 断开 MCP 服务器
+  await agent.disconnectMCP('filesystem-mcp');
+
+  await agent.destroy();
+}
+
+main().catch(console.error);
+```
+
+## 高级 Skill
+
+使用引用文件和依赖：
+
+```typescript
+import { createAgent } from '@sdkwork/browser-agent';
+import { OpenAIProvider } from '@sdkwork/browser-agent/llm';
+import type { Skill } from '@sdkwork/browser-agent';
+
+async function main() {
+  const llm = new OpenAIProvider({
+    apiKey: process.env.OPENAI_API_KEY!,
+    model: 'gpt-4-turbo-preview',
+  });
+
+  const advancedSkill: Skill = {
+    id: 'data-processor',
+    name: 'Data Processor',
+    description: 'Process data with templates',
+    version: '1.0.0',
     script: {
       lang: 'typescript',
       code: `
         async function main() {
-          const { message, intent, userId, conversationHistory } = $input;
+          const data = $input;
+          const template = $ref('template');
           
-          // 检索用户历史
-          const userHistory = await $memory.search({
-            content: userId,
-            limit: 5
-          });
+          // 使用 LLM 处理数据
+          const analysis = await $llm(\`
+            Analyze this data and provide insights:
+            \${JSON.stringify(data)}
+          \`);
           
-          // 检索知识库
-          const knowledge = await $memory.search({
-            content: message,
-            type: 'semantic',
-            limit: 3
-          });
+          // 渲染模板
+          let rendered = template;
+          for (const [key, value] of Object.entries(data)) {
+            rendered = rendered.replace(new RegExp(\`{{\${key}}}\`, 'g'), String(value));
+          }
           
-          const response = await $llm(message, {
-            systemPrompt: \`你是智能客服助手。
-
-用户意图：\${intent.intent}
-紧急程度：\${intent.urgency}
-用户情绪：\${intent.sentiment}
-
-历史对话：
-\${conversationHistory.map(h => h.role + ': ' + h.content).join('\\n')}
-
-相关知识：
-\${knowledge.map(k => k.memory.content).join('\\n')}
-
-请提供有帮助、专业的回复。\`
-          });
-          
-          // 存储对话
-          await $memory.set(\`conv-\${Date.now()}\`, {
-            userId,
-            message,
-            response,
-            intent,
+          // 存储到内存
+          await $memory.set('last-analysis', {
+            data,
+            analysis,
             timestamp: Date.now()
           });
           
           return {
-            response,
-            intent,
-            shouldEscalate: intent.urgency === 'high' || intent.sentiment === 'negative'
+            rendered,
+            analysis,
+            timestamp: Date.now()
           };
         }
-      `
+      `,
+      entry: 'main',
+      dependencies: {
+        'lodash': '^4.17.21'
+      }
+    },
+    references: [
+      {
+        name: 'template',
+        path: './templates/report.md',
+        content: `# Report
+Date: {{date}}
+Status: {{status}}
+
+## Summary
+{{summary}}
+`,
+        type: 'template'
+      }
+    ],
+    input: {
+      type: 'object',
+      properties: {
+        date: { type: 'string' },
+        status: { type: 'string' },
+        summary: { type: 'string' }
+      },
+      required: ['date', 'status', 'summary']
+    },
+    output: {
+      type: 'object',
+      properties: {
+        rendered: { type: 'string' },
+        analysis: { type: 'string' },
+        timestamp: { type: 'number' }
+      }
     }
-  });
+  };
 
-  agent.skills.register(intentSkill);
-  agent.skills.register(responseSkill);
-
-  // 处理用户消息
-  async function handleMessage(userId: string, message: string) {
-    // 1. 识别意图
-    const intentResult = await agent.executeSkill('intent-recognition', JSON.stringify({
-      message
-    }));
-
-    // 2. 生成回复
-    const session = agent.getSession(userId) || [];
-    const responseResult = await agent.executeSkill('generate-response', JSON.stringify({
-      message,
-      intent: intentResult.data,
-      userId,
-      conversationHistory: session.slice(-5)
-    }));
-
-    return responseResult.data;
-  }
-
-  return { agent, handleMessage };
-}
-
-// 使用
-async function main() {
-  const { agent, handleMessage } = await createCustomerServiceAgent();
-
-  // 模拟对话
-  const userId = 'user-123';
-  
-  const messages = [
-    '你好，我想了解一下你们的产品',
-    '价格是多少？',
-    '有点贵，有优惠吗？'
-  ];
-
-  for (const message of messages) {
-    console.log(`User: ${message}`);
-    const result = await handleMessage(userId, message);
-    console.log(`Assistant: ${result.response}`);
-    console.log(`Intent: ${result.intent.intent}, Urgency: ${result.intent.urgency}\n`);
-  }
-
-  await agent.destroy();
-}
-
-main().catch(console.error);
-```
-
-## 代码审查助手
-
-创建一个自动代码审查工具：
-
-```typescript
-import { createAgent, defineSkill } from 'sdkwork-agent';
-import { OpenAIProvider } from 'sdkwork-agent/llm';
-import { readFile } from 'fs/promises';
-
-async function createCodeReviewAgent() {
-  const agent = createAgent({
-    name: 'CodeReviewer',
-    llm: new OpenAIProvider({
-      apiKey: process.env.OPENAI_API_KEY!,
-      model: 'gpt-4'
-    })
+  const agent = createAgent(llm, {
+    name: 'AdvancedAgent',
+    skills: [advancedSkill],
   });
 
   await agent.initialize();
 
-  const reviewSkill = defineSkill({
-    id: 'code-review',
-    name: 'Code Review',
-    script: {
-      lang: 'typescript',
-      code: `
-        async function main() {
-          const { code, language, filePath } = $input;
-          
-          const review = await $llm(code, {
-            systemPrompt: \`你是一个资深代码审查专家。请对代码进行全面审查，包括：
+  const result = await agent.executeSkill('data-processor', JSON.stringify({
+    date: '2024-01-15',
+    status: 'Completed',
+    summary: 'All tasks finished successfully'
+  }));
 
-1. 代码质量（可读性、可维护性）
-2. 潜在 Bug
-3. 性能问题
-4. 安全问题
-5. 最佳实践遵循情况
-6. 类型安全（TypeScript）
+  console.log(result.data);
 
-请以 JSON 格式返回：
-{
-  "summary": "总体评价",
-  "issues": [
-    {
-      "severity": "error|warning|info",
-      "category": "bug|performance|security|style",
-      "line": 行号,
-      "message": "问题描述",
-      "suggestion": "改进建议"
-    }
-  ],
-  "score": 0-100
-}\`
-          });
-          
-          return JSON.parse(review);
-        }
-      `
+  await agent.destroy();
+}
+
+main().catch(console.error);
+```
+
+## 错误恢复
+
+处理错误和恢复：
+
+```typescript
+import { createAgent, AgentState } from '@sdkwork/browser-agent';
+import { OpenAIProvider } from '@sdkwork/browser-agent/llm';
+
+async function main() {
+  const llm = new OpenAIProvider({
+    apiKey: process.env.OPENAI_API_KEY!,
+    model: 'gpt-4-turbo-preview',
+  });
+
+  const agent = createAgent(llm, {
+    name: 'ResilientAgent',
+    description: 'An agent with error recovery',
+  });
+
+  // 监听错误事件
+  agent.on('agent:error', async (event) => {
+    console.error('Agent error:', event.payload.error);
+    
+    // 尝试恢复
+    if (agent.state === AgentState.ERROR) {
+      console.log('Attempting recovery...');
+      await agent.reset();
+      console.log('Agent recovered');
     }
   });
 
-  agent.skills.register(reviewSkill);
+  await agent.initialize();
 
-  async function reviewFile(filePath: string) {
-    const code = await readFile(filePath, 'utf-8');
-    const language = filePath.endsWith('.ts') ? 'typescript' : 'javascript';
-    
-    const result = await agent.executeSkill('code-review', JSON.stringify({
-      code,
-      language,
-      filePath
-    }));
-
-    return result.data;
-  }
-
-  return { agent, reviewFile };
-}
-
-// 使用
-async function main() {
-  const { agent, reviewFile } = await createCodeReviewAgent();
-
-  const review = await reviewFile('./src/example.ts');
-  
-  console.log('Code Review Report');
-  console.log('==================');
-  console.log(`Score: ${review.score}/100`);
-  console.log(`Summary: ${review.summary}\n`);
-  
-  if (review.issues.length > 0) {
-    console.log('Issues:');
-    review.issues.forEach((issue: any) => {
-      console.log(`[${issue.severity.toUpperCase()}] Line ${issue.line}: ${issue.message}`);
-      console.log(`  Suggestion: ${issue.suggestion}\n`);
+  try {
+    const response = await agent.chat({
+      messages: [
+        { id: '1', role: 'user', content: 'Hello!', timestamp: Date.now() }
+      ]
     });
+    console.log(response.choices[0].message.content);
+  } catch (error) {
+    console.error('Chat failed:', error);
+    
+    // 检查状态并恢复
+    if (agent.state === AgentState.ERROR) {
+      await agent.reset();
+      
+      // 重试
+      const retryResponse = await agent.chat({
+        messages: [
+          { id: '2', role: 'user', content: 'Hello again!', timestamp: Date.now() }
+        ]
+      });
+      console.log(retryResponse.choices[0].message.content);
+    }
   }
 
   await agent.destroy();
@@ -646,13 +403,131 @@ async function main() {
 main().catch(console.error);
 ```
 
-## 最佳实践总结
+## 并发控制
 
-1. **错误处理** - 始终使用 try-catch 和错误事件
-2. **资源管理** - 确保调用 agent.destroy() 释放资源
-3. **会话管理** - 使用 sessionId 维护对话上下文
-4. **记忆优化** - 合理设置 maxTokens 和 limit
-5. **流式输出** - 对于长回复使用 chatStream
-6. **事件监听** - 利用事件系统实现可观测性
-7. **Skill 复用** - 将通用逻辑封装为 Skill
-8. **Tool 分类** - 使用合适的 confirm 级别
+控制并发执行：
+
+```typescript
+import { createAgent } from '@sdkwork/browser-agent';
+import { OpenAIProvider } from '@sdkwork/browser-agent/llm';
+
+async function main() {
+  const llm = new OpenAIProvider({
+    apiKey: process.env.OPENAI_API_KEY!,
+    model: 'gpt-4-turbo-preview',
+  });
+
+  const agent = createAgent(llm, {
+    name: 'ConcurrentAgent',
+    description: 'An agent with concurrent execution',
+  });
+
+  await agent.initialize();
+
+  // 并发执行多个任务
+  const tasks = [
+    agent.chat({
+      messages: [{ id: '1', role: 'user', content: 'Task 1', timestamp: Date.now() }]
+    }),
+    agent.chat({
+      messages: [{ id: '2', role: 'user', content: 'Task 2', timestamp: Date.now() }]
+    }),
+    agent.chat({
+      messages: [{ id: '3', role: 'user', content: 'Task 3', timestamp: Date.now() }]
+    }),
+  ];
+
+  const results = await Promise.all(tasks);
+  
+  results.forEach((result, index) => {
+    console.log(`Task ${index + 1}:`, result.choices[0].message.content);
+  });
+
+  await agent.destroy();
+}
+
+main().catch(console.error);
+```
+
+## 自定义记忆存储
+
+实现自定义记忆存储：
+
+```typescript
+import { createAgent } from '@sdkwork/browser-agent';
+import { OpenAIProvider } from '@sdkwork/browser-agent/llm';
+import type { MemoryStore, MemoryItem } from '@sdkwork/browser-agent';
+
+// 自定义记忆存储
+class CustomMemoryStore implements MemoryStore {
+  private items: Map<string, MemoryItem> = new Map();
+
+  async store(item: Omit<MemoryItem, 'id'>): Promise<string> {
+    const id = `mem-${Date.now()}`;
+    this.items.set(id, { ...item, id });
+    return id;
+  }
+
+  async retrieve(id: string): Promise<MemoryItem | null> {
+    return this.items.get(id) || null;
+  }
+
+  async search(query: string, limit?: number): Promise<MemoryItem[]> {
+    const results: MemoryItem[] = [];
+    for (const item of this.items.values()) {
+      if (item.content.toLowerCase().includes(query.toLowerCase())) {
+        results.push(item);
+        if (limit && results.length >= limit) break;
+      }
+    }
+    return results;
+  }
+
+  async delete(id: string): Promise<void> {
+    this.items.delete(id);
+  }
+
+  async clear(): Promise<void> {
+    this.items.clear();
+  }
+}
+
+async function main() {
+  const llm = new OpenAIProvider({
+    apiKey: process.env.OPENAI_API_KEY!,
+    model: 'gpt-4-turbo-preview',
+  });
+
+  const agent = createAgent(llm, {
+    name: 'CustomMemoryAgent',
+    description: 'An agent with custom memory',
+  });
+
+  await agent.initialize();
+
+  // 使用自定义记忆存储
+  const memory = new CustomMemoryStore();
+  
+  await memory.store({
+    content: 'User prefers concise responses',
+    type: 'preference',
+    importance: 0.8,
+    metadata: { source: 'user-feedback' }
+  });
+
+  const results = await memory.search('preference');
+  console.log('Found memories:', results);
+
+  await agent.destroy();
+}
+
+main().catch(console.error);
+```
+
+## 最佳实践
+
+1. **插件隔离** - 插件应该独立、可卸载
+2. **错误处理** - 实现完善的错误恢复机制
+3. **资源管理** - 合理管理并发和资源
+4. **记忆优化** - 实现高效的记忆存储和检索
+5. **安全考虑** - 验证和清理所有外部输入

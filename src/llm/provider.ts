@@ -67,6 +67,11 @@ export interface LLMStreamChunk {
     tool_calls?: ToolCall[];
   };
   finish_reason?: 'stop' | 'length' | 'tool_calls' | 'content_filter';
+  usage?: {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+  };
 }
 
 // Provider configuration

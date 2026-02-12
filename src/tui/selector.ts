@@ -61,8 +61,8 @@ export class InteractiveSelector<T = string> {
   private config: SelectConfig<T>;
   private selectedIndex: number;
   private scrollTop: number;
-  private rl: readline.Interface | null = null;
   private resolved: boolean = false;
+  private dataHandler: ((data: string) => void) | null = null;
 
   constructor(config: SelectConfig<T>) {
     this.config = {
@@ -94,24 +94,22 @@ export class InteractiveSelector<T = string> {
     return new Promise((resolve) => {
       // 隐藏光标
       stdout.write(ANSI.hideCursor);
-      
+
       // 显示初始选项
       this.render();
 
-      // 设置 readline
-      this.rl = readline.createInterface({
-        input: stdin,
-        output: stdout,
-      });
-
       // 设置原始模式以捕获按键
+      // 注意：保存之前的 rawMode 状态，以便恢复
+      const wasRaw = stdin.isTTY && stdin.isRaw;
+
       if (stdin.isTTY) {
         stdin.setRawMode(true);
       }
       stdin.resume();
       stdin.setEncoding('utf8');
 
-      const onData = (data: string) => {
+      // 创建数据处理器
+      this.dataHandler = (data: string) => {
         if (this.resolved) return;
 
         const key = data.toString();
@@ -130,33 +128,39 @@ export class InteractiveSelector<T = string> {
         } else if (key === '\u001b[F' || key === 'G') {
           this.goToLast();
         } else if (key === '\r' || key === '\n') {
-          this.confirm(resolve);
+          this.confirm(resolve, wasRaw);
         } else if (key === '\u001b' || key === 'q') {
-          this.cancel(resolve);
+          this.cancel(resolve, wasRaw);
         } else if (/^[0-9]$/.test(key)) {
           // 数字键直接选择
-          this.selectByNumber(parseInt(key), resolve);
+          this.selectByNumber(parseInt(key), resolve, wasRaw);
         }
       };
 
-      stdin.on('data', onData);
-
-      // 保存清理函数
-      this.cleanup = () => {
-        stdin.off('data', onData);
-        if (stdin.isTTY) {
-          stdin.setRawMode(false);
-        }
-        stdin.pause();
-        if (this.rl) {
-          this.rl.close();
-        }
-        stdout.write(ANSI.showCursor);
-      };
+      stdin.on('data', this.dataHandler);
     });
   }
 
-  private cleanup = () => {};
+  // 清理函数 - 恢复 stdin 状态
+  private cleanup(wasRaw?: boolean): void {
+    if (this.dataHandler) {
+      stdin.off('data', this.dataHandler);
+      this.dataHandler = null;
+    }
+
+    // 恢复 rawMode 状态
+    // 注意：CLI 的 readline 需要 rawMode，所以我们要恢复到之前的状态
+    if (stdin.isTTY && wasRaw !== undefined) {
+      try {
+        stdin.setRawMode(wasRaw);
+      } catch {
+        // 忽略错误，某些情况下可能无法设置
+      }
+    }
+
+    // 显示光标
+    stdout.write(ANSI.showCursor);
+  }
 
   private render(): void {
     const theme = this.config.theme || DEFAULT_THEME;
@@ -292,12 +296,12 @@ export class InteractiveSelector<T = string> {
     this.render();
   }
 
-  private confirm(resolve: (value: T | null) => void): void {
+  private confirm(resolve: (value: T | null) => void, wasRaw?: boolean): void {
     if (this.resolved) return;
     this.resolved = true;
 
     const option = this.config.options[this.selectedIndex];
-    this.cleanup();
+    this.cleanup(wasRaw);
 
     // 显示最终选择
     const theme = this.config.theme || DEFAULT_THEME;
@@ -307,11 +311,11 @@ export class InteractiveSelector<T = string> {
     resolve(option.disabled ? null : option.value);
   }
 
-  private cancel(resolve: (value: T | null) => void): void {
+  private cancel(resolve: (value: T | null) => void, wasRaw?: boolean): void {
     if (this.resolved) return;
     this.resolved = true;
 
-    this.cleanup();
+    this.cleanup(wasRaw);
 
     const theme = this.config.theme || DEFAULT_THEME;
     console.log('');
@@ -320,14 +324,14 @@ export class InteractiveSelector<T = string> {
     resolve(null);
   }
 
-  private selectByNumber(num: number, resolve: (value: T | null) => void): void {
+  private selectByNumber(num: number, resolve: (value: T | null) => void, wasRaw?: boolean): void {
     // 0 选择第 10 个选项
     const idx = num === 0 ? 9 : num - 1;
     if (idx >= 0 && idx < this.config.options.length) {
       const option = this.config.options[idx];
       if (!option.disabled) {
         this.selectedIndex = idx;
-        this.confirm(resolve);
+        this.confirm(resolve, wasRaw);
       }
     }
   }
@@ -426,6 +430,7 @@ export class MultiSelector<T = string> {
   private currentIndex: number;
   private scrollTop: number;
   private resolved: boolean = false;
+  private dataHandler: ((data: string) => void) | null = null;
 
   constructor(config: SelectConfig<T>) {
     this.config = {
@@ -443,13 +448,16 @@ export class MultiSelector<T = string> {
       stdout.write(ANSI.hideCursor);
       this.render();
 
+      // 保存之前的 rawMode 状态
+      const wasRaw = stdin.isTTY && stdin.isRaw;
+
       if (stdin.isTTY) {
         stdin.setRawMode(true);
       }
       stdin.resume();
       stdin.setEncoding('utf8');
 
-      const onData = (data: string) => {
+      this.dataHandler = (data: string) => {
         if (this.resolved) return;
 
         const key = data.toString();
@@ -465,26 +473,35 @@ export class MultiSelector<T = string> {
           // a 全选/取消全选
           this.toggleAll();
         } else if (key === '\r' || key === '\n') {
-          this.confirm(resolve);
+          this.confirm(resolve, wasRaw);
         } else if (key === '\u001b' || key === 'q') {
-          this.cancel(resolve);
+          this.cancel(resolve, wasRaw);
         }
       };
 
-      stdin.on('data', onData);
-
-      this.cleanup = () => {
-        stdin.off('data', onData);
-        if (stdin.isTTY) {
-          stdin.setRawMode(false);
-        }
-        stdin.pause();
-        stdout.write(ANSI.showCursor);
-      };
+      stdin.on('data', this.dataHandler);
     });
   }
 
-  private cleanup = () => {};
+  // 清理函数 - 恢复 stdin 状态
+  private cleanup(wasRaw?: boolean): void {
+    if (this.dataHandler) {
+      stdin.off('data', this.dataHandler);
+      this.dataHandler = null;
+    }
+
+    // 恢复 rawMode 状态
+    if (stdin.isTTY && wasRaw !== undefined) {
+      try {
+        stdin.setRawMode(wasRaw);
+      } catch {
+        // 忽略错误
+      }
+    }
+
+    // 显示光标
+    stdout.write(ANSI.showCursor);
+  }
 
   private render(): void {
     const theme = this.config.theme || DEFAULT_THEME;
@@ -551,11 +568,11 @@ export class MultiSelector<T = string> {
     this.render();
   }
 
-  private confirm(resolve: (value: T[]) => void): void {
+  private confirm(resolve: (value: T[]) => void, wasRaw?: boolean): void {
     if (this.resolved) return;
     this.resolved = true;
 
-    this.cleanup();
+    this.cleanup(wasRaw);
 
     const theme = this.config.theme || DEFAULT_THEME;
     const selected = Array.from(this.selectedIndices).map(
@@ -572,11 +589,11 @@ export class MultiSelector<T = string> {
     resolve(selected);
   }
 
-  private cancel(resolve: (value: T[]) => void): void {
+  private cancel(resolve: (value: T[]) => void, wasRaw?: boolean): void {
     if (this.resolved) return;
     this.resolved = true;
 
-    this.cleanup();
+    this.cleanup(wasRaw);
 
     const theme = this.config.theme || DEFAULT_THEME;
     console.log('');
@@ -587,26 +604,88 @@ export class MultiSelector<T = string> {
 }
 
 /**
- * 输入框
+ * 输入框 - 使用原始输入模式，避免与 CLI readline 冲突
  */
 export async function prompt(
   message: string,
   defaultValue?: string
 ): Promise<string | null> {
   return new Promise((resolve) => {
-    const rl = readline.createInterface({
-      input: stdin,
-      output: stdout,
-    });
-
-    const prompt = defaultValue
+    // 显示提示
+    const promptText = defaultValue
       ? `${message} (${defaultValue}): `
       : `${message}: `;
+    stdout.write(promptText);
 
-    rl.question(prompt, (answer) => {
-      rl.close();
-      const result = answer.trim() || defaultValue || '';
-      resolve(result || null);
-    });
+    // 保存之前的 rawMode 状态
+    const wasRaw = stdin.isTTY && stdin.isRaw;
+
+    // 对于 prompt，我们需要关闭 rawMode 以便正常输入
+    if (stdin.isTTY) {
+      try {
+        stdin.setRawMode(false);
+      } catch {
+        // 忽略错误
+      }
+    }
+    stdin.resume();
+    stdin.setEncoding('utf8');
+
+    let input = '';
+    let resolved = false;
+
+    const cleanup = () => {
+      stdin.off('data', onData);
+      // 恢复 rawMode 状态
+      if (stdin.isTTY && wasRaw !== undefined) {
+        try {
+          stdin.setRawMode(wasRaw);
+        } catch {
+          // 忽略错误
+        }
+      }
+    };
+
+    const onData = (data: string) => {
+      if (resolved) return;
+
+      const key = data.toString();
+
+      // 处理 Enter 键
+      if (key === '\r' || key === '\n') {
+        resolved = true;
+        cleanup();
+        stdout.write('\n');
+        const result = input.trim() || defaultValue || '';
+        resolve(result || null);
+        return;
+      }
+
+      // 处理 Ctrl+C
+      if (key === '\u0003') {
+        resolved = true;
+        cleanup();
+        stdout.write('\n');
+        resolve(null);
+        return;
+      }
+
+      // 处理退格键
+      if (key === '\u007f' || key === '\b') {
+        if (input.length > 0) {
+          input = input.slice(0, -1);
+          stdout.write('\b \b');
+        }
+        return;
+      }
+
+      // 处理普通字符
+      if (key >= ' ' && key <= '~') {
+        input += key;
+        stdout.write(key);
+      }
+    };
+
+    stdin.on('data', onData);
   });
 }

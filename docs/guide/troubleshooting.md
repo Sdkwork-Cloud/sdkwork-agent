@@ -1,264 +1,419 @@
 # 故障排除
 
-本文档列出了使用 SDKWork Agent 时可能遇到的常见问题及解决方案。
+本文档提供 SDKWork Browser Agent 的常见问题和解决方案。
 
 ## 安装问题
 
-### 安装失败
+### 包安装失败
 
-**症状**: 运行 `npm install sdkwork-agent` 时出错
+**问题**：npm install 失败
 
-**解决方案**:
-1. 检查 Node.js 版本
-   ```bash
-   node --version  # 应 >= 18.0.0
-   ```
+**解决方案**：
 
-2. 清除 npm 缓存
-   ```bash
-   npm cache clean --force
-   ```
+```bash
+# 清除缓存
+npm cache clean --force
 
-3. 使用其他包管理器
-   ```bash
-   yarn add sdkwork-agent
-   # 或
-   pnpm add sdkwork-agent
-   ```
+# 使用镜像源
+npm config set registry https://registry.npmmirror.com
 
-### TypeScript 类型错误
+# 重新安装
+npm install @sdkwork/browser-agent
+```
 
-**症状**: 编译时出现类型错误
+### 类型定义缺失
 
-**解决方案**:
-1. 确保 `tsconfig.json` 配置正确
-   ```json
-   {
-     "compilerOptions": {
-       "moduleResolution": "bundler",
-       "esModuleInterop": true
-     }
-   }
-   ```
+**问题**：TypeScript 报错找不到类型定义
 
-2. 安装类型定义
-   ```bash
-   npm install -D @types/node
-   ```
+**解决方案**：
 
-## 运行时问题
+```bash
+# 安装类型依赖
+npm install -D @types/node
+
+# 检查 tsconfig.json
+{
+  "compilerOptions": {
+    "moduleResolution": "bundler",
+    "esModuleInterop": true
+  }
+}
+```
+
+## 初始化问题
 
 ### Agent 初始化失败
 
-**症状**: `await agent.initialize()` 抛出错误
+**问题**：`agent.initialize()` 抛出错误
 
-**可能原因**:
-1. API 密钥无效
+**可能原因**：
+1. API Key 无效
 2. 网络连接问题
-3. 依赖服务未启动
+3. 模型不可用
 
-**解决方案**:
+**解决方案**：
+
 ```typescript
 try {
   await agent.initialize();
 } catch (error) {
-  console.error('初始化失败:', error.message);
-  // 检查 API 密钥
-  // 检查网络连接
-}
-```
-
-### LLM 调用失败
-
-**症状**: `agent.chat()` 返回错误或超时
-
-**解决方案**:
-1. 检查 API 密钥
-   ```typescript
-   // 确保环境变量已设置
-   console.log(process.env.OPENAI_API_KEY);
-   ```
-
-2. 增加超时时间
-   ```typescript
-   const response = await agent.chat({
-     messages: [...],
-     timeout: 60000  // 60秒
-   });
-   ```
-
-3. 检查网络代理设置
-
-### Skill 执行失败
-
-**症状**: `agent.executeSkill()` 返回错误
-
-**常见错误**:
-- `Skill not found`: Skill ID 错误
-- `Execution timeout`: 执行超时
-- `Invalid input`: 输入参数不符合 Schema
-
-**解决方案**:
-```typescript
-// 检查 Skill 是否存在
-const skill = agent.skills.get('skill-id');
-if (!skill) {
-  console.error('Skill 不存在');
-}
-
-// 验证输入
-const result = await agent.executeSkill('skill-id', JSON.stringify(input));
-if (!result.success) {
-  console.error('执行失败:', result.error);
-}
-```
-
-### Tool 调用失败
-
-**症状**: `agent.executeTool()` 返回错误
-
-**解决方案**:
-1. 检查 Tool 是否存在
-2. 验证输入参数
-3. 检查确认级别
-
-```typescript
-const result = await agent.executeTool('file-read', JSON.stringify({
-  path: './file.txt'
-}));
-
-if (!result.success) {
-  console.error('Tool 错误:', result.error.message);
-}
-```
-
-## 性能问题
-
-### 内存泄漏
-
-**症状**: 应用运行一段时间后内存持续增长
-
-**解决方案**:
-1. 及时销毁 Agent
-   ```typescript
-   await agent.destroy();
-   ```
-
-2. 限制记忆大小
-   ```typescript
-   const agent = createAgent({
-     memory: { maxTokens: 4000 }
-   });
-   ```
-
-3. 定期清理记忆
-   ```typescript
-   await agent.memory.clear();
-   ```
-
-### 响应缓慢
-
-**症状**: API 调用响应时间过长
-
-**优化建议**:
-1. 使用流式响应
-   ```typescript
-   const stream = agent.chatStream({ messages });
-   ```
-
-2. 启用缓存
-   ```typescript
-   const agent = createAgent({
-     memory: { enableCache: true }
-   });
-   ```
-
-3. 减少上下文长度
-   ```typescript
-   const response = await agent.chat({
-     messages: messages.slice(-10)  // 只保留最近10条
-   });
-   ```
-
-## 浏览器环境问题
-
-### 模块导入错误
-
-**症状**: 浏览器中出现 `Cannot find module` 错误
-
-**解决方案**:
-1. 使用正确的导入路径
-   ```typescript
-   // 浏览器环境
-   import { createAgent } from 'sdkwork-agent';
-   ```
-
-2. 配置构建工具
-   ```javascript
-   // vite.config.js
-   export default {
-     resolve: {
-       alias: {
-         'sdkwork-agent': 'sdkwork-agent/dist/browser/index.js'
-       }
-     }
-   };
-   ```
-
-### CORS 错误
-
-**症状**: 浏览器中出现跨域错误
-
-**解决方案**:
-1. 使用代理服务器
-2. 配置后端允许跨域
-3. 使用服务器端渲染
-
-## 调试技巧
-
-### 启用详细日志
-
-```typescript
-const agent = createAgent({
-  logger: {
-    level: 'debug',
-    transport: console
+  if (error.code === 'INVALID_API_KEY') {
+    console.error('API Key 无效');
+  } else if (error.code === 'NETWORK_ERROR') {
+    console.error('网络连接失败');
+  } else if (error.code === 'MODEL_NOT_FOUND') {
+    console.error('模型不可用');
   }
+}
+```
+
+### LLM Provider 错误
+
+**问题**：LLM Provider 初始化失败
+
+**解决方案**：
+
+```typescript
+import { OpenAIProvider } from '@sdkwork/browser-agent/llm';
+
+// 检查 API Key
+if (!process.env.OPENAI_API_KEY) {
+  throw new Error('OPENAI_API_KEY 环境变量未设置');
+}
+
+// 检查模型名称
+const llm = new OpenAIProvider({
+  apiKey: process.env.OPENAI_API_KEY!,
+  model: 'gpt-4-turbo-preview', // 确保模型名称正确
 });
 ```
 
-### 监听所有事件
+## 对话问题
+
+### 对话超时
+
+**问题**：`agent.chat()` 超时
+
+**解决方案**：
+
+```typescript
+// 增加超时时间
+const llm = new OpenAIProvider({
+  apiKey: process.env.OPENAI_API_KEY!,
+  model: 'gpt-4-turbo-preview',
+  timeout: 60000, // 60秒
+});
+
+// 或使用 AbortController
+const controller = new AbortController();
+const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+try {
+  const response = await agent.chat({
+    messages,
+    signal: controller.signal
+  });
+} finally {
+  clearTimeout(timeoutId);
+}
+```
+
+### 流式输出中断
+
+**问题**：流式输出中途停止
+
+**解决方案**：
+
+```typescript
+let fullContent = '';
+
+try {
+  for await (const chunk of agent.chatStream({ messages })) {
+    const content = chunk.choices[0]?.delta?.content;
+    if (content) {
+      fullContent += content;
+      process.stdout.write(content);
+    }
+  }
+} catch (error) {
+  if (error.name === 'AbortError') {
+    console.log('\n流式输出被中断');
+    console.log('已接收内容:', fullContent);
+  } else {
+    throw error;
+  }
+}
+```
+
+## Skill 问题
+
+### Skill 执行失败
+
+**问题**：`agent.executeSkill()` 返回失败
+
+**解决方案**：
+
+```typescript
+const result = await agent.executeSkill('my-skill', JSON.stringify(input));
+
+if (!result.success) {
+  console.error('Skill 执行失败:', result.error);
+  
+  if (result.error.recoverable) {
+    // 可恢复错误，重试
+    console.log('重试中...');
+    const retryResult = await agent.executeSkill('my-skill', JSON.stringify(input));
+  } else {
+    // 不可恢复错误
+    console.error('不可恢复错误:', result.error.message);
+  }
+}
+```
+
+### 脚本语法错误
+
+**问题**：Skill 脚本报语法错误
+
+**解决方案**：
+
+```typescript
+const skill: Skill = {
+  id: 'test-skill',
+  name: 'Test',
+  description: 'Test skill',
+  version: '1.0.0',
+  script: {
+    lang: 'typescript',
+    code: `
+      async function main() {
+        try {
+          // 你的代码
+          return { success: true };
+        } catch (error) {
+          $log.error('Error:', error);
+          return { success: false, error: error.message };
+        }
+      }
+    `,
+    entry: 'main'
+  }
+};
+```
+
+### 注入 API 不可用
+
+**问题**：`$llm`、`$tool` 等 API 不可用
+
+**解决方案**：
+
+确保 Skill 脚本正确使用注入 API：
+
+```typescript
+// 正确使用
+const response = await $llm('Hello');
+
+// 错误使用（未 await）
+const response = $llm('Hello'); // 返回 Promise
+```
+
+## Tool 问题
+
+### Tool 执行超时
+
+**问题**：Tool 执行时间过长
+
+**解决方案**：
+
+```typescript
+const tool: Tool = {
+  id: 'long-running-tool',
+  name: 'Long Running Tool',
+  description: 'A tool that takes time',
+  category: 'custom',
+  confirm: 'none',
+  execute: async (input, context) => {
+    // 设置超时
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Timeout')), 30000);
+    });
+    
+    try {
+      const result = await Promise.race([
+        doWork(input),
+        timeoutPromise
+      ]);
+      return { success: true, data: result };
+    } catch (error) {
+      return { success: false, error: { code: 'TIMEOUT', message: error.message } };
+    }
+  }
+};
+```
+
+### Tool 权限问题
+
+**问题**：Tool 执行被拒绝
+
+**解决方案**：
+
+```typescript
+// 检查确认级别
+const tool: Tool = {
+  id: 'file-write',
+  name: 'File Write',
+  description: 'Write to file',
+  category: 'file',
+  confirm: 'write', // 需要确认
+  // ...
+};
+
+// 处理确认
+agent.on('tool:confirm', async (event) => {
+  const { toolId, input } = event.payload;
+  const confirmed = await askUser(`确认执行 ${toolId}?`);
+  event.resolve(confirmed);
+});
+```
+
+## 内存问题
+
+### 内存泄漏
+
+**问题**：内存使用持续增长
+
+**解决方案**：
+
+```typescript
+// 1. 及时销毁 Agent
+await agent.destroy();
+
+// 2. 清理会话
+agent.clearSession(sessionId);
+
+// 3. 清理记忆
+await agent.memory.clear();
+
+// 4. 取消事件订阅
+const unsubscribers: (() => void)[] = [];
+unsubscribers.push(agent.on('event', handler));
+// 清理时
+unsubscribers.forEach(unsub => unsub());
+```
+
+### 记忆检索慢
+
+**问题**：`memory.search()` 响应慢
+
+**解决方案**：
+
+```typescript
+// 1. 限制返回数量
+const results = await agent.memory.search(query, 10);
+
+// 2. 定期清理过期记忆
+setInterval(async () => {
+  const items = await agent.memory.search('', 1000);
+  const now = Date.now();
+  for (const item of items) {
+    if (item.expiresAt && item.expiresAt < now) {
+      await agent.memory.delete(item.id);
+    }
+  }
+}, 3600000);
+
+// 3. 使用更具体的搜索词
+const results = await agent.memory.search('用户偏好 颜色', 10);
+```
+
+## 网络问题
+
+### API 请求失败
+
+**问题**：LLM API 请求失败
+
+**解决方案**：
+
+```typescript
+import { OpenAIProvider } from '@sdkwork/browser-agent/llm';
+
+const llm = new OpenAIProvider({
+  apiKey: process.env.OPENAI_API_KEY!,
+  model: 'gpt-4-turbo-preview',
+  // 配置重试
+  maxRetries: 3,
+  retryDelay: 1000,
+  // 配置代理
+  httpAgent: new HttpsProxyAgent('http://proxy:8080')
+});
+```
+
+### 连接超时
+
+**问题**：网络连接超时
+
+**解决方案**：
+
+```typescript
+const llm = new OpenAIProvider({
+  apiKey: process.env.OPENAI_API_KEY!,
+  model: 'gpt-4-turbo-preview',
+  timeout: 60000, // 60秒
+  // 配置超时重试
+  maxRetries: 3
+});
+```
+
+## 调试技巧
+
+### 启用调试日志
 
 ```typescript
 agent.on('*', (event) => {
-  console.log('Event:', event.type, event.payload);
+  console.log(`[${event.type}]`, JSON.stringify(event.payload, null, 2));
 });
 ```
 
 ### 检查 Agent 状态
 
 ```typescript
-console.log('Agent ID:', agent.id);
-console.log('Agent State:', agent.state);
-console.log('Registered Skills:', agent.skills.list().map(s => s.id));
-console.log('Registered Tools:', agent.tools.list().map(t => t.id));
+import { AgentState } from '@sdkwork/browser-agent';
+
+console.log('Agent state:', agent.state);
+
+if (agent.state === AgentState.ERROR) {
+  await agent.reset();
+}
 ```
+
+### 错误堆栈
+
+```typescript
+agent.on('agent:error', (event) => {
+  console.error('Error:', event.payload.error.message);
+  console.error('Stack:', event.payload.error.stack);
+});
+```
+
+## 常见错误码
+
+| 错误码 | 说明 | 解决方案 |
+|--------|------|----------|
+| `INVALID_API_KEY` | API Key 无效 | 检查 API Key 配置 |
+| `MODEL_NOT_FOUND` | 模型不存在 | 检查模型名称 |
+| `RATE_LIMITED` | 请求频率限制 | 降低请求频率 |
+| `NETWORK_ERROR` | 网络错误 | 检查网络连接 |
+| `TIMEOUT` | 请求超时 | 增加超时时间 |
+| `SKILL_NOT_FOUND` | Skill 不存在 | 检查 Skill ID |
+| `TOOL_NOT_FOUND` | Tool 不存在 | 检查 Tool ID |
+| `EXECUTION_ERROR` | 执行错误 | 检查脚本语法 |
 
 ## 获取帮助
 
-如果以上解决方案无法解决你的问题：
+- [GitHub Issues](https://github.com/sdkwork/browser-agent/issues)
+- [文档](https://sdkwork.github.io/browser-agent/)
+- [示例代码](../examples/basic.md)
 
-1. **查看文档**: [完整文档](https://sdkwork-agent.vercel.app)
-2. **GitHub Issues**: [提交问题](https://github.com/Sdkwork-Cloud/sdkwork-agent/issues)
-3. **社区讨论**: [GitHub Discussions](https://github.com/Sdkwork-Cloud/sdkwork-agent/discussions)
+## 相关文档
 
-## 报告问题
-
-报告问题时请提供：
-
-1. SDKWork Agent 版本
-2. Node.js 版本
-3. 操作系统
-4. 错误信息和堆栈跟踪
-5. 复现步骤
-6. 最小代码示例
+- [性能优化](./performance.md) - 性能优化指南
+- [核心概念](./concepts.md) - 核心概念介绍

@@ -1,28 +1,19 @@
 # Skill API
 
-Skill 是可执行的代码单元，支持多语言脚本和引用文件系统。
+Skill 是 SDKWork Browser Agent 的可执行代码单元，支持多语言脚本和引用文件。
 
-## defineSkill
+## Skill 定义
 
-定义一个新的 Skill。
-
-```typescript
-function defineSkill(config: SkillConfig): Skill
-```
-
-### SkillConfig
+### Skill 接口
 
 ```typescript
-interface SkillConfig {
+interface Skill {
   /** Skill ID */
   id: string;
-  
   /** Skill 名称 */
   name: string;
-  
   /** 描述 */
   description: string;
-  
   /** 版本 */
   version?: string;
   
@@ -34,42 +25,43 @@ interface SkillConfig {
   
   /** 输入 Schema */
   input?: JSONSchema;
-  
   /** 输出 Schema */
   output?: JSONSchema;
   
   /** 元数据 */
   meta?: Record<string, unknown>;
 }
+```
 
+### SkillScript
+
+```typescript
 interface SkillScript {
   /** 代码内容 */
   code: string;
-  
   /** 语言 */
-  lang: 'javascript' | 'typescript' | 'python' | 'bash' | 'shell';
-  
-  /** 入口函数，默认为 'main' */
+  lang: SkillLanguage;
+  /** 入口函数 */
   entry?: string;
-  
-  /** 依赖包 */
+  /** 依赖 */
   dependencies?: Record<string, string>;
 }
+```
 
-interface Reference {
-  /** 引用名称 */
-  name: string;
-  
-  /** 文件路径 */
-  path: string;
-  
-  /** 文件内容 */
-  content: string;
-  
-  /** 文件类型 */
-  type: 'code' | 'data' | 'template' | 'doc' | 'config';
-}
+### SkillLanguage
 
+```typescript
+type SkillLanguage = 
+  | 'javascript' 
+  | 'typescript' 
+  | 'python' 
+  | 'bash' 
+  | 'shell';
+```
+
+### JSONSchema
+
+```typescript
 interface JSONSchema {
   type: 'string' | 'number' | 'boolean' | 'object' | 'array';
   properties?: Record<string, JSONSchema>;
@@ -81,129 +73,128 @@ interface JSONSchema {
 }
 ```
 
-### 示例
+## 创建 Skill
+
+### 基础示例
 
 ```typescript
-import { defineSkill } from 'sdkwork-agent';
+import type { Skill } from '@sdkwork/browser-agent';
 
-// 基础 Skill
-const greetingSkill = defineSkill({
-  id: 'greeting',
-  name: 'Greeting',
-  description: 'Generate personalized greeting',
+const calculatorSkill: Skill = {
+  id: 'calculator',
+  name: 'Calculator',
+  description: 'Perform mathematical calculations',
   version: '1.0.0',
   script: {
     lang: 'typescript',
     code: `
       async function main() {
-        const name = $input.name || 'Guest';
-        return { message: 'Hello, ' + name };
+        const { a, b, operation } = $input;
+        let result;
+        
+        switch (operation) {
+          case 'add': result = a + b; break;
+          case 'subtract': result = a - b; break;
+          case 'multiply': result = a * b; break;
+          case 'divide': result = a / b; break;
+          default: throw new Error('Unknown operation');
+        }
+        
+        return { result, operation };
       }
     `,
-    entry: 'main'
+    entry: 'main',
   },
   input: {
     type: 'object',
     properties: {
-      name: { type: 'string', description: 'User name' }
-    }
+      a: { type: 'number', description: 'First number' },
+      b: { type: 'number', description: 'Second number' },
+      operation: { 
+        type: 'string', 
+        enum: ['add', 'subtract', 'multiply', 'divide'],
+        description: 'Operation to perform'
+      },
+    },
+    required: ['a', 'b', 'operation'],
   },
   output: {
     type: 'object',
     properties: {
-      message: { type: 'string' }
-    }
-  }
-});
+      result: { type: 'number' },
+      operation: { type: 'string' },
+    },
+  },
+};
+```
 
-// 带引用文件的 Skill
-const templateSkill = defineSkill({
-  id: 'email-generator',
-  name: 'Email Generator',
-  description: 'Generate email from template',
+### 使用引用文件
+
+```typescript
+import type { Skill, Reference } from '@sdkwork/browser-agent';
+
+const templateSkill: Skill = {
+  id: 'template-renderer',
+  name: 'Template Renderer',
+  description: 'Render templates with data',
+  version: '1.0.0',
   script: {
     lang: 'typescript',
     code: `
       async function main() {
-        const template = $references.template;
-        const data = $input.data;
+        const template = $ref('template');
+        const data = $input;
         
-        // 使用模板
-        let email = template;
+        // Simple template replacement
+        let result = template;
         for (const [key, value] of Object.entries(data)) {
-          email = email.replace(new RegExp('{{' + key + '}}', 'g'), value);
+          result = result.replace(new RegExp(\`{{\${key}}}\`, 'g'), String(value));
         }
         
-        return { email };
+        return { rendered: result };
       }
-    `
+    `,
+    entry: 'main',
   },
   references: [
     {
       name: 'template',
-      path: './email-template.txt',
-      content: 'Dear {{name}},\n\nThank you for your interest in {{product}}.',
-      type: 'template'
-    }
+      path: './templates/email.txt',
+      content: 'Hello {{name}}, welcome to {{company}}!',
+      type: 'template',
+    },
   ],
   input: {
     type: 'object',
     properties: {
-      data: { type: 'object' }
+      name: { type: 'string' },
+      company: { type: 'string' },
     },
-    required: ['data']
-  }
-});
-
-// Python Skill
-const pythonSkill = defineSkill({
-  id: 'data-analysis',
-  name: 'Data Analysis',
-  description: 'Analyze data using Python',
-  script: {
-    lang: 'python',
-    code: `
-      import json
-      
-      def main():
-          data = json.loads($input.json_data)
-          result = sum(data) / len(data)
-          return {"average": result}
-    `,
-    dependencies: {
-      'pandas': '^2.0.0'
-    }
-  }
-});
+    required: ['name', 'company'],
+  },
+};
 ```
 
-## Skill 注入 API
+## 注入 API
 
-在 Skill Script 中，可以通过 `$` 前缀访问 Agent 能力：
+在 Skill 脚本中可以使用以下注入 API：
 
 ### $input
 
-访问输入参数。
+输入数据对象。
 
 ```typescript
-const data = $input.data;
-const options = $input.options ?? {};
+const { a, b } = $input;
 ```
 
 ### $llm
 
-调用 LLM 进行推理。
+调用 LLM 服务。
 
 ```typescript
-// 简单调用
-const response = await $llm('Hello, how are you?');
-
-// 带选项
-const response = await $llm('Explain TypeScript', {
+const response = await $llm('Analyze this code', {
   model: 'gpt-4',
   temperature: 0.7,
-  maxTokens: 1000,
-  systemPrompt: 'You are a helpful assistant'
 });
 ```
 
@@ -212,11 +203,7 @@ const response = await $llm('Explain TypeScript', {
 调用 Tool。
 
 ```typescript
-// 调用 Tool
-const result = await $tool('file-read', { path: './data.txt' });
-
-// 使用结果
-const content = result.content;
+const fileContent = await $tool('file-read', { path: './data.txt' });
 ```
 
 ### $skill
@@ -229,194 +216,117 @@ const result = await $skill('math-calc', { expression: '2+2' });
 
 ### $memory
 
-操作记忆系统。
+内存操作。
 
 ```typescript
 // 存储
-await $memory.set('key', value);
-await $memory.set('user', { name: 'Alice', preferences: ['TS'] });
+await $memory.set('key', { data: 'value' });
 
-// 检索
+// 获取
 const value = await $memory.get('key');
-
-// 搜索
-const results = await $memory.search('programming', 5);
 
 // 删除
 await $memory.delete('key');
 
-// 清空
-await $memory.clear();
+// 搜索
+const results = await $memory.search('query', 10);
 ```
 
-### $references
+### $references / $ref
 
 访问引用文件。
 
 ```typescript
-// 读取引用文件
+// 通过对象访问
 const template = $references.template;
-const config = $references['config.json'];
 
-// 使用模板
-const output = template.replace('{{name}}', $input.name);
-```
-
-### $ref
-
-引用文件访问函数。
-
-```typescript
-const template = $ref('template');
+// 通过函数访问
+const data = $ref('data.json');
 ```
 
 ### $log
 
-日志记录。
+日志输出。
 
 ```typescript
-$log.debug('Debug message', { data });
 $log.info('Processing...');
-$log.warn('Warning: something might be wrong');
-$log.error('Error occurred', error);
-```
-
-### $context
-
-访问执行上下文。
-
-```typescript
-const executionId = $context.executionId;
-const agentId = $context.agentId;
-const sessionId = $context.sessionId;
+$log.debug('Debug info:', { data });
+$log.warn('Warning message');
+$log.error('Error occurred');
 ```
 
 ## SkillRegistry
 
-Skill 注册表，管理所有 Skill。
-
-### 接口
+### 注册 Skill
 
 ```typescript
-interface SkillRegistry {
-  /** 注册 Skill */
-  register(skill: Skill): void;
-  
-  /** 取消注册（按 ID） */
-  unregister(skillId: string): void;
-  
-  /** 获取 Skill（按 ID） */
-  get(skillId: string): Skill | undefined;
-  
-  /** 根据名称获取 */
-  getByName(name: string): Skill | undefined;
-  
-  /** 列出所有 */
-  list(): Skill[];
-  
-  /** 搜索 */
-  search(query: string): Skill[];
-  
-  /** 清空 */
-  clear(): void;
-}
+agent.skills.register(calculatorSkill);
 ```
 
-### 示例
+### 注销 Skill
 
 ```typescript
-// 注册 Skill
-agent.skills.register(greetingSkill);
+agent.skills.unregister('calculator');
+```
 
-// 获取 Skill（按 ID）
-const skill = agent.skills.get('greeting');
+### 获取 Skill
 
-// 根据名称获取
-const skillByName = agent.skills.getByName('Greeting');
+```typescript
+const skill = agent.skills.get('calculator');
+const skillByName = agent.skills.getByName('Calculator');
+```
 
-// 列出所有 Skills
+### 列出所有 Skill
+
+```typescript
 const skills = agent.skills.list();
-skills.forEach(skill => {
-  console.log(`${skill.id}: ${skill.name}`);
-});
-
-// 搜索
-const results = agent.skills.search('data');
-
-// 注销 Skill
-agent.skills.unregister('greeting');
-
-// 清空所有
-agent.skills.clear();
+skills.forEach(s => console.log(s.id, s.name));
 ```
 
-## SkillExecutor
-
-Skill 执行器接口。
+### 搜索 Skill
 
 ```typescript
-interface SkillExecutor {
-  /**
-   * 执行 Skill
-   */
-  execute(
-    skill: Skill, 
-    input: unknown, 
-    context: SkillExecutionContext
-  ): Promise<SkillResult>;
-  
-  /**
-   * 验证 Skill
-   */
-  validate(skill: Skill): ValidationResult;
-  
-  /**
-   * 中止执行
-   */
-  abort(executionId: string): void;
-}
+const results = agent.skills.search('math');
+```
 
-interface SkillExecutionContext {
-  /** 执行 ID */
-  executionId: string;
-  
-  /** Agent ID */
-  agentId: string;
-  
-  /** 会话 ID */
-  sessionId?: string;
-  
-  /** 父执行 ID（用于嵌套调用） */
-  parentExecutionId?: string;
-  
-  /** 输入数据 */
-  input: unknown;
-  
-  /** 引用文件映射 */
-  references: Record<string, string>;
-  
-  /** 日志 */
-  logger: SkillLogger;
-  
-  /** 中止信号 */
-  signal?: AbortSignal;
-  
-  /** 开始时间 */
-  startedAt: Date;
-}
+## 执行 Skill
 
+### 通过 Agent 执行
+
+```typescript
+const result = await agent.executeSkill('calculator', JSON.stringify({
+  a: 10,
+  b: 5,
+  operation: 'multiply',
+}));
+
+if (result.success) {
+  console.log('Result:', result.data);
+} else {
+  console.error('Error:', result.error);
+}
+```
+
+### SkillResult
+
+```typescript
 interface SkillResult {
+  /** 是否成功 */
   success: boolean;
+  /** 输出数据 */
   data?: unknown;
+  /** 错误信息 */
   error?: SkillError;
+  /** 执行元数据 */
   metadata?: SkillExecutionMeta;
 }
 
 interface SkillError {
+  code: string;
   message: string;
-  code?: string;
   skillId: string;
   stack?: string;
+  recoverable: boolean;
 }
 
 interface SkillExecutionMeta {
@@ -426,20 +336,7 @@ interface SkillExecutionMeta {
   startTime: number;
   endTime: number;
   duration: number;
-  resources?: {
-    memory?: number;
-    cpu?: number;
-  };
-}
-
-interface ValidationResult {
-  valid: boolean;
-  errors: ValidationError[];
-}
-
-interface ValidationError {
-  field: string;
-  message: string;
+  resources?: ResourceUsage;
 }
 ```
 
@@ -454,98 +351,85 @@ type SkillEventType =
   | 'skill:completed'
   | 'skill:failed'
   | 'skill:aborted';
-
-interface SkillEvent<T = unknown> {
-  type: SkillEventType;
-  timestamp: number;
-  payload: T;
-  skillId: string;
-  executionId?: string;
-}
 ```
 
-## 多语言支持
-
-### JavaScript
+## 完整示例
 
 ```typescript
-const jsSkill = defineSkill({
-  id: 'js-skill',
-  script: {
-    lang: 'javascript',
-    code: `
-      async function main() {
-        const result = await fetch($input.url);
-        return result.json();
-      }
-    `
-  }
-});
-```
+import { createAgent } from '@sdkwork/browser-agent';
+import { OpenAIProvider } from '@sdkwork/browser-agent/llm';
+import type { Skill } from '@sdkwork/browser-agent';
 
-### TypeScript
-
-```typescript
-const tsSkill = defineSkill({
-  id: 'ts-skill',
+// 定义 Skill
+const greetingSkill: Skill = {
+  id: 'greeting',
+  name: 'Greeting',
+  description: 'Generate personalized greeting',
+  version: '1.0.0',
   script: {
     lang: 'typescript',
     code: `
-      interface Input {
-        value: number;
+      async function main() {
+        const name = $input.name || 'Guest';
+        const hour = new Date().getHours();
+        
+        let greeting = 'Hello';
+        if (hour < 12) greeting = 'Good morning';
+        else if (hour < 18) greeting = 'Good afternoon';
+        else greeting = 'Good evening';
+        
+        return {
+          message: \`\${greeting}, \${name}!\`,
+          timestamp: Date.now()
+        };
       }
-      
-      async function main(): Promise<number> {
-        const input = $input as Input;
-        return input.value * 2;
-      }
-    `
-  }
-});
-```
-
-### Python
-
-```typescript
-const pythonSkill = defineSkill({
-  id: 'python-skill',
-  script: {
-    lang: 'python',
-    code: `
-      import json
-      
-      def main():
-          data = json.loads($input.json_data)
-          return {"processed": len(data)}
     `,
-    dependencies: {
-      'pandas': '^2.0.0'
-    }
-  }
-});
-```
+    entry: 'main',
+  },
+  input: {
+    type: 'object',
+    properties: {
+      name: { type: 'string', description: 'Name to greet' },
+    },
+  },
+  output: {
+    type: 'object',
+    properties: {
+      message: { type: 'string' },
+      timestamp: { type: 'number' },
+    },
+  },
+};
 
-### Bash
+async function main() {
+  const llm = new OpenAIProvider({
+    apiKey: process.env.OPENAI_API_KEY!,
+    model: 'gpt-4-turbo-preview',
+  });
 
-```typescript
-const bashSkill = defineSkill({
-  id: 'bash-skill',
-  script: {
-    lang: 'bash',
-    code: `
-      #!/bin/bash
-      echo "Processing..."
-      ls -la $input.directory
-    `
-  }
-});
+  const agent = createAgent(llm, {
+    name: 'SkillAgent',
+    skills: [greetingSkill],
+  });
+
+  await agent.initialize();
+
+  const result = await agent.executeSkill('greeting', JSON.stringify({
+    name: 'Alice',
+  }));
+
+  console.log(result.data);
+
+  await agent.destroy();
+}
+
+main().catch(console.error);
 ```
 
 ## 最佳实践
 
-1. **明确的输入输出 Schema** - 定义清晰的 input/output Schema
-2. **合理的超时设置** - 根据操作复杂度设置 timeout
-3. **错误处理** - 在 Skill 中使用 try-catch
-4. **日志记录** - 使用 `$log` 记录关键步骤
-5. **版本管理** - 为 Skill 设置 version
-6. **引用文件** - 将模板、配置分离到 references
+1. **清晰的描述** - 提供详细的 description 帮助 AI 理解
+2. **完整的 Schema** - 定义 input 和 output Schema
+3. **错误处理** - 在脚本中处理可能的错误
+4. **版本管理** - 使用 version 字段跟踪变更
+5. **引用文件** - 使用 references 管理模板和数据

@@ -1,248 +1,222 @@
-# 架构总览
+# 架构概览
 
-SDKWork Agent 采用分层架构设计，结合 DDD（领域驱动设计）和微内核架构，实现高内聚、低耦合的系统结构。
+SDKWork Browser Agent 采用领域驱动设计（DDD）和微内核架构，提供高度可扩展的智能体框架。
 
 ## 架构图
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                        SDKWork Agent                             │
-├─────────────────────────────────────────────────────────────────┤
-│                      Application Layer                           │
-│  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐            │
-│  │  AgentImpl   │ │SkillExecutor │ │ToolExecutor  │            │
-│  │  (应用服务)   │ │  (Skill执行)  │ │  (Tool执行)  │            │
-│  └──────────────┘ └──────────────┘ └──────────────┘            │
-│  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐            │
-│  │ MCPManager   │ │PluginManager │ │ExecutionEngine│            │
-│  │  (MCP管理)   │ │  (插件管理)   │ │  (执行引擎)   │            │
-│  └──────────────┘ └──────────────┘ └──────────────┘            │
-├─────────────────────────────────────────────────────────────────┤
-│                        Domain Layer                              │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐          │
-│  │  Agent   │ │  Skill   │ │   Tool   │ │   MCP    │          │
-│  │ (聚合根)  │ │  (实体)  │ │  (实体)  │ │ (实体)   │          │
-│  └──────────┘ └──────────┘ └──────────┘ └──────────┘          │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐          │
-│  │  Plugin  │ │  Memory  │ │Execution │ │  Events  │          │
-│  │  (实体)  │ │  (实体)  │ │ (值对象)  │ │ (领域事件)│          │
-│  └──────────┘ └──────────┘ └──────────┘ └──────────┘          │
-├─────────────────────────────────────────────────────────────────┤
-│                     Infrastructure Layer                         │
-│  ┌─────────────────────────────────────────────────────────┐   │
-│  │                   Microkernel Core                       │   │
-│  │  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐    │   │
-│  │  │ LLM Service  │ │Skill Service │ │Tool Service  │    │   │
-│  │  │ (LLM提供者)  │ │ (Skill注册)  │ │ (Tool注册)   │    │   │
-│  │  └──────────────┘ └──────────────┘ └──────────────┘    │   │
-│  │  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐    │   │
-│  │  │Memory Service│ │Event Service │ │Logger Service│    │   │
-│  │  │ (记忆存储)   │ │ (事件总线)   │ │ (日志服务)   │    │   │
-│  │  └──────────────┘ └──────────────┘ └──────────────┘    │   │
-│  └─────────────────────────────────────────────────────────┘   │
-├─────────────────────────────────────────────────────────────────┤
-│                     External Services                            │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐          │
-│  │  OpenAI  │ │Anthropic │ │  Google  │ │  Others  │          │
-│  └──────────┘ └──────────┘ └──────────┘ └──────────┘          │
-└─────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│                           Application Layer                          │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐ │
+│  │    Agent    │  │     TUI     │  │     CLI     │  │   Examples  │ │
+│  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘ │
+├─────────────────────────────────────────────────────────────────────┤
+│                           Domain Layer                               │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐ │
+│  │    Skill    │  │    Tool     │  │   Memory    │  │  Execution  │ │
+│  │  Aggregate  │  │  Aggregate  │  │  Aggregate  │  │   Engine    │ │
+│  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘ │
+├─────────────────────────────────────────────────────────────────────┤
+│                         Infrastructure Layer                         │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐ │
+│  │ LLM Provider│  │   Storage   │  │   Event     │  │   Plugin    │ │
+│  │   Adapter   │  │   Adapter   │  │   System    │  │   System    │ │
+│  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘ │
+├─────────────────────────────────────────────────────────────────────┤
+│                           Core Layer                                 │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐ │
+│  │    Types    │  │   Errors    │  │   Events    │  │   Utils     │ │
+│  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘ │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
-## 分层说明
+## 核心模块
 
-### Domain Layer（领域层）
+### 1. Agent 模块
 
-领域层是系统的核心，包含业务逻辑和领域模型：
-
-- **实体（Entities）**: 具有唯一标识的对象
-  - `Agent`: 智能代理聚合根
-  - `Skill`: 可执行技能
-  - `Tool`: 原子工具
-  - `MCP`: MCP 连接
-  - `Plugin`: 插件
-  - `Memory`: 记忆单元
-
-- **值对象（Value Objects）**: 无唯一标识的对象
-  - `ExecutionPlan`: 执行计划
-  - `ChatRequest`: 对话请求
-  - `ChatResponse`: 对话响应
-
-- **领域服务（Domain Services）**: 跨实体的业务逻辑
-  - `ExecutionEngine`: 执行引擎
-  - `EventEmitter`: 事件发射器
-
-- **领域事件（Domain Events）**: 业务发生的事件
-  - `AgentInitialized`: Agent 初始化完成
-  - `ChatCompleted`: 对话完成
-  - `SkillExecuted`: Skill 执行完成
-
-### Application Layer（应用层）
-
-应用层负责编排领域对象完成用例：
-
-- **应用服务**: 实现用例，协调领域对象
-  - `AgentImpl`: Agent 实现
-  - `SkillExecutor`: Skill 执行器
-  - `ToolExecutor`: Tool 执行器
-
-- **用例实现**: 具体的业务用例
-  - `ChatUseCase`: 对话用例
-  - `ExecuteSkillUseCase`: 执行 Skill 用例
-  - `ExecuteToolUseCase`: 执行 Tool 用例
-
-### Infrastructure Layer（基础设施层）
-
-基础设施层提供技术实现：
-
-- **微内核（Microkernel）**: 服务管理核心
-  - 服务注册与发现
-  - 依赖注入
-  - 生命周期管理
-  - 事件总线
-
-- **LLM Provider**: 大语言模型提供者
-  - OpenAI Provider
-  - Anthropic Provider
-  - Google Provider
-  - 其他 Provider
-
-- **存储实现**: 数据持久化
-  - Memory Store 实现
-  - 缓存实现
-
-## 微内核架构
-
-微内核架构是 SDKWork Agent 的核心设计：
-
-### 核心原则
-
-1. **最小核心**: 内核只提供最基础的服务管理能力
-2. **插件化扩展**: 所有功能通过服务插件实现
-3. **依赖注入**: 服务间通过依赖注入解耦
-4. **生命周期管理**: 统一的服务生命周期管理
-
-### 服务接口
+Agent 是框架的核心智能体实现，负责协调所有组件：
 
 ```typescript
-interface Service {
-  id: string;
-  version: string;
-  dependencies: string[];
+// src/agent/agent.ts
+export class AgentImpl implements Agent {
+  readonly id: AgentId;
+  readonly name: string;
+  readonly description?: string;
   
-  initialize(): Promise<void>;
-  destroy(): Promise<void>;
-  pause?(): Promise<void>;
-  resume?(): Promise<void>;
+  private _state: AgentState = AgentState.IDLE;
+  readonly llm: LLMProvider;
+  readonly skills: SkillRegistry;
+  readonly tools: ToolRegistry;
+  readonly memory: MemoryStore;
+  readonly execution: ExecutionEngine;
+  
+  async initialize(): Promise<void>;
+  async destroy(): Promise<void>;
+  async chat(request: ChatRequest): Promise<ChatResponse>;
+  async *chatStream(request: ChatRequest): AsyncGenerator<ChatStreamChunk>;
+  async executeSkill(skillId: string, input: string): Promise<SkillResult>;
+  async executeTool(toolId: string, input: string): Promise<ToolResult>;
 }
 ```
 
-### 服务注册
+### 2. Skill 模块
+
+Skill 是可执行的代码单元，支持多语言脚本：
 
 ```typescript
-kernel.registerService({
-  id: 'llm-service',
-  version: '1.0.0',
-  dependencies: [],
-  async initialize() {
-    // 初始化 LLM 服务
-  },
-  async destroy() {
-    // 清理资源
-  }
-});
-```
-
-## 数据流
-
-### 对话流程
-
-```
-用户输入 → Agent.chat() → LLM Provider → 生成响应 → 返回给用户
-                ↓
-         触发事件(chat:started)
-                ↓
-         执行 Skill/Tool(如果需要)
-                ↓
-         触发事件(chat:completed)
-```
-
-### Skill 执行流程
-
-```
-调用 Skill → 准备上下文 → 注入依赖($llm, $tool, $memory)
-                ↓
-         执行脚本代码
-                ↓
-         验证输出 → 返回结果
-```
-
-### Tool 执行流程
-
-```
-调用 Tool → 检查确认级别 → 用户确认(如果需要)
-                ↓
-         执行 Tool 逻辑
-                ↓
-         记录日志 → 返回结果
-```
-
-## 扩展点
-
-SDKWork Agent 提供多个扩展点：
-
-### 1. 自定义 LLM Provider
-
-```typescript
-class CustomProvider implements LLMProvider {
-  async complete(params: CompletionParams): Promise<CompletionResult> {
-    // 自定义实现
-  }
+// src/skills/types.ts
+interface Skill {
+  id: string;
+  name: string;
+  description: string;
+  version?: string;
+  script: SkillScript;
+  references?: Reference[];
+  input?: JSONSchema;
+  output?: JSONSchema;
 }
 ```
 
-### 2. 自定义 Skill
+### 3. Tool 模块
+
+Tool 是原子操作单元，提供基础能力：
 
 ```typescript
-const customSkill = defineSkill({
-  id: 'custom-skill',
-  script: {
-    lang: 'typescript',
-    code: `async function main() { /* ... */ }`
-  }
-});
+// src/tools/types.ts
+interface Tool {
+  id: string;
+  name: string;
+  description: string;
+  category: ToolCategory;
+  confirm: ConfirmLevel;
+  input?: JSONSchema;
+  output?: JSONSchema;
+  execute: (input: unknown, context: ExecutionContext) => Promise<ToolResult>;
+}
 ```
 
-### 3. 自定义 Tool
+### 4. Memory 模块
+
+Memory 提供记忆存储和检索能力：
 
 ```typescript
-const customTool = defineTool({
-  id: 'custom-tool',
-  execute: async (input, context) => {
-    // 自定义实现
-  }
-});
+// src/memory/types.ts
+interface MemoryStore {
+  store(item: Omit<MemoryItem, 'id'>): Promise<string>;
+  retrieve(id: string): Promise<MemoryItem | null>;
+  search(query: string, limit?: number): Promise<MemoryItem[]>;
+  delete(id: string): Promise<void>;
+  clear(): Promise<void>;
+}
 ```
 
-### 4. 自定义 Plugin
+### 5. Execution 模块
+
+Execution Engine 负责执行 Skill 和 Tool：
 
 ```typescript
-const customPlugin: Plugin = {
-  id: 'custom-plugin',
-  async activate(context) {
-    // 插件激活逻辑
-  }
-};
+// src/execution/engine.ts
+interface ExecutionEngine {
+  executeSkill(skill: Skill, input: unknown): Promise<SkillResult>;
+  executeTool(tool: Tool, input: unknown): Promise<ToolResult>;
+  createContext(): ExecutionContext;
+}
+```
+
+## 目录结构
+
+```
+src/
+├── core/                    # 核心层
+│   ├── types.ts            # 类型定义
+│   ├── errors.ts           # 错误类型
+│   ├── events.ts           # 事件系统
+│   └── utils.ts            # 工具函数
+│
+├── agent/                   # Agent 模块
+│   ├── agent.ts            # Agent 实现
+│   ├── registry.ts         # 注册表
+│   └── session.ts          # 会话管理
+│
+├── skills/                  # Skill 模块
+│   ├── types.ts            # 类型定义
+│   ├── registry.ts         # Skill 注册表
+│   └── executor.ts         # Skill 执行器
+│
+├── tools/                   # Tool 模块
+│   ├── types.ts            # 类型定义
+│   ├── registry.ts         # Tool 注册表
+│   └── executor.ts         # Tool 执行器
+│
+├── memory/                  # Memory 模块
+│   ├── types.ts            # 类型定义
+│   ├── store.ts            # 内存存储
+│   └── algorithms/         # 记忆算法
+│
+├── execution/               # Execution 模块
+│   ├── engine.ts           # 执行引擎
+│   ├── context.ts          # 执行上下文
+│   └── sandbox.ts          # 沙箱环境
+│
+├── llm/                     # LLM 提供者
+│   ├── types.ts            # 类型定义
+│   ├── openai.ts           # OpenAI
+│   ├── anthropic.ts        # Anthropic
+│   ├── gemini.ts           # Google Gemini
+│   └── ...                 # 其他提供者
+│
+├── plugin/                  # 插件系统
+│   ├── types.ts            # 类型定义
+│   ├── manager.ts          # 插件管理器
+│   └── loader.ts           # 插件加载器
+│
+├── mcp/                     # MCP 协议
+│   ├── types.ts            # 类型定义
+│   ├── client.ts           # MCP 客户端
+│   └── transport/          # 传输层
+│
+├── algorithms/              # 算法模块
+│   ├── reasoning/          # 推理算法
+│   ├── planning/           # 规划算法
+│   └── memory/             # 记忆算法
+│
+├── tui/                     # TUI 界面
+│   ├── index.ts            # 入口
+│   ├── renderer.ts         # 渲染器
+│   ├── components/         # 组件
+│   └── themes/             # 主题
+│
+└── index.ts                 # 主入口
 ```
 
 ## 设计原则
 
-1. **单一职责**: 每个模块只负责一个功能
-2. **开闭原则**: 对扩展开放，对修改关闭
-3. **依赖倒置**: 依赖抽象，不依赖具体实现
-4. **接口隔离**: 客户端不依赖不需要的接口
-5. **里氏替换**: 子类可以替换父类
+### 1. 领域驱动设计（DDD）
+
+- **聚合根**：Agent 是聚合根，协调 Skill、Tool、Memory 等实体
+- **值对象**：ChatMessage、SkillResult 等是不可变值对象
+- **领域服务**：ExecutionEngine 是领域服务
+- **仓储模式**：SkillRegistry、ToolRegistry 实现仓储模式
+
+### 2. 微内核架构
+
+- **核心系统**：Agent、Event、Types 构成最小核心
+- **插件系统**：Skill、Tool、Plugin 是可插拔扩展
+- **扩展点**：通过接口定义扩展点
+
+### 3. 事件驱动
+
+- 所有操作都产生事件
+- 组件间通过事件通信
+- 支持事件溯源
+
+### 4. 依赖注入
+
+- 通过构造函数注入依赖
+- 支持依赖替换和模拟
 
 ## 相关文档
 
-- [DDD 分层架构](./ddd.md) - 深入了解 DDD 实现
-- [微内核架构](./microkernel.md) - 深入了解微内核设计
+- [DDD 架构](./ddd.md) - 领域驱动设计详解
+- [微内核架构](./microkernel.md) - 微内核设计详解
+- [React 架构](./react.md) - React 风格的状态管理

@@ -188,9 +188,25 @@ export class NodeSecureSandbox extends SecureSandbox {
         : this.vmContext!;
 
       // 执行脚本
-      const result = script.runInContext(executionContext, {
+      let result = script.runInContext(executionContext, {
         timeout: this.nodeConfig.timeout,
       });
+
+      // 处理异步结果 - 使用更可靠的方式检测 Promise
+      // 注意：vm 上下文中的 Promise 可能不是主上下文的 Promise 实例
+      if (result !== null && typeof result === 'object' && typeof (result as Record<string, unknown>).then === 'function') {
+        // 创建带清理的超时 Promise
+        let timeoutId: ReturnType<typeof setTimeout>;
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          timeoutId = setTimeout(() => reject(new Error('Script execution timed out')), this.nodeConfig.timeout);
+        });
+
+        try {
+          result = await Promise.race([result as Promise<unknown>, timeoutPromise]);
+        } finally {
+          clearTimeout(timeoutId!);
+        }
+      }
 
       // 计算执行指标
       const executionTime = Date.now() - startTime;

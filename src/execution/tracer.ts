@@ -9,6 +9,9 @@
  */
 
 import type { Executable, ExecutionResult } from './index.js';
+import { getLogger } from '../utils/logger.js';
+
+const logger = getLogger('execution');
 
 export interface ExecutionTrace {
   executionId: string;
@@ -136,7 +139,7 @@ export class ExecutionTracer {
     }
 
     if (expiredIds.length > 0) {
-      console.log(`ExecutionTracer: Cleaned up ${expiredIds.length} expired traces`);
+      logger.debug(`Cleaned up expired traces`, { count: expiredIds.length });
     }
   }
 

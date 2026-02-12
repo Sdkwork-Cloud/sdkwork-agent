@@ -235,8 +235,11 @@ export class OpenAIProvider implements LLMProvider {
 
   private parseStreamChunk(data: Record<string, unknown>): LLMStreamChunk {
     const choice = (data.choices as Record<string, unknown>[])[0];
-    const delta = choice.delta as Record<string, unknown>;
+    const delta = choice?.delta as Record<string, unknown> || {};
 
+    // 解析 usage (OpenAI 在最后一个 chunk 中返回 usage)
+    const usage = data.usage as Record<string, unknown> | undefined;
+    
     return {
       id: data.id as string,
       model: data.model as string,
@@ -245,7 +248,12 @@ export class OpenAIProvider implements LLMProvider {
         role: delta.role as 'assistant' | undefined,
         tool_calls: delta.tool_calls as LLMStreamChunk['delta']['tool_calls'],
       },
-      finish_reason: choice.finish_reason as LLMStreamChunk['finish_reason'],
+      finish_reason: choice?.finish_reason as LLMStreamChunk['finish_reason'],
+      usage: usage ? {
+        prompt_tokens: usage.prompt_tokens as number || 0,
+        completion_tokens: usage.completion_tokens as number || 0,
+        total_tokens: usage.total_tokens as number || 0,
+      } : undefined,
     };
   }
 }

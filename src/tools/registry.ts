@@ -92,6 +92,20 @@ export class ToolRegistry implements IToolRegistry {
     this.categories.clear();
   }
 
+  /**
+   * 销毁注册表，清理所有资源
+   */
+  async destroy(): Promise<void> {
+    // 销毁所有插件
+    for (const pluginName of Array.from(this.plugins.keys())) {
+      await this.unloadPlugin(pluginName);
+    }
+
+    // 清理所有 Map
+    this.clear();
+    this.plugins.clear();
+  }
+
   // ============================================================================
   // Plugin Management
   // ============================================================================
@@ -170,20 +184,28 @@ export class ToolRegistry implements IToolRegistry {
 
         // 创建带超时的执行
         const executePromise = tool.execute(input, context);
+        
+        // 创建带清理的超时 Promise
+        let timeoutId: ReturnType<typeof setTimeout>;
         const timeoutPromise = new Promise<never>((_, reject) => {
-          setTimeout(() => reject(new Error(`Tool execution timeout after ${timeout}ms`)), timeout);
+          timeoutId = setTimeout(() => reject(new Error(`Tool execution timeout after ${timeout}ms`)), timeout);
         });
 
-        const result = await Promise.race([executePromise, timeoutPromise]);
-
-        return {
-          ...result,
-          metadata: {
-            ...result.metadata,
-            duration: Date.now() - startTime,
-            attempts: attempt + 1,
-          },
-        };
+        try {
+          const result = await Promise.race([executePromise, timeoutPromise]);
+          clearTimeout(timeoutId!);
+          return {
+            ...result,
+            metadata: {
+              ...result.metadata,
+              duration: Date.now() - startTime,
+              attempts: attempt + 1,
+            },
+          };
+        } catch (raceError) {
+          clearTimeout(timeoutId!);
+          throw raceError;
+        }
       } catch (error) {
         lastError = error as Error;
 

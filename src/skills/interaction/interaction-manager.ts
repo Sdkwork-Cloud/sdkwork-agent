@@ -179,6 +179,8 @@ export interface InteractionSession {
     content: string;
     timestamp: Date;
   }>;
+  /** 内部标记：会话是否正在处理中 */
+  _processing?: boolean;
 }
 
 // ============================================================================
@@ -385,15 +387,15 @@ export class OptimizedSkillInteractionManager extends EventEmitter {
     }
 
     // 检查会话是否正在被处理（简单的并发控制）
-    if ((session as any)._processing) {
+    if (session._processing) {
       throw new Error('Session is already processing a request. Please wait.');
     }
 
     try {
-      (session as any)._processing = true;
+      session._processing = true;
       return await this.processInputWithSession(session, input);
     } finally {
-      (session as any)._processing = false;
+      session._processing = false;
     }
   }
 
@@ -1315,6 +1317,19 @@ export class OptimizedSkillInteractionManager extends EventEmitter {
         .reduce((sum, s) => sum + s.turnCount, 0),
       recoveryStats: this.errorRecoveryManager.getRecoveryStats(),
     };
+  }
+
+  /**
+   * 销毁管理器并清理所有资源
+   */
+  async destroy(): Promise<void> {
+    const sessionIds = Array.from(this.sessions.keys());
+    for (const id of sessionIds) {
+      await this.closeSession(id);
+    }
+    this.sessions.clear();
+    this.removeAllListeners();
+    logger.info('OptimizedSkillInteractionManager destroyed');
   }
 }
 

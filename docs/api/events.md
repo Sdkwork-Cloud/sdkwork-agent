@@ -1,351 +1,352 @@
 # Events API
 
-SDKWork 提供完整的事件系统，支持可观测性和异步处理。
+Events 是 SDKWork Browser Agent 的事件系统，提供组件间的松耦合通信。
 
-## 事件类型
+## 事件系统
 
-### 生命周期事件
-
-| 事件 | 描述 | 载荷 |
-|------|------|------|
-| `agent:initialized` | Agent 初始化完成 | `{ agentId, timestamp }` |
-| `agent:started` | Agent 启动完成 | `{ agentId, timestamp, capabilities }` |
-| `agent:stopped` | Agent 停止 | `{ agentId, timestamp }` |
-| `agent:destroyed` | Agent 销毁 | `{ agentId, timestamp }` |
-| `agent:error` | Agent 发生错误 | `{ agentId, timestamp, error, stack }` |
-| `agent:reset` | Agent 重置 | `{ agentId, timestamp }` |
-
-### 对话事件
-
-| 事件 | 描述 | 载荷 |
-|------|------|------|
-| `chat:started` | 对话开始 | `{ executionId, sessionId, messageCount, timestamp }` |
-| `chat:message` | 新消息 | `{ message, timestamp }` |
-| `chat:stream` | 流式块 | `{ chunk, timestamp }` |
-| `chat:completed` | 对话完成 | `{ executionId, sessionId, timestamp, tokenUsage }` |
-| `chat:aborted` | 对话中止 | `{ executionId, sessionId, timestamp }` |
-| `chat:error` | 对话错误 | `{ executionId, sessionId, timestamp, error }` |
-
-### 执行事件
-
-| 事件 | 描述 | 载荷 |
-|------|------|------|
-| `execution:started` | 执行开始 | `{ executionId, type, timestamp }` |
-| `execution:step` | 执行步骤 | `{ step, data, timestamp }` |
-| `execution:progress` | 执行进度 | `{ executionId, progress, timestamp }` |
-| `execution:completed` | 执行完成 | `{ executionId, type, timestamp, duration }` |
-| `execution:failed` | 执行失败 | `{ executionId, type, timestamp, error }` |
-
-### Skill 事件
-
-| 事件 | 描述 | 载荷 |
-|------|------|------|
-| `skill:invoking` | Skill 调用中 | `{ executionId, skillId, timestamp }` |
-| `skill:invoked` | Skill 调用完成 | `{ executionId, skillId, timestamp }` |
-| `skill:completed` | Skill 执行完成 | `{ executionId, skillId, timestamp, duration, success }` |
-| `skill:failed` | Skill 执行错误 | `{ executionId, skillId, timestamp, error }` |
-
-### Tool 事件
-
-| 事件 | 描述 | 载荷 |
-|------|------|------|
-| `tool:invoking` | Tool 调用中 | `{ executionId, toolId, timestamp, input }` |
-| `tool:invoked` | Tool 调用完成 | `{ executionId, toolId, timestamp, duration, success }` |
-| `tool:completed` | Tool 执行完成 | `{ executionId, toolId, timestamp, success }` |
-| `tool:failed` | Tool 调用错误 | `{ executionId, toolId, timestamp, error }` |
-
-### 记忆事件
-
-| 事件 | 描述 | 载荷 |
-|------|------|------|
-| `memory:stored` | 记忆存储 | `{ memoryId, timestamp }` |
-| `memory:retrieved` | 记忆检索 | `{ memoryId, timestamp }` |
-| `memory:searched` | 记忆搜索 | `{ query, results, timestamp }` |
-
-## 订阅事件
-
-### on
-
-订阅事件。
-
-```typescript
-on<T>(event: AgentEventType, handler: (event: AgentEvent<T>) => void): void
-```
-
-### 示例
-
-```typescript
-import { createAgent } from 'sdkwork-agent';
-import { OpenAIProvider } from 'sdkwork-agent/llm';
-
-const agent = createAgent({
-  name: 'EventAgent',
-  llm: openaiProvider
-});
-
-// 生命周期事件
-agent.on('agent:initialized', (event) => {
-  console.log('Agent initialized:', event.payload.agentId);
-});
-
-agent.on('agent:error', (event) => {
-  console.error('Agent error:', event.payload.error);
-});
-
-// 对话事件
-agent.on('chat:started', (event) => {
-  console.log('Chat started:', event.payload.executionId);
-});
-
-agent.on('chat:completed', (event) => {
-  console.log('Chat completed:', event.payload.duration + 'ms');
-  console.log('Token usage:', event.payload.tokenUsage);
-});
-
-// Skill 事件
-agent.on('skill:completed', (event) => {
-  console.log(`Skill ${event.payload.skillId} executed in ${event.payload.duration}ms`);
-});
-
-// Tool 事件
-agent.on('tool:completed', (event) => {
-  console.log(`Tool ${event.payload.toolId} invoked`);
-});
-```
-
-## 一次性事件
-
-### once
-
-只订阅一次事件。
-
-```typescript
-once<T>(event: AgentEventType, handler: (event: AgentEvent<T>) => void): void
-```
-
-**示例：**
-
-```typescript
-agent.once('agent:initialized', (event) => {
-  console.log('This will only fire once');
-});
-```
-
-## 取消订阅
-
-### off
-
-取消订阅事件。
-
-```typescript
-off<T>(event: AgentEventType, handler: (event: AgentEvent<T>) => void): void
-```
-
-**示例：**
-
-```typescript
-const handler = (event) => {
-  console.log('Event:', event);
-};
-
-agent.on('chat:completed', handler);
-
-// 稍后取消订阅
-agent.off('chat:completed', handler);
-```
-
-## 触发自定义事件
-
-### emit
-
-触发自定义事件。
-
-```typescript
-emit<T>(event: AgentEventType, payload: T): void
-```
-
-**示例：**
-
-```typescript
-agent.emit('custom:event', {
-  data: 'custom data',
-  timestamp: Date.now()
-});
-```
-
-## AgentEvent 结构
+### AgentEvent
 
 ```typescript
 interface AgentEvent<T = unknown> {
-  type: AgentEventType;
+  type: string;
   payload: T;
   timestamp: number;
-  metadata: {
-    agentId: string;
-    sessionId?: string;
-    executionId?: string;
-  };
+  metadata?: Record<string, unknown>;
 }
+```
 
+### 事件类型
+
+```typescript
 type AgentEventType =
-  // 生命周期事件
+  // Agent 生命周期事件
   | 'agent:initialized'
   | 'agent:started'
-  | 'agent:stopped'
   | 'agent:destroyed'
   | 'agent:error'
   | 'agent:reset'
-  // 对话事件
+  
+  // Chat 事件
   | 'chat:started'
-  | 'chat:message'
-  | 'chat:stream'
   | 'chat:completed'
-  | 'chat:aborted'
   | 'chat:error'
-  // 执行事件
-  | 'execution:started'
-  | 'execution:step'
-  | 'execution:progress'
-  | 'execution:completed'
-  | 'execution:failed'
-  // 工具事件
-  | 'tool:invoking'
-  | 'tool:invoked'
-  | 'tool:completed'
-  | 'tool:failed'
+  
   // Skill 事件
+  | 'skill:registered'
+  | 'skill:unregistered'
   | 'skill:invoking'
   | 'skill:invoked'
   | 'skill:completed'
   | 'skill:failed'
-  // 记忆事件
+  | 'skill:aborted'
+  
+  // Tool 事件
+  | 'tool:registered'
+  | 'tool:unregistered'
+  | 'tool:invoking'
+  | 'tool:invoked'
+  | 'tool:completed'
+  | 'tool:failed'
+  
+  // Execution 事件
+  | 'execution:started'
+  | 'execution:step'
+  | 'execution:completed'
+  | 'execution:failed'
+  
+  // Memory 事件
   | 'memory:stored'
   | 'memory:retrieved'
-  | 'memory:searched';
-```
-
-## 事件过滤
-
-```typescript
-// 只监听特定 Skill 的事件
-agent.on('skill:completed', (event) => {
-  if (event.payload.skillId === 'my-skill') {
-    // 处理
-  }
-});
-
-// 只监听特定会话的对话
-agent.on('chat:completed', (event) => {
-  if (event.payload.sessionId === 'my-session') {
-    // 处理
-  }
-});
-```
-
-## 异步事件处理
-
-```typescript
-agent.on('chat:completed', async (event) => {
-  // 异步保存对话历史
-  await saveToDatabase({
-    sessionId: event.payload.sessionId,
-    duration: event.payload.duration,
-    tokenUsage: event.payload.tokenUsage
-  });
-});
-```
-
-## 事件链
-
-```typescript
-// 记录执行链
-const executionChain = [];
-
-agent.on('execution:started', (event) => {
-  executionChain.push({
-    id: event.payload.executionId,
-    type: event.payload.type,
-    startTime: event.timestamp
-  });
-});
-
-agent.on('execution:completed', (event) => {
-  const execution = executionChain.find(e => e.id === event.payload.executionId);
-  if (execution) {
-    execution.endTime = event.timestamp;
-    execution.duration = event.payload.duration;
-  }
-});
-```
-
-## 性能监控
-
-```typescript
-// 监控执行时间
-const executionTimes = {};
-
-agent.on('execution:started', (event) => {
-  executionTimes[event.payload.executionId] = Date.now();
-});
-
-agent.on('execution:completed', (event) => {
-  const startTime = executionTimes[event.payload.executionId];
-  const actualDuration = Date.now() - startTime;
+  | 'memory:deleted'
+  | 'memory:cleared'
   
-  console.log(`Execution ${event.payload.executionId} took ${actualDuration}ms`);
+  // Plugin 事件
+  | 'plugin:loaded'
+  | 'plugin:unloaded'
   
-  // 慢查询警告
-  if (actualDuration > 5000) {
-    console.warn('Slow execution detected!');
-  }
-});
+  // MCP 事件
+  | 'mcp:connected'
+  | 'mcp:disconnected'
+  
+  // 通配符
+  | '*';
 ```
 
-## 错误追踪
+## 使用示例
+
+### 订阅事件
 
 ```typescript
-// 集中错误处理
-agent.on('agent:error', (event) => {
-  reportToErrorTracking({
-    agentId: event.payload.agentId,
-    error: event.payload.error,
-    stack: event.payload.stack,
-    timestamp: event.timestamp
-  });
+import { createAgent } from '@sdkwork/browser-agent';
+import { OpenAIProvider } from '@sdkwork/browser-agent/llm';
+
+const agent = createAgent(llm, { name: 'EventAgent' });
+
+// 订阅特定事件
+const unsubscribe = agent.on('chat:completed', (event) => {
+  console.log('Chat completed:', event.payload);
 });
 
-agent.on('skill:failed', (event) => {
-  reportToErrorTracking({
-    executionId: event.payload.executionId,
-    skillId: event.payload.skillId,
-    error: event.payload.error,
-    timestamp: event.timestamp
-  });
-});
-
-agent.on('tool:failed', (event) => {
-  reportToErrorTracking({
-    executionId: event.payload.executionId,
-    toolId: event.payload.toolId,
-    error: event.payload.error,
-    timestamp: event.timestamp
-  });
-});
+// 取消订阅
+unsubscribe();
 ```
 
-## 监听所有事件
+### 订阅所有事件
 
 ```typescript
-// 使用通配符监听所有事件
 agent.on('*', (event) => {
   console.log(`[${event.type}]`, event.payload);
 });
 ```
 
+### 事件负载
+
+#### agent:initialized
+
+```typescript
+{
+  agentId: string;
+  name: string;
+  timestamp: number;
+}
+```
+
+#### chat:completed
+
+```typescript
+{
+  agentId: string;
+  executionId: string;
+  duration: number;
+  tokenUsage: {
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+  };
+}
+```
+
+#### skill:completed
+
+```typescript
+{
+  agentId: string;
+  executionId: string;
+  skillId: string;
+  skillName: string;
+  duration: number;
+  success: boolean;
+}
+```
+
+#### tool:completed
+
+```typescript
+{
+  agentId: string;
+  executionId: string;
+  toolId: string;
+  toolName: string;
+  duration: number;
+  success: boolean;
+}
+```
+
+#### agent:error
+
+```typescript
+{
+  agentId: string;
+  error: {
+    code: string;
+    message: string;
+    stack?: string;
+    recoverable: boolean;
+  };
+}
+```
+
+## 完整示例
+
+```typescript
+import { createAgent } from '@sdkwork/browser-agent';
+import { OpenAIProvider } from '@sdkwork/browser-agent/llm';
+
+async function main() {
+  const llm = new OpenAIProvider({
+    apiKey: process.env.OPENAI_API_KEY!,
+    model: 'gpt-4-turbo-preview',
+  });
+
+  const agent = createAgent(llm, {
+    name: 'MonitoredAgent',
+    description: 'An agent with comprehensive event monitoring',
+  });
+
+  // Agent 生命周期事件
+  agent.on('agent:initialized', (event) => {
+    console.log('✓ Agent initialized:', event.payload.agentId);
+  });
+
+  agent.on('agent:destroyed', (event) => {
+    console.log('✗ Agent destroyed:', event.payload.agentId);
+  });
+
+  agent.on('agent:error', (event) => {
+    console.error('✗ Agent error:', event.payload.error);
+  });
+
+  // Chat 事件
+  agent.on('chat:started', (event) => {
+    console.log('→ Chat started:', event.payload.executionId);
+  });
+
+  agent.on('chat:completed', (event) => {
+    console.log('✓ Chat completed in', event.payload.duration, 'ms');
+    console.log('  Tokens:', event.payload.tokenUsage);
+  });
+
+  agent.on('chat:error', (event) => {
+    console.error('✗ Chat error:', event.payload.error);
+  });
+
+  // Skill 事件
+  agent.on('skill:invoking', (event) => {
+    console.log('→ Skill invoking:', event.payload.skillId);
+  });
+
+  agent.on('skill:completed', (event) => {
+    console.log('✓ Skill completed:', event.payload.skillName);
+  });
+
+  agent.on('skill:failed', (event) => {
+    console.error('✗ Skill failed:', event.payload.skillId, event.payload.error);
+  });
+
+  // Tool 事件
+  agent.on('tool:invoking', (event) => {
+    console.log('→ Tool invoking:', event.payload.toolId);
+  });
+
+  agent.on('tool:completed', (event) => {
+    console.log('✓ Tool completed:', event.payload.toolName);
+  });
+
+  agent.on('tool:failed', (event) => {
+    console.error('✗ Tool failed:', event.payload.toolId, event.payload.error);
+  });
+
+  // Memory 事件
+  agent.on('memory:stored', (event) => {
+    console.log('💾 Memory stored:', event.payload.id);
+  });
+
+  agent.on('memory:retrieved', (event) => {
+    console.log('📖 Memory retrieved:', event.payload.id);
+  });
+
+  await agent.initialize();
+
+  const response = await agent.chat({
+    messages: [
+      { id: '1', role: 'user', content: 'Hello!', timestamp: Date.now() }
+    ]
+  });
+
+  console.log('Response:', response.choices[0].message.content);
+
+  await agent.destroy();
+}
+
+main().catch(console.error);
+```
+
+## 事件日志
+
+### 创建事件日志器
+
+```typescript
+class EventLogger {
+  constructor(private agent: Agent) {
+    this.setupLogging();
+  }
+  
+  private setupLogging(): void {
+    this.agent.on('*', (event) => {
+      const timestamp = new Date(event.timestamp).toISOString();
+      console.log(`[${timestamp}] ${event.type}:`, event.payload);
+    });
+  }
+}
+
+const logger = new EventLogger(agent);
+```
+
+### 过滤事件
+
+```typescript
+agent.on('*', (event) => {
+  // 只记录错误事件
+  if (event.type.includes('error') || event.type.includes('failed')) {
+    console.error('Error event:', event);
+  }
+  
+  // 只记录性能事件
+  if (event.payload.duration !== undefined) {
+    console.log('Performance:', event.type, event.payload.duration, 'ms');
+  }
+});
+```
+
+## 事件溯源
+
+### 实现事件溯源
+
+```typescript
+interface EventStore {
+  append(event: AgentEvent): Promise<void>;
+  getEvents(aggregateId: string): Promise<AgentEvent[]>;
+  replay(aggregateId: string): Promise<void>;
+}
+
+class FileEventStore implements EventStore {
+  private events: AgentEvent[] = [];
+  
+  async append(event: AgentEvent): Promise<void> {
+    this.events.push(event);
+    await this.persist();
+  }
+  
+  async getEvents(aggregateId: string): Promise<AgentEvent[]> {
+    return this.events.filter(e => 
+      e.payload.agentId === aggregateId
+    );
+  }
+  
+  async replay(aggregateId: string): Promise<void> {
+    const events = await this.getEvents(aggregateId);
+    for (const event of events) {
+      // 重放事件
+      console.log('Replaying:', event.type);
+    }
+  }
+  
+  private async persist(): Promise<void> {
+    // 持久化事件
+  }
+}
+```
+
 ## 最佳实践
 
 1. **及时取消订阅** - 避免内存泄漏
-2. **错误处理** - 事件处理器中使用 try-catch
-3. **异步操作** - 长时间操作使用异步处理
-4. **事件过滤** - 只处理需要的事件
-5. **性能考虑** - 避免在事件处理器中执行耗时操作
+2. **错误处理** - 事件处理器中处理错误
+3. **异步处理** - 避免阻塞主流程
+4. **事件过滤** - 使用通配符时过滤事件
+5. **日志记录** - 记录关键事件用于调试
+
+## 相关文档
+
+- [核心概念](../guide/concepts.md) - 核心概念介绍
+- [Agent API](./agent.md) - Agent API 参考
+- [DDD 架构](../architecture/ddd.md) - 领域事件详解

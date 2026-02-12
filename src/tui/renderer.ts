@@ -391,18 +391,16 @@ export class TUIRenderer {
   private loading: LoadingIndicator;
   private progressBar: ProgressBar;
   private thinking: ThinkingDisplay;
-  private terminalWidth: number;
 
   constructor(theme: Theme = DEFAULT_THEME) {
     this.theme = theme;
     this.loading = new LoadingIndicator(theme);
     this.progressBar = new ProgressBar(theme);
     this.thinking = new ThinkingDisplay(theme);
-    this.terminalWidth = process.stdout.columns || 80;
   }
 
   getTerminalWidth(): number {
-    return this.terminalWidth;
+    return process.stdout.columns || 80;
   }
 
   // 基础输出
@@ -480,7 +478,7 @@ export class TUIRenderer {
 
   // 边框框
   box(content: string[], title?: string, style: 'single' | 'double' | 'rounded' = 'rounded'): void {
-    const width = Math.min(this.terminalWidth - 4, 76);
+    const width = Math.min(this.getTerminalWidth() - 4, 76);
     const chars = {
       single: { tl: '┌', tr: '┐', bl: '└', br: '┘', h: '─', v: '│', lt: '├', rt: '┤', tt: '┬', bt: '┴', x: '┼' },
       double: { tl: '╔', tr: '╗', bl: '╚', br: '╝', h: '═', v: '║', lt: '╠', rt: '╣', tt: '╦', bt: '╩', x: '╬' },
@@ -510,7 +508,7 @@ export class TUIRenderer {
 
   // 分隔线
   divider(label?: string, char: string = '─'): void {
-    const width = this.terminalWidth - 2;
+    const width = this.getTerminalWidth() - 2;
     if (label) {
       const labelWidth = label.length + 2;
       const leftWidth = Math.floor((width - labelWidth) / 2);
@@ -596,7 +594,7 @@ export class TUIRenderer {
 
   userMessage(content: string): void {
     const label = 'You';
-    const maxWidth = this.terminalWidth - 10;
+    const maxWidth = this.getTerminalWidth() - 10;
     const lines = this.wrapText(content, maxWidth);
 
     console.log(`${this.theme.userBubble}${ANSI.bold} ${label} ${ANSI.reset}`);
@@ -608,7 +606,7 @@ export class TUIRenderer {
 
   assistantMessage(content: string): void {
     const label = 'Assistant';
-    const maxWidth = this.terminalWidth - 10;
+    const maxWidth = this.getTerminalWidth() - 10;
     const lines = this.wrapText(content, maxWidth);
 
     console.log(`${this.theme.assistantBubble}${ANSI.bold} ${label} ${ANSI.reset}`);
@@ -662,7 +660,7 @@ export class TUIRenderer {
   // 错误框
   errorBox(title: string, message: string, hint?: string): void {
     this.newline();
-    const width = Math.min(this.terminalWidth - 4, 74);
+    const width = Math.min(this.getTerminalWidth() - 4, 74);
     const horizontal = '─'.repeat(width);
 
     console.log(this.theme.error + `╭${horizontal}╮` + ANSI.reset);
@@ -689,7 +687,7 @@ export class TUIRenderer {
   // 成功框
   successBox(title: string, message: string): void {
     this.newline();
-    const width = Math.min(this.terminalWidth - 4, 74);
+    const width = Math.min(this.getTerminalWidth() - 4, 74);
     const horizontal = '─'.repeat(width);
 
     console.log(this.theme.success + `╭${horizontal}╮` + ANSI.reset);
@@ -745,7 +743,7 @@ export class TUIRenderer {
   // 状态栏
   statusBar(left: string, right: string): void {
     const rightWidth = right.length + 2;
-    const leftWidth = this.terminalWidth - rightWidth - 2;
+    const leftWidth = this.getTerminalWidth() - rightWidth - 2;
     const leftPadded = left.slice(0, leftWidth).padEnd(leftWidth);
     console.log(`${ANSI.reverse}${leftPadded} ${right} ${ANSI.reset}`);
   }

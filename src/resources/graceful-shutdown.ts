@@ -189,15 +189,18 @@ export class GracefulShutdown {
   async isHealthy(): Promise<HealthStatus> {
     const results: Array<{ name: string; healthy: boolean }> = [];
 
-    this.healthChecks.forEach(async (healthCheck) => {
+    const checkPromises = Array.from(this.healthChecks.values()).map(async (healthCheck) => {
       try {
         const healthy = await healthCheck.check();
-        results.push({ name: healthCheck.name, healthy });
+        return { name: healthCheck.name, healthy };
       } catch (error) {
         this.logger.error(`Health check ${healthCheck.name} failed`, { error });
-        results.push({ name: healthCheck.name, healthy: false });
+        return { name: healthCheck.name, healthy: false };
       }
     });
+
+    const checkResults = await Promise.all(checkPromises);
+    results.push(...checkResults);
 
     const unhealthy = results.filter((r) => !r.healthy);
     const status = unhealthy.length === 0 ? 'healthy' : unhealthy.length > results.length / 2 ? 'unhealthy' : 'degraded';
