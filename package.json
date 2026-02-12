@@ -77,6 +77,8 @@
     "docs:build": "vitepress build docs",
     "docs:preview": "vitepress preview docs",
     "prepublishOnly": "npm run build",
+    "publish": "npm publish --registry https://registry.npmjs.org/",
+    "publish:beta": "npm publish --tag beta --registry https://registry.npmjs.org/",
     "verify": "npm run lint && npm run typecheck && npm run test && npm run build"
   },
   "keywords": [
