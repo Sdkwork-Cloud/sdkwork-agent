@@ -2,44 +2,42 @@
 
 本指南将帮助你在 5 分钟内上手 SDKWork Agent。
 
-## 环境要求
-
-- **Node.js**: >= 18.0.0
-- **TypeScript**: >= 5.0.0 (推荐)
-
 ## 安装
 
 ::: code-group
 
 ```bash [npm]
-npm install sdkwork-agent
+npm install @sdkwork/agent
 ```
 
 ```bash [yarn]
-yarn add sdkwork-agent
+yarn add @sdkwork/agent
 ```
 
 ```bash [pnpm]
-pnpm add sdkwork-agent
+pnpm add @sdkwork/agent
 ```
 
 :::
 
-## 第一个 Agent
+## 创建你的第一个 Agent
 
-创建一个简单的 AI 助手：
+### 1. 基础示例
 
 ```typescript
-import { createAgent } from 'sdkwork-agent';
-import { OpenAIProvider } from 'sdkwork-agent/llm';
+import { createAgent } from '@sdkwork/agent';
+import { OpenAIProvider } from '@sdkwork/agent/llm';
+
+// 创建 LLM Provider
+const openai = new OpenAIProvider({
+  apiKey: process.env.OPENAI_API_KEY,
+  model: 'gpt-4'
+});
 
 // 创建 Agent
-const agent = createAgent({
+const agent = createAgent(openai, {
   name: 'MyAssistant',
-  llm: new OpenAIProvider({
-    apiKey: process.env.OPENAI_API_KEY!,
-    model: 'gpt-4'
-  })
+  description: 'A helpful AI assistant'
 });
 
 // 初始化
@@ -48,7 +46,7 @@ await agent.initialize();
 // 对话
 const response = await agent.chat({
   messages: [
-    { role: 'user', content: '你好，请介绍一下自己' }
+    { role: 'user', content: 'Hello, who are you?' }
   ]
 });
 
@@ -58,252 +56,249 @@ console.log(response.choices[0].message.content);
 await agent.destroy();
 ```
 
-## 使用 Skill
-
-定义并执行一个自定义 Skill：
+### 2. 流式响应
 
 ```typescript
-import { defineSkill } from 'sdkwork-agent';
-
-// 定义 Skill
-const greetingSkill = defineSkill({
-  id: 'greeting',
-  name: 'Greeting Skill',
-  description: 'Generate personalized greeting',
-  script: {
-    lang: 'typescript',
-    code: `
-      async function main() {
-        const name = $input.name || 'Guest';
-        const language = $input.language || 'zh';
-        
-        const greetings = {
-          zh: \`你好，\${name}！欢迎使用 SDKWork Agent。\`,
-          en: \`Hello, \${name}! Welcome to SDKWork Agent.\`
-        };
-        
-        return {
-          greeting: greetings[language],
-          timestamp: Date.now()
-        };
-      }
-    `
-  },
-  input: {
-    type: 'object',
-    properties: {
-      name: { type: 'string' },
-      language: { type: 'string', enum: ['zh', 'en'] }
-    }
-  },
-  output: {
-    type: 'object',
-    properties: {
-      greeting: { type: 'string' },
-      timestamp: { type: 'number' }
-    }
-  }
-});
-
-// 注册 Skill
-agent.skills.register(greetingSkill);
-
-// 执行 Skill
-const result = await agent.executeSkill('greeting', JSON.stringify({
-  name: '张三',
-  language: 'zh'
-}));
-
-console.log(result.data.greeting);
-// 输出: 你好，张三！欢迎使用 SDKWork Agent。
-```
-
-## 使用 Tool
-
-定义并使用一个自定义 Tool：
-
-```typescript
-import { defineTool } from 'sdkwork-agent';
-
-// 定义 Tool
-const calculatorTool = defineTool({
-  id: 'calculator',
-  name: 'Calculator',
-  description: 'Perform basic calculations',
-  category: 'data',
-  confirm: 'none',
-  input: {
-    type: 'object',
-    properties: {
-      expression: { type: 'string', description: 'Math expression' }
-    },
-    required: ['expression']
-  },
-  output: {
-    type: 'object',
-    properties: {
-      result: { type: 'number' }
-    }
-  },
-  execute: async (input) => {
-    try {
-      // 注意：实际使用时应使用安全的计算库
-      const result = eval(input.expression);
-      return {
-        success: true,
-        data: { result }
-      };
-    } catch (error) {
-      return {
-        success: false,
-        error: { message: 'Invalid expression' }
-      };
-    }
-  }
-});
-
-// 注册 Tool
-agent.tools.register(calculatorTool);
-
-// 执行 Tool
-const result = await agent.executeTool('calculator', JSON.stringify({
-  expression: '2 + 2 * 3'
-}));
-
-console.log(result.data.result); // 8
-```
-
-## 流式对话
-
-实现打字机效果的流式输出：
-
-```typescript
-// 流式对话
 const stream = agent.chatStream({
-  messages: [
-    { role: 'user', content: '讲一个短故事' }
-  ]
+  messages: [{ role: 'user', content: 'Tell me a story' }]
 });
 
-// 实时输出
 for await (const chunk of stream) {
-  const content = chunk.choices[0].delta.content;
+  const content = chunk.choices[0]?.delta?.content;
   if (content) {
     process.stdout.write(content);
-    // 模拟打字延迟
-    await new Promise(resolve => setTimeout(resolve, 50));
   }
 }
+```
 
-console.log('\n\n[故事结束]');
+### 3. 带记忆的对话
+
+```typescript
+// 第一轮对话
+await agent.chat({
+  messages: [{ role: 'user', content: 'My name is Alice' }],
+  sessionId: 'session-1'
+});
+
+// 第二轮对话 - Agent 会记住你的名字
+const response = await agent.chat({
+  messages: [{ role: 'user', content: 'What is my name?' }],
+  sessionId: 'session-1'
+});
+
+console.log(response.choices[0].message.content);
+// 输出: "Your name is Alice."
+```
+
+## 添加 Skills
+
+```typescript
+import { z } from 'zod';
+
+// 定义 Skill
+const calculatorSkill = {
+  id: 'calculator',
+  name: 'Calculator',
+  description: 'Perform mathematical calculations',
+  version: '1.0.0',
+  inputSchema: z.object({
+    expression: z.string()
+  }),
+  execute: async (input, context) => {
+    const { expression } = input as { expression: string };
+    
+    // 安全地计算表达式
+    const result = eval(expression); // 实际使用应使用更安全的计算方式
+    
+    return {
+      success: true,
+      data: { result, expression },
+      metadata: {
+        executionId: context.executionId,
+        skillId: 'calculator',
+        skillName: 'Calculator',
+        startTime: Date.now(),
+        endTime: Date.now(),
+        duration: 0
+      }
+    };
+  }
+};
+
+// 创建带 Skills 的 Agent
+const agent = createAgent(openai, {
+  name: 'MathAgent',
+  skills: [calculatorSkill]
+});
+
+await agent.initialize();
+
+// 执行 Skill
+const result = await agent.executeSkill('calculator', {
+  expression: '2 + 2'
+});
+
+console.log(result.data); // { result: 4, expression: '2 + 2' }
+```
+
+## 添加 Tools
+
+```typescript
+// 定义 Tool
+const fileReaderTool = {
+  id: 'file-reader',
+  name: 'FileReader',
+  description: 'Read file contents',
+  category: 'file' as const,
+  confirm: 'read' as const,
+  inputSchema: z.object({
+    path: z.string()
+  }),
+  execute: async (input, context) => {
+    const { path } = input as { path: string };
+    
+    const fs = await import('fs/promises');
+    const content = await fs.readFile(path, 'utf-8');
+    
+    return {
+      success: true,
+      data: { content, path },
+      metadata: {
+        executionId: context.executionId,
+        toolId: 'file-reader',
+        toolName: 'FileReader',
+        startTime: Date.now(),
+        endTime: Date.now(),
+        duration: 0
+      }
+    };
+  }
+};
+
+// 创建带 Tools 的 Agent
+const agent = createAgent(openai, {
+  name: 'FileAgent',
+  tools: [fileReaderTool]
+});
+
+await agent.initialize();
+
+// 执行 Tool
+const result = await agent.executeTool('file-reader', {
+  path: './README.md'
+});
+
+console.log(result.data.content);
+```
+
+## 使用 ReAct 思考引擎
+
+```typescript
+const agent = createAgent(openai, {
+  name: 'ReasoningAgent',
+  skills: [calculatorSkill, searchSkill]
+});
+
+await agent.initialize();
+
+// 使用 ReAct 思考模式
+const result = await agent.think(
+  'What is the population of Tokyo multiplied by 2?',
+  { sessionId: 'session-1', executionId: 'exec-1' }
+);
+
+console.log('Answer:', result.answer);
+console.log('Steps:', result.steps.length);
+console.log('Tools used:', result.toolsUsed);
+
+// 流式思考过程
+for await (const event of agent.thinkStream('Complex question')) {
+  switch (event.type) {
+    case 'thought':
+      console.log('🧠 Thinking:', event.thought);
+      break;
+    case 'actions':
+      console.log('🔧 Actions:', event.actions.map(a => `${a.type}:${a.name}`).join(', '));
+      break;
+    case 'observations':
+      console.log('👁️ Results:', event.observations);
+      break;
+    case 'reflection':
+      console.log('💭 Reflection:', event.reflection);
+      break;
+    case 'complete':
+      console.log('✅ Answer:', event.answer);
+      break;
+  }
+}
+```
+
+## 使用 TUI 界面
+
+```typescript
+import { main } from '@sdkwork/agent/tui/cli';
+
+// 启动交互式 TUI
+// 功能包括：
+// - 多 LLM 提供者支持（OpenAI, Anthropic, Google 等）
+// - 65+ 模型选择
+// - 9 种主题切换
+// - 会话管理（保存/加载/删除）
+// - 自动补全和历史记录
+// - Markdown 渲染
+// - 流式输出
+main();
 ```
 
 ## 事件监听
 
-监听 Agent 的各种事件：
-
 ```typescript
-// 监听对话事件
+// 监听 Agent 事件
+agent.on('agent:initialized', (event) => {
+  console.log('Agent initialized:', event.payload.agentId);
+});
+
 agent.on('chat:completed', (event) => {
-  console.log(`对话完成，耗时: ${event.payload.duration}ms`);
-  console.log(`Token 使用: ${JSON.stringify(event.payload.tokenUsage)}`);
+  console.log('Chat completed:', event.payload.executionId);
 });
 
-// 监听 Skill 事件
-agent.on('skill:executed', (event) => {
-  console.log(`Skill ${event.payload.skillId} 执行完成`);
+agent.on('skill:completed', (event) => {
+  console.log('Skill executed:', event.payload.skillId);
 });
 
-// 监听 Tool 事件
-agent.on('tool:invoked', (event) => {
-  console.log(`Tool ${event.payload.toolId} 被调用`);
+agent.on('tool:completed', (event) => {
+  console.log('Tool invoked:', event.payload.toolId);
 });
 
-// 监听错误事件
 agent.on('agent:error', (event) => {
-  console.error('Agent 错误:', event.payload.error);
+  console.error('Agent error:', event.payload.error);
 });
 ```
 
-## 完整示例
-
-一个包含所有功能的完整示例：
+## 错误处理
 
 ```typescript
-import { createAgent, defineSkill, defineTool } from 'sdkwork-agent';
-import { OpenAIProvider } from 'sdkwork-agent/llm';
-
-async function main() {
-  // 创建 Agent
-  const agent = createAgent({
-    name: 'DemoAgent',
-    llm: new OpenAIProvider({
-      apiKey: process.env.OPENAI_API_KEY!,
-      model: 'gpt-4'
-    }),
-    memory: { maxTokens: 8000 }
-  });
-
-  // 监听事件
-  agent.on('chat:completed', (event) => {
-    console.log(`\n[耗时: ${event.payload.duration}ms]`);
-  });
-
-  // 初始化
+try {
   await agent.initialize();
-  console.log('Agent 已初始化\n');
-
-  // 注册 Skill
-  agent.skills.register(defineSkill({
-    id: 'echo',
-    name: 'Echo',
-    script: {
-      lang: 'typescript',
-      code: `async function main() { return $input; }`
-    }
-  }));
-
-  // 注册 Tool
-  agent.tools.register(defineTool({
-    id: 'timestamp',
-    name: 'Timestamp',
-    category: 'system',
-    confirm: 'none',
-    execute: async () => ({
-      success: true,
-      data: { timestamp: Date.now() }
-    })
-  }));
-
-  // 对话
-  const response = await agent.chat({
-    messages: [
-      { role: 'system', content: '你是一个有帮助的助手。' },
-      { role: 'user', content: '你好！' }
-    ]
-  });
-
-  console.log('Assistant:', response.choices[0].message.content);
-
-  // 执行 Skill
-  const skillResult = await agent.executeSkill('echo', JSON.stringify({ message: 'Hello' }));
-  console.log('Skill 结果:', skillResult.data);
-
-  // 执行 Tool
-  const toolResult = await agent.executeTool('timestamp', '{}');
-  console.log('Tool 结果:', toolResult.data);
-
-  // 清理
-  await agent.destroy();
-  console.log('\nAgent 已销毁');
+} catch (error) {
+  console.error('Failed to initialize agent:', error);
+  
+  // 尝试重置
+  await agent.reset();
 }
 
-main().catch(console.error);
+// 执行过程中的错误处理
+try {
+  const result = await agent.executeSkill('unknown-skill', {});
+} catch (error) {
+  console.error('Skill execution failed:', error);
+}
 ```
 
 ## 下一步
 
-- [核心概念](./concepts) - 深入了解架构设计
-- [API 参考](../api/agent) - 查看完整 API 文档
-- [示例代码](../examples/basic) - 学习更多实际使用案例
-- [流式对话](../examples/streaming) - 实现打字机效果
+- [核心概念](./concepts.md) - 了解 DDD 架构设计
+- [API 参考](../api/agent.md) - 查看完整 API 文档
+- [示例代码](../examples/basic.md) - 学习更多使用案例
+- [ReAct 引擎](../architecture/react.md) - 深入了解思考引擎
+- [TUI 界面](./tui.md) - 专业级终端交互

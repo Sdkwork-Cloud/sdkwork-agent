@@ -78,7 +78,6 @@ export async function withRetry<T>(
 ): Promise<T> {
   const fullConfig = { ...DEFAULT_RETRY_CONFIG, ...config };
   let lastError: Error | undefined;
-  let totalDelay = 0;
 
   for (let attempt = 0; attempt <= fullConfig.maxRetries; attempt++) {
     try {
@@ -87,7 +86,6 @@ export async function withRetry<T>(
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
 
-      // 检查是否应该重试
       if (attempt >= fullConfig.maxRetries) {
         break;
       }
@@ -100,14 +98,10 @@ export async function withRetry<T>(
         break;
       }
 
-      // 计算延迟
       const delay = calculateDelay(attempt, fullConfig);
-      totalDelay += delay;
 
-      // 调用重试回调
       fullConfig.onRetry?.(lastError, attempt + 1, delay);
 
-      // 等待后重试
       await sleep(delay);
     }
   }

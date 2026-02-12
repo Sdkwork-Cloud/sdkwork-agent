@@ -1,22 +1,68 @@
 /**
  * Skill Core Module
  *
- * Unified exports for the skill system
- * Based on OpenClaw architecture with dynamic skill selection
+ * Re-exports from main skills module for backward compatibility.
+ * All implementations are now unified in the main skills module.
+ *
+ * @deprecated Import directly from '../../skills/index.js' instead
  */
 
 // ============================================================================
-// Original Types (保持向后兼容)
+// Re-export from main skills module (Unified Implementation)
+// ============================================================================
+export {
+  SkillRegistry,
+  createSkillRegistry,
+} from '../registry.js';
+
+export type { SkillIndex } from '../registry.js';
+
+export {
+  ExecutionPool,
+  ExecutionMonitor,
+  createExecutionPool,
+  createExecutionMonitor,
+  calculateBackoffDelay,
+} from '../executor.js';
+
+export type {
+  ExecutionOptions,
+  ExecutionTask,
+  ExecutionStats,
+  RetryConfig,
+} from '../executor.js';
+
+export {
+  SkillLoader,
+  createSkillLoader,
+} from '../loader.js';
+
+// ============================================================================
+// Types (re-exported from main types)
 // ============================================================================
 export type {
   Skill,
+  SkillId,
+  SkillName,
+  SkillEntry,
+  SkillContext,
   SkillResult,
-  SkillErrorJSON,
-  ExecutionContext,
   ExecutionMetadata,
+  SkillMetadata,
+  SkillStreamChunk,
+  SkillSource,
+  Logger,
+  LLMService,
+  MemoryService,
+  ToolRegistry,
+} from '../types.js';
+
+// ============================================================================
+// Additional Types from core/types.ts (for backward compatibility)
+// ============================================================================
+export type {
   SkillManifest,
   ISkillRegistry,
-  SkillIndex,
   ISkillLoader,
   ISkillExecutor,
   LoadedSkill,
@@ -24,51 +70,19 @@ export type {
   ReferenceFile,
   AssetFile,
   DisclosureLevel,
-  Logger,
-  LLMService,
-  LLMOptions,
-  MemoryService,
-  ToolRegistry,
   SkillEvent,
   SkillEventType,
   SkillEventListener,
+  LLMOptions,
 } from './types';
 
 export { SkillError, isValidSkillName, validateSkillManifest } from './types';
-
-// ============================================================================
-// Original Components (保持向后兼容)
-// ============================================================================
-export { SkillRegistry, createSkillRegistry, getGlobalRegistry, resetGlobalRegistry } from './registry.js';
-export type { RegistryConfig } from './registry.js';
-
-export { SkillExecutor, createSkillExecutor } from './executor.js';
-export type { ExecutorConfig } from './executor.js';
-
-export {
-  SkillLoader,
-  createSkillLoader,
-  getGlobalLoader,
-} from './loader.js';
-export type {
-  SkillLoadResult,
-  SkillSource,
-  SkillLoaderConfig,
-} from './loader.js';
-
-export { SkillScheduler, createSkillScheduler } from './scheduler.js';
-export type {
-  SkillSchedulerConfig as SchedulerConfig,
-  SkillScheduleResult as SchedulerStats,
-  SkillScheduleRequest as ScheduledTask,
-} from './scheduler.js';
 
 // ============================================================================
 // OpenClaw-inspired Types (新架构类型)
 // ============================================================================
 export type {
   SkillSourceType,
-  SkillEntry,
   ParsedSkillFrontmatter,
   OpenClawSkillMetadata,
   SkillInstallSpec,
@@ -88,7 +102,6 @@ export type {
   HotReloadConfig,
   SkillFileChangeEvent,
 } from './openclaw-types.js';
-// Note: SkillSource is exported from loader.js, not from openclaw-types.js
 
 // ============================================================================
 // OpenClaw-inspired Components (新架构组件)
@@ -175,3 +188,11 @@ export type {
   DependencyResolverConfig,
   DependencyResolutionResult,
 } from './skill-dependency-resolver.js';
+
+// Scheduler
+export { SkillScheduler, createSkillScheduler } from './scheduler.js';
+export type {
+  SkillSchedulerConfig as SchedulerConfig,
+  SkillScheduleResult as SchedulerStats,
+  SkillScheduleRequest as ScheduledTask,
+} from './scheduler.js';

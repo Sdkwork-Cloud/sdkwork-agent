@@ -5,15 +5,18 @@
  * 参考 Claude Code、Codex CLI、OpenCode 等顶级 AI CLI 工具设计
  * 
  * @module TUI
- * @version 2.0.0
+ * @version 5.0.0
  */
 
 // 核心渲染器
 export {
   TUIRenderer,
   LoadingIndicator,
+  ProgressBar,
+  ThinkingDisplay,
   createRenderer,
   DEFAULT_THEME,
+  THEMES,
 } from './renderer.js';
 export type { Theme } from './renderer.js';
 
@@ -38,6 +41,18 @@ export {
   readMultiline,
 } from './multiline-input.js';
 export type { MultilineOptions } from './multiline-input.js';
+
+// 交互式选择器
+export {
+  InteractiveSelector,
+  MultiSelector,
+  SelectorBuilder,
+  select,
+  confirm,
+  prompt,
+  createSelector,
+} from './selector.js';
+export type { SelectOption, SelectConfig } from './selector.js';
 
 // CLI 主入口
 export { main } from './cli';

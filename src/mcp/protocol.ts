@@ -3,6 +3,8 @@
  * https://modelcontextprotocol.io
  */
 
+import { z } from 'zod';
+
 // Define local types for MCP protocol
 interface MCPResource {
   uri: string;
@@ -22,7 +24,7 @@ interface MCPResourceContent {
 interface MCPTool {
   name: string;
   description?: string;
-  inputSchema?: unknown;
+  inputSchema?: z.ZodType<unknown>;
   execute: (args: Record<string, unknown>, context?: ExecutionContext) => Promise<MCPToolResult>;
 }
 
@@ -39,6 +41,104 @@ interface ExecutionContext {
   skillName?: string;
   timestamp?: Date;
   metadata?: Record<string, unknown>;
+}
+
+interface MCPValidationError {
+  field: string;
+  message: string;
+  value?: unknown;
+}
+
+interface MCPValidationResult {
+  valid: boolean;
+  errors: MCPValidationError[];
+  data?: Record<string, unknown>;
+}
+
+function validateInput(
+  schema: z.ZodType<unknown> | undefined,
+  args: unknown
+): MCPValidationResult {
+  if (!schema) {
+    return { valid: true, errors: [], data: args as Record<string, unknown> };
+  }
+
+  try {
+    const result = schema.parse(args);
+    return { valid: true, errors: [], data: result as Record<string, unknown> };
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      const errors: MCPValidationError[] = error.issues.map((err: z.ZodIssue) => ({
+        field: err.path.join('.'),
+        message: err.message,
+      }));
+      return { valid: false, errors };
+    }
+    return {
+      valid: false,
+      errors: [{ field: 'unknown', message: String(error) }],
+    };
+  }
+}
+
+function sanitizeInput(args: unknown): Record<string, unknown> {
+  if (typeof args !== 'object' || args === null) {
+    return {};
+  }
+
+  const sanitized: Record<string, unknown> = {};
+  const MAX_STRING_LENGTH = 100000;
+  const MAX_ARRAY_LENGTH = 10000;
+  const MAX_OBJECT_DEPTH = 10;
+
+  function sanitizeValue(value: unknown, depth: number): unknown {
+    if (depth > MAX_OBJECT_DEPTH) {
+      return '[MAX_DEPTH_EXCEEDED]';
+    }
+
+    if (typeof value === 'string') {
+      if (value.length > MAX_STRING_LENGTH) {
+        return value.slice(0, MAX_STRING_LENGTH) + '...[TRUNCATED]';
+      }
+      const dangerousPatterns = [
+        /<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi,
+        /javascript:/gi,
+        /on\w+\s*=/gi,
+      ];
+      let sanitized = value;
+      for (const pattern of dangerousPatterns) {
+        sanitized = sanitized.replace(pattern, '[BLOCKED]');
+      }
+      return sanitized;
+    }
+
+    if (Array.isArray(value)) {
+      if (value.length > MAX_ARRAY_LENGTH) {
+        return value.slice(0, MAX_ARRAY_LENGTH);
+      }
+      return value.map(v => sanitizeValue(v, depth + 1));
+    }
+
+    if (typeof value === 'object' && value !== null) {
+      const obj: Record<string, unknown> = {};
+      for (const [key, val] of Object.entries(value)) {
+        if (!key.includes('__proto__') && !key.includes('prototype')) {
+          obj[key] = sanitizeValue(val, depth + 1);
+        }
+      }
+      return obj;
+    }
+
+    return value;
+  }
+
+  for (const [key, value] of Object.entries(args as Record<string, unknown>)) {
+    if (!key.includes('__proto__') && !key.includes('prototype')) {
+      sanitized[key] = sanitizeValue(value, 0);
+    }
+  }
+
+  return sanitized;
 }
 
 // MCP Server Configuration
@@ -132,14 +232,16 @@ export class MCPClient {
     return {
       name: tool.name as string,
       description: tool.description as string,
-      inputSchema: tool.inputSchema,
+      inputSchema: tool.inputSchema as z.ZodType<unknown> | undefined,
       execute: async (args: Record<string, unknown>) => {
+        const sanitizedArgs = sanitizeInput(args);
+        
         const response = await fetch(
           `${this.config.url}/tools/${encodeURIComponent(tool.name as string)}`,
           {
             method: 'POST',
             headers,
-            body: JSON.stringify(args),
+            body: JSON.stringify(sanitizedArgs),
           }
         );
 
@@ -230,12 +332,22 @@ export class MCPServer {
     const tool = this.tools.get(name);
     if (!tool) return null;
 
+    const sanitizedArgs = sanitizeInput(args);
+
+    const validation = validateInput(tool.inputSchema, sanitizedArgs);
+    if (!validation.valid) {
+      return {
+        success: false,
+        error: `Validation failed: ${validation.errors.map(e => `${e.field}: ${e.message}`).join(', ')}`,
+      };
+    }
+
     const context: ExecutionContext = {
       executionId: `mcp-${Date.now()}`,
       skillName: name,
       timestamp: new Date(),
     };
 
-    return tool.execute(args as Record<string, unknown>, context);
+    return tool.execute(validation.data!, context);
   }
 }

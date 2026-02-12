@@ -9,10 +9,9 @@
  * @standard Industry Leading
  */
 
-import type { BaseAgent } from '../agent';
+import type { Agent } from '../agent';
 
-// Alias for backward compatibility
-type Agent = BaseAgent;
+type BaseAgent = Agent;
 
 // ============================================
 // Core Types

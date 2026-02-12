@@ -13,6 +13,8 @@ export {
   createSkillRegistry,
 } from './registry.js';
 
+export type { SkillIndex } from './registry.js';
+
 // Types
 export type {
   // Value Objects
@@ -173,6 +175,13 @@ export {
   createDecisionEngine,
   quickDecide,
 } from './decision-engine.js';
+
+// Skill Loader (通用加载器)
+export {
+  loadAllSkills,
+  getSkillStats,
+  formatSkillsList,
+} from './skill-loader.js';
 
 // Re-export types from installer
 export type {

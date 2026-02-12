@@ -35,7 +35,7 @@ export default defineConfig({
   // 输出目录
   outDir: 'dist',
   // 代码压缩
-  minify: true,
+  minify: false,
   // 平台：Node.js
   platform: 'node',
   // 保留注释

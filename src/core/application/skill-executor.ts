@@ -6,8 +6,14 @@
  * 高内聚低耦合，消除重复代码
  * 
  * @application Skill
- * @version 5.0.0
+ * @version 5.1.0
  * @standard Industry Leading (Claude Code / OpenCode / OpenClaw)
+ * 
+ * 安全特性：
+ * - 使用 Node.js VM 沙箱隔离执行
+ * - 阻止危险操作 (require, eval, process 等)
+ * - 内存和 CPU 限制
+ * - 超时控制
  */
 
 import type {
@@ -30,6 +36,7 @@ import type {
 import { createExecutionId } from '../domain/unified.js';
 import { AgentEventEmitter } from '../../utils/typed-event-emitter.js';
 import { createLogger } from '../../utils/logger.js';
+import { NodeSecureSandbox, type NodeSandboxConfig } from '../../security/node-sandbox.js';
 
 // ============================================
 // Skill Executor Config
@@ -49,8 +56,14 @@ export interface SkillExecutorConfig {
   eventEmitter?: AgentEventEmitter;
   /** 超时时间 (毫秒) */
   timeout?: number;
-  /** 最大内存 (字节) */
+  /** 最大内存 (MB) */
   maxMemory?: number;
+  /** CPU 限制 (毫秒) */
+  cpuLimit?: number;
+  /** 是否启用沙箱隔离 (默认 true) */
+  enableSandbox?: boolean;
+  /** 自定义沙箱配置 */
+  sandboxConfig?: Partial<NodeSandboxConfig>;
 }
 
 // ============================================
@@ -66,6 +79,7 @@ export interface SkillExecutorConfig {
  * 3. 错误处理完善
  * 4. 性能优化
  * 5. 可观测性
+ * 6. 沙箱安全隔离
  */
 export class SkillExecutorImpl {
   private readonly llm: LLMProvider;
@@ -73,8 +87,13 @@ export class SkillExecutorImpl {
   private readonly memory?: SkillMemoryAPI;
   private readonly eventEmitter: AgentEventEmitter;
   private readonly timeout: number;
+  private readonly maxMemory: number;
+  private readonly cpuLimit: number;
+  private readonly enableSandbox: boolean;
+  private readonly sandboxConfig?: Partial<NodeSandboxConfig>;
   private readonly logger: UnifiedLogger;
   private readonly abortControllers = new Map<ExecutionId, AbortController>();
+  private sandbox: NodeSecureSandbox | null = null;
 
   constructor(config: SkillExecutorConfig) {
     this.llm = config.llm;
@@ -82,7 +101,26 @@ export class SkillExecutorImpl {
     this.memory = config.memory;
     this.eventEmitter = config.eventEmitter ?? new AgentEventEmitter();
     this.timeout = config.timeout ?? 30000;
+    this.maxMemory = config.maxMemory ?? 64;
+    this.cpuLimit = config.cpuLimit ?? 5000;
+    this.enableSandbox = config.enableSandbox ?? true;
+    this.sandboxConfig = config.sandboxConfig;
     this.logger = createLogger({ name: 'SkillExecutor' });
+
+    if (this.enableSandbox) {
+      this.initializeSandbox();
+    }
+  }
+
+  private initializeSandbox(): void {
+    this.sandbox = new NodeSecureSandbox({
+      timeout: this.timeout,
+      memoryLimit: this.maxMemory,
+      cpuLimit: this.cpuLimit,
+      useContextIsolation: true,
+      cacheCompiledCode: true,
+      ...this.sandboxConfig,
+    });
   }
 
   /**
@@ -199,6 +237,30 @@ export class SkillExecutorImpl {
     }
   }
 
+  /**
+   * 销毁执行器，释放资源
+   */
+  async destroy(): Promise<void> {
+    this.abortAll();
+    if (this.sandbox) {
+      await this.sandbox.destroy();
+      this.sandbox = null;
+    }
+  }
+
+  /**
+   * 获取沙箱统计信息
+   */
+  getSandboxStats(): { backend: string; healthy: boolean; executionCount: number } | null {
+    if (!this.sandbox) return null;
+    const stats = this.sandbox.getStats();
+    return {
+      backend: stats.backend as string,
+      healthy: stats.healthy as boolean,
+      executionCount: stats.executionCount as number,
+    };
+  }
+
   // ============================================
   // Private Methods
   // ============================================
@@ -278,8 +340,87 @@ export class SkillExecutorImpl {
     context: SkillExecutionContext
   ): Promise<SkillResult> {
     const api = this.buildInjectedAPI(skill, context);
+    const startTime = Date.now();
 
-    // 创建沙箱函数
+    if (this.enableSandbox && this.sandbox) {
+      return this.runJavaScriptInSandbox(skill, context, api, startTime);
+    }
+
+    return this.runJavaScriptDirect(skill, context, api, startTime);
+  }
+
+  private async runJavaScriptInSandbox(
+    skill: Skill,
+    context: SkillExecutionContext,
+    api: SkillInjectedAPI,
+    startTime: number
+  ): Promise<SkillResult> {
+    const sandboxContext = {
+      $context: api.$context,
+      $input: api.$input,
+      $llm: api.$llm,
+      $memory: api.$memory,
+      $tool: api.$tool,
+      $skill: api.$skill,
+      $log: {
+        debug: (msg: string, meta?: Record<string, unknown>) => api.$log.debug(msg, meta),
+        info: (msg: string, meta?: Record<string, unknown>) => api.$log.info(msg, meta),
+        warn: (msg: string, meta?: Record<string, unknown>) => api.$log.warn(msg, meta),
+        error: (msg: string, meta?: Record<string, unknown>) => api.$log.error(msg, meta),
+      },
+      $ref: api.$ref,
+      $references: api.$references,
+    };
+
+    const wrappedCode = `
+      (async function() {
+        ${skill.script.code}
+      })()
+    `;
+
+    const result = await this.sandbox!.execute(wrappedCode, sandboxContext);
+
+    if (!result.success) {
+      const error = result.error!;
+      return {
+        success: false,
+        error: {
+          code: error.type.toUpperCase(),
+          message: error.message,
+          skillId: skill.id,
+          recoverable: error.type === 'timeout',
+        },
+        meta: {
+          executionId: context.executionId,
+          skillId: skill.id,
+          skillName: skill.name,
+          startTime,
+          endTime: Date.now(),
+          duration: result.executionTime,
+        },
+      };
+    }
+
+    return {
+      success: true,
+      data: result.result,
+      meta: {
+        executionId: context.executionId,
+        skillId: skill.id,
+        skillName: skill.name,
+        startTime,
+        endTime: Date.now(),
+        duration: result.executionTime,
+      },
+    };
+  }
+
+  private async runJavaScriptDirect(
+    skill: Skill,
+    context: SkillExecutionContext,
+    api: SkillInjectedAPI,
+    startTime: number
+  ): Promise<SkillResult> {
     const sandbox = new Function(
       '$context',
       '$input',
@@ -292,7 +433,6 @@ export class SkillExecutorImpl {
       skill.script.code
     );
 
-    // 执行
     const result = await sandbox(
       api.$context,
       api.$input,
@@ -311,9 +451,9 @@ export class SkillExecutorImpl {
         executionId: context.executionId,
         skillId: skill.id,
         skillName: skill.name,
-        startTime: context.startedAt.getTime(),
+        startTime,
         endTime: Date.now(),
-        duration: Date.now() - context.startedAt.getTime(),
+        duration: Date.now() - startTime,
       },
     };
   }
@@ -432,7 +572,7 @@ export class SkillExecutorImpl {
   }
 
   private generateId(): string {
-    return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    return `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
   }
 }
 

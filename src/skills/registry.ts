@@ -30,6 +30,12 @@ import { SkillConfigManager } from './config.js';
 // Skill Registry
 // ============================================================================
 
+export interface SkillIndex {
+  byName: Map<string, SkillId>;
+  byCategory: Map<string, Set<SkillId>>;
+  byTag: Map<string, Set<SkillId>>;
+}
+
 export class SkillRegistry {
   private entries = new Map<SkillId, SkillEntry>();
   private nameToId = new Map<string, SkillId>();
@@ -40,6 +46,12 @@ export class SkillRegistry {
   private securityScanner: SkillSecurityScanner;
   private cache: SkillCache;
   private configManager: SkillConfigManager;
+  private index: SkillIndex = {
+    byName: new Map(),
+    byCategory: new Map(),
+    byTag: new Map(),
+  };
+  private accessStats = new Map<SkillId, { lastAccessed: Date; accessCount: number }>();
 
   constructor(
     private config?: SkillsConfig,
@@ -70,23 +82,23 @@ export class SkillRegistry {
     this.entries.set(skill.id, entry);
     this.nameToId.set(skill.name, skill.id);
     
-    // 清除相关缓存
+    this.updateIndex(skill);
+    this.accessStats.set(skill.id, { lastAccessed: new Date(), accessCount: 0 });
+    
     this.cache.deleteSkillEntry(skill.id);
     this.cache.deleteEligibility(skill.id);
     
     this.logger?.info(`[SkillRegistry] Registered: ${skill.name}`);
   }
 
-  /**
-   * 取消注册
-   */
   unregister(skillId: SkillId): void {
     const entry = this.entries.get(skillId);
     if (entry) {
       this.nameToId.delete(entry.skill.name);
       this.entries.delete(skillId);
+      this.removeFromIndex(entry.skill);
+      this.accessStats.delete(skillId);
       
-      // 清除相关缓存
       this.cache.deleteSkillEntry(skillId);
       this.cache.deleteEligibility(skillId);
       
@@ -107,28 +119,26 @@ export class SkillRegistry {
   // Retrieval
   // ============================================================================
 
-  /**
-   * 获取 Skill
-   */
   get(skillId: SkillId): Skill | undefined {
-    // 先检查缓存
     const cached = this.cache.getSkillEntry(skillId);
     if (cached) {
+      this.updateAccessStats(skillId);
       return cached.skill;
     }
     
     const entry = this.entries.get(skillId);
     if (entry) {
-      // 缓存结果
       this.cache.setSkillEntry(skillId, entry);
+      this.updateAccessStats(skillId);
       return entry.skill;
     }
     return undefined;
   }
 
-  /**
-   * 根据名称获取
-   */
+  has(skillId: SkillId): boolean {
+    return this.entries.has(skillId);
+  }
+
   getByName(name: string): Skill | undefined {
     const id = this.nameToId.get(name);
     return id ? this.get(id) : undefined;
@@ -177,6 +187,43 @@ export class SkillRegistry {
         skill.description.toLowerCase().includes(lowerQuery) ||
         skill.metadata?.tags?.some(tag => tag.toLowerCase().includes(lowerQuery))
     );
+  }
+
+  getByCategory(category: string): Skill[] {
+    const skillIds = this.index.byCategory.get(category);
+    if (!skillIds) return [];
+    
+    return Array.from(skillIds)
+      .map(id => this.entries.get(id)?.skill)
+      .filter((skill): skill is Skill => skill !== undefined);
+  }
+
+  getByTag(tag: string): Skill[] {
+    const skillIds = this.index.byTag.get(tag);
+    if (!skillIds) return [];
+    
+    return Array.from(skillIds)
+      .map(id => this.entries.get(id)?.skill)
+      .filter((skill): skill is Skill => skill !== undefined);
+  }
+
+  getStats(): {
+    totalSkills: number;
+    totalCategories: number;
+    totalTags: number;
+    mostAccessed: Array<{ skillId: SkillId; accessCount: number }>;
+  } {
+    const sortedByAccess = Array.from(this.accessStats.entries())
+      .sort((a, b) => b[1].accessCount - a[1].accessCount)
+      .slice(0, 5)
+      .map(([skillId, stats]) => ({ skillId, accessCount: stats.accessCount }));
+
+    return {
+      totalSkills: this.entries.size,
+      totalCategories: this.index.byCategory.size,
+      totalTags: this.index.byTag.size,
+      mostAccessed: sortedByAccess,
+    };
   }
 
   // ============================================================================
@@ -638,6 +685,52 @@ export class SkillRegistry {
 
   private delay(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  private updateIndex(skill: Skill): void {
+    this.index.byName.set(skill.name, skill.id);
+
+    const category = skill.metadata?.category;
+    if (category) {
+      if (!this.index.byCategory.has(category)) {
+        this.index.byCategory.set(category, new Set());
+      }
+      this.index.byCategory.get(category)!.add(skill.id);
+    }
+
+    const tags = skill.metadata?.tags;
+    if (Array.isArray(tags)) {
+      for (const tag of tags) {
+        if (!this.index.byTag.has(tag)) {
+          this.index.byTag.set(tag, new Set());
+        }
+        this.index.byTag.get(tag)!.add(skill.id);
+      }
+    }
+  }
+
+  private removeFromIndex(skill: Skill): void {
+    this.index.byName.delete(skill.name);
+
+    const category = skill.metadata?.category;
+    if (category) {
+      this.index.byCategory.get(category)?.delete(skill.id);
+    }
+
+    const tags = skill.metadata?.tags;
+    if (Array.isArray(tags)) {
+      for (const tag of tags) {
+        this.index.byTag.get(tag)?.delete(skill.id);
+      }
+    }
+  }
+
+  private updateAccessStats(skillId: SkillId): void {
+    const stats = this.accessStats.get(skillId);
+    if (stats) {
+      stats.lastAccessed = new Date();
+      stats.accessCount++;
+    }
   }
 }
 

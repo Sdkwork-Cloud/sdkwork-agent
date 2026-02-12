@@ -28,8 +28,10 @@ export * from './commands/chat.js';
 // Factory Functions
 // ============================================
 
-import type { BaseAgent } from '../agent';
+import type { Agent } from '../agent';
 import type { REPLConfig, ConversationContext } from './types';
+
+type BaseAgent = Agent;
 import { PerfectREPL } from './repl.js';
 import { PerfectRenderer } from './renderer.js';
 import { PerfectConversationHistory } from './history.js';

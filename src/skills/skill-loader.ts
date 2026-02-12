@@ -59,6 +59,19 @@ interface SkillFrontmatter {
 }
 
 /**
+ * 参数定义
+ */
+interface ParameterDef {
+  name: string;
+  type: string;
+  required: boolean;
+  description: string;
+  default?: unknown;
+  enum?: string[];
+  examples?: string[];
+}
+
+/**
  * 解析 SKILL.md 文件的 frontmatter
  * 
  * 支持多种 YAML frontmatter 格式：
@@ -255,9 +268,156 @@ function parseYamlValue(value: string): unknown {
 }
 
 /**
+ * 解析 SKILL.md 中的 Parameters 部分
+ * 
+ * 支持格式:
+ * ## Parameters
+ * 
+ * - `paramName` (type, required): Description
+ * - `paramName` (type, optional): Description (default: value)
+ * - `paramName` (type): Description
+ *   - Examples: "example1", "example2"
+ *   - "option1" - Description
+ *   - "option2" - Description
+ */
+function parseParametersSection(content: string): ParameterDef[] {
+  const parameters: ParameterDef[] = [];
+  
+  // 查找 Parameters 部分
+  const paramsMatch = content.match(/##\s*Parameters\s*\n([\s\S]*?)(?=\n##|$)/);
+  if (!paramsMatch) return parameters;
+  
+  const paramsSection = paramsMatch[1];
+  const lines = paramsSection.split('\n');
+  
+  let currentParam: ParameterDef | null = null;
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+    
+    // 跳过空行
+    if (!trimmed) continue;
+    
+    // 检查是否是参数定义行（以 - ` 开头）
+    // 格式: - `paramName` (type, required): Description
+    const paramMatch = trimmed.match(/^- `\s*(\w+)\s*`(?:\s*\(([^)]+)\))?\s*:\s*(.+)$/);
+    
+    if (paramMatch) {
+      // 保存之前的参数
+      if (currentParam) {
+        parameters.push(currentParam);
+      }
+      
+      const name = paramMatch[1];
+      const typeInfo = paramMatch[2] || '';
+      const description = paramMatch[3].trim();
+      
+      // 解析类型信息
+      const typeParts = typeInfo.split(',').map(s => s.trim().toLowerCase());
+      const type = typeParts.find(t => ['string', 'number', 'boolean', 'array', 'object', 'any'].includes(t)) || 'string';
+      const required = typeParts.includes('required');
+      
+      // 检查默认值 (default: value)
+      let defaultValue: unknown = undefined;
+      const defaultMatch = description.match(/\(default:\s*([^)]+)\)/i);
+      if (defaultMatch) {
+        defaultValue = parseYamlValue(defaultMatch[1].trim());
+      }
+      
+      currentParam = {
+        name,
+        type,
+        required,
+        description: description.replace(/\s*\(default:[^)]+\)/i, '').trim(),
+        default: defaultValue,
+        enum: [],
+      };
+      
+      continue;
+    }
+    
+    // 检查是否是子项（以 - 开头但不是参数定义）
+    if (currentParam && trimmed.startsWith('- ') && !trimmed.startsWith('- `')) {
+      // 检查是否是 Examples 行
+      const examplesMatch = trimmed.match(/^- Examples:\s*(.+)$/);
+      if (examplesMatch) {
+        currentParam.examples = examplesMatch[1]
+          .split(',')
+          .map(s => s.trim().replace(/^["']|["']$/g, ''));
+        continue;
+      }
+      
+      // 检查是否是枚举值行: - "value" - Description
+      const enumMatch = trimmed.match(/^- "([^"]+)"(?:\s*-\s*(.+))?$/);
+      if (enumMatch) {
+        if (!currentParam.enum) currentParam.enum = [];
+        currentParam.enum.push(enumMatch[1]);
+        continue;
+      }
+      
+      // 其他子项可能是描述的一部分，跳过
+    }
+  }
+  
+  // 保存最后一个参数
+  if (currentParam) {
+    parameters.push(currentParam);
+  }
+  
+  return parameters;
+}
+
+/**
+ * 将参数定义转换为 JSON Schema
+ */
+function parametersToSchema(parameters: ParameterDef[]): import('../core/domain/skill.js').JSONSchema | null {
+  if (parameters.length === 0) return null;
+  
+  const properties: Record<string, import('../core/domain/skill.js').JSONSchema> = {};
+  const required: string[] = [];
+  
+  for (const param of parameters) {
+    const propSchema: import('../core/domain/skill.js').JSONSchema = {
+      type: param.type as 'string' | 'number' | 'boolean' | 'object' | 'array',
+      description: param.description,
+    };
+    
+    if (param.default !== undefined) {
+      propSchema.default = param.default;
+    }
+    
+    if (param.enum && param.enum.length > 0) {
+      propSchema.enum = param.enum;
+    }
+    
+    properties[param.name] = propSchema;
+    
+    if (param.required) {
+      required.push(param.name);
+    }
+  }
+  
+  const schema: import('../core/domain/skill.js').JSONSchema = {
+    type: 'object',
+    properties,
+  };
+  
+  if (required.length > 0) {
+    schema.required = required;
+  }
+  
+  return schema;
+}
+
+/**
  * 将 frontmatter 转换为 Domain Skill
  */
-function convertToDomainSkill(frontmatter: SkillFrontmatter, skillPath: string): DomainSkill {
+function convertToDomainSkill(frontmatter: SkillFrontmatter, skillPath: string, fullContent: string): DomainSkill {
+  // 解析 Parameters 部分
+  const parameters = parseParametersSection(fullContent);
+  const inputSchema = parametersToSchema(parameters);
+  
   return {
     id: frontmatter.name,
     name: frontmatter.name,
@@ -267,7 +427,9 @@ function convertToDomainSkill(frontmatter: SkillFrontmatter, skillPath: string):
       code: `// ${frontmatter.name} skill\n// Loaded from: ${skillPath}`,
       lang: 'typescript',
     },
-
+    
+    input: inputSchema || undefined,
+    
     meta: {
       category: frontmatter.category || 'utility',
       tags: frontmatter.tags || [],
@@ -319,7 +481,7 @@ async function loadSkillsFromDirectory(
           continue;
         }
 
-        const skill = convertToDomainSkill(frontmatter, skillFile);
+        const skill = convertToDomainSkill(frontmatter, skillFile, content);
         skills.push({
           skill,
           source,

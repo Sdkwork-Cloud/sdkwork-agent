@@ -366,6 +366,8 @@ export class ReActAgent extends EventEmitter {
           const toolResult = await this.tools.execute(action.name, action.parameters, {
             executionId: `react-${Date.now()}`,
             agentId: 'react-agent',
+            toolId: action.name,
+            toolName: action.name,
             logger: this.logger,
           });
           this.logger.debug(`Tool ${action.name} executed successfully`);

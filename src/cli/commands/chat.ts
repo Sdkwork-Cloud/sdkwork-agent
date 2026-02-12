@@ -53,29 +53,36 @@ export class ChatCommand implements CommandHandler {
       // 显示思考状态
       renderer.info('Thinking...');
 
-      // 执行 Agent
-      const result = await agent.execute({
-        input: userMessage,
-        context: {
-          sessionId: context.sessionId,
-          history: history.toLLMMessages(),
-        },
+      // 执行 Agent 对话
+      const result = await agent.chat({
+        messages: history.toLLMMessages().map(msg => ({
+          id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+          role: msg.role as 'user' | 'assistant' | 'system',
+          content: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content),
+          timestamp: Date.now(),
+        })),
+        sessionId: context.sessionId,
       });
 
       // 处理结果
-      if (result.success) {
+      if (result.choices && result.choices.length > 0) {
+        const assistantMessage = result.choices[0].message?.content || '';
+        const contentStr = typeof assistantMessage === 'string' 
+          ? assistantMessage 
+          : JSON.stringify(assistantMessage);
+        
         // 添加 AI 回复到历史
         history.add({
           role: 'assistant',
-          content: String(result.output),
+          content: contentStr,
           metadata: {
-            executionTime: result.executionTime,
-            tokens: result.tokens?.total,
+            executionTime: result.usage ? 0 : undefined,
+            tokens: result.usage?.totalTokens,
           },
         });
 
         // 显示 AI 回复
-        renderer.message(String(result.output));
+        renderer.message(contentStr);
 
         return {
           success: true,
@@ -84,9 +91,8 @@ export class ChatCommand implements CommandHandler {
       } else {
         return {
           success: false,
-          message: result.error?.message || 'Execution failed',
+          message: 'No response from agent',
           continue: true,
-          error: result.error,
         };
       }
     } catch (error) {

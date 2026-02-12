@@ -17,7 +17,7 @@
  * @version 3.0.0
  */
 
-import { main } from '../dist/tui/cli-enhanced.js';
+import { main } from '../dist/tui/cli.js';
 
 main().catch((error) => {
   console.error('Failed to start SDKWork:', error);

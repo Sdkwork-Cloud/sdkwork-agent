@@ -852,7 +852,7 @@ export class AgentImpl extends EventEmitter implements Agent {
   }
 
   private _generateId(): string {
-    return `agent_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    return `agent_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
   }
 
   private _getOrCreateSessionId(): SessionId {

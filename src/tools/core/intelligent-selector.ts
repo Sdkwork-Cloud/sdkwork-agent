@@ -466,7 +466,7 @@ Suggest parameters as JSON:`;
     const toolsDescription = tools
       .map(
         (t, i) =>
-          `${i + 1}. ${t.name}: ${t.description} (category: ${t.metadata?.category || 'unknown'})`
+          `${i + 1}. ${t.name}: ${t.description} (category: ${t.category || 'unknown'})`
       )
       .join('\n');
 

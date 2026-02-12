@@ -539,13 +539,13 @@ export class MCPClientImpl extends EventEmitter implements MCPClient {
       case 'notifications/tools/list_changed':
         this.listTools().then((tools) => {
           this.emit('mcp:tools:changed', { clientId: this._config.id, tools });
-        });
+        }).catch(() => {});
         break;
 
       case 'notifications/resources/list_changed':
         this.listResources().then((resources) => {
           this.emit('mcp:resources:changed', { clientId: this._config.id, resources });
-        });
+        }).catch(() => {});
         break;
 
       case 'notifications/resources/updated':
@@ -560,7 +560,7 @@ export class MCPClientImpl extends EventEmitter implements MCPClient {
       case 'notifications/prompts/list_changed':
         this.listPrompts().then((prompts) => {
           this.emit('mcp:prompts:changed', { clientId: this._config.id, prompts });
-        });
+        }).catch(() => {});
         break;
     }
   }

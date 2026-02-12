@@ -5,7 +5,7 @@ layout: home
 hero:
   name: SDKWork Agent
   text: 统一智能体架构
-  tagline: Node.js 服务端专用，DDD Domain-Driven Design，行业领先的 Skill / Tool / MCP / Plugin 执行标准
+  tagline: Node.js 服务端专用，DDD Domain-Driven Design，行业领先的 Skill / Tool / MCP / Plugin / TUI 执行标准
   image:
     src: /logo.svg
     alt: SDKWork Agent
@@ -27,12 +27,15 @@ features:
   - icon: 🔧
     title: 微内核架构
     details: 服务注册发现、依赖注入、生命周期管理，支持热插拔和动态扩展
+  - icon: 🧠
+    title: ReAct 思考
+    details: Thought-Action-Observation 循环，支持并行工具调用和自我反思
   - icon: 🤖
     title: OpenAI 兼容
     details: 标准 Chat API，流式响应，工具调用，完整的类型推导
   - icon: 📝
     title: Skill 系统
-    details: 多语言脚本支持（JS/TS/Python），Reference 文件系统，注入式 API
+    details: 多语言脚本支持（JS/TS），Zod Schema 验证，依赖注入式 API
   - icon: 🔨
     title: Tool 系统
     details: 分类管理、确认级别、执行链，内置文件/网络/系统/数据处理工具
@@ -45,6 +48,9 @@ features:
   - icon: 💾
     title: 记忆系统
     details: 语义搜索、多维度存储、时间衰减算法，支持 episodic/semantic/procedural 记忆
+  - icon: 🖥️
+    title: TUI 界面
+    details: 专业级终端 UI，支持 65+ 模型、多主题、流式输出、会话管理
   - icon: 📊
     title: 可观测性
     details: 完整事件模型，执行链路追踪，资源监控，日志系统
@@ -81,30 +87,35 @@ features:
 ::: code-group
 
 ```bash [npm]
-npm install sdkwork-agent
+npm install @sdkwork/agent
 ```
 
 ```bash [yarn]
-yarn add sdkwork-agent
+yarn add @sdkwork/agent
 ```
 
 ```bash [pnpm]
-pnpm add sdkwork-agent
+pnpm add @sdkwork/agent
 ```
 
 :::
 
 ```typescript
-import { createAgent } from 'sdkwork-agent';
-import { OpenAIProvider } from 'sdkwork-agent/llm';
+import { createAgent } from '@sdkwork/agent';
+import { OpenAIProvider } from '@sdkwork/agent/llm';
 
-// 创建 Agent
-const agent = createAgent({
+// 创建 LLM Provider
+const openai = new OpenAIProvider({
+  apiKey: process.env.OPENAI_API_KEY,
+  model: 'gpt-4'
+});
+
+// 创建 Agent（简洁 API）
+const agent = createAgent(openai, {
   name: 'MyAssistant',
-  llm: new OpenAIProvider({
-    apiKey: process.env.OPENAI_API_KEY,
-    model: 'gpt-4'
-  })
+  description: 'A helpful AI assistant',
+  skills: [],
+  tools: [],
 });
 
 // 初始化并对话
@@ -115,6 +126,9 @@ const response = await agent.chat({
 });
 
 console.log(response.choices[0].message.content);
+
+// 清理
+await agent.destroy();
 ```
 
 ## 核心特性
@@ -167,6 +181,8 @@ console.log(response.choices[0].message.content);
 - [API 参考](./api/agent) - 查看完整 API 文档
 - [示例代码](./examples/basic) - 学习实际使用案例
 - [架构设计](./architecture/overview) - 深入了解技术架构
+- [ReAct 引擎](./architecture/react) - 思考-行动-观察循环
+- [TUI 界面](./guide/tui) - 专业级终端交互
 
 </div>
 

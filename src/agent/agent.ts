@@ -90,6 +90,9 @@ export class Agent {
   private thinkingEngine: ReActEngine;
   private sessions = new Map<string, ChatMessage[]>();
 
+  private static readonly DEFAULT_CONTEXT_WINDOW = 128000;
+  private static readonly RESERVED_TOKENS = 4096;
+
   constructor(config: AgentConfig, deps: AgentDeps) {
     this.id = config.id || `agent-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
     this.name = config.name;
@@ -166,7 +169,8 @@ export class Agent {
         throw new Error('Last message must be from user');
       }
 
-      this.sessions.set(sessionId, [...request.messages]);
+      const managedMessages = this.manageContextWindow(request.messages);
+      this.sessions.set(sessionId, [...managedMessages]);
 
       const thinkingResult = await this.think(extractTextContent(lastMessage.content), {
         sessionId,
@@ -256,6 +260,8 @@ export class Agent {
       if (!lastMessage || lastMessage.role !== 'user') {
         throw new Error('Last message must be from user');
       }
+
+      const managedMessages = this.manageContextWindow(request.messages);
 
       for await (const event of this.thinkStream(extractTextContent(lastMessage.content), {
         sessionId,
@@ -442,6 +448,7 @@ export class Agent {
   async destroy(): Promise<void> {
     this.setState(AgentState.DESTROYED);
 
+    this.thinkingEngine.abort();
     this.sessions.clear();
 
     this.eventBus.publish(
@@ -477,6 +484,43 @@ export class Agent {
       total += Math.ceil(content.length / 4);
     }
     return total;
+  }
+
+  private manageContextWindow(messages: ChatMessage[], maxTokens?: number): ChatMessage[] {
+    const limit = maxTokens || this._config.memory?.maxTokens || Agent.DEFAULT_CONTEXT_WINDOW;
+    const availableTokens = limit - Agent.RESERVED_TOKENS;
+
+    const totalTokens = this.estimateTokens(messages);
+    if (totalTokens <= availableTokens) {
+      return messages;
+    }
+
+    const result: ChatMessage[] = [];
+    let currentTokens = 0;
+
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const msg = messages[i];
+      const msgTokens = this.estimateTokens([msg]);
+
+      if (currentTokens + msgTokens <= availableTokens) {
+        result.unshift(msg);
+        currentTokens += msgTokens;
+      } else {
+        break;
+      }
+    }
+
+    if (result.length === 0 && messages.length > 0) {
+      result.push(messages[messages.length - 1]);
+    }
+
+    this.logger.debug(`[Agent:${this.name}] Context window managed`, {
+      original: messages.length,
+      truncated: result.length,
+      tokens: currentTokens,
+    });
+
+    return result;
   }
 }
 

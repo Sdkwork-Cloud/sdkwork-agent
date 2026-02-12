@@ -105,6 +105,8 @@ export class ReActEngine {
       sessionId?: string;
     }
   ): Promise<ThinkingResult> {
+    this.reset();
+
     this.logger.info('[ReAct] Starting thinking process', { input });
 
     this.eventBus.publish(
@@ -118,6 +120,11 @@ export class ReActEngine {
         this.abortController.abort();
       }, this.config.timeout);
 
+      const relevantMemories = await this.retrieveRelevantMemories(input);
+      const memoryContext = relevantMemories.length > 0
+        ? `\n\nRelevant past experiences:\n${relevantMemories.map(m => `- ${m.content}`).join('\n')}`
+        : '';
+
       for (let step = 1; step <= this.config.maxSteps; step++) {
         if (this.abortController.signal.aborted) {
           throw new Error('Thinking process aborted');
@@ -127,7 +134,7 @@ export class ReActEngine {
         const stepStartTime = Date.now();
 
         // 1. 生成思考
-        const thought = await this.generateThought(input, step);
+        const thought = await this.generateThought(input, step, memoryContext);
         this.logger.debug(`[ReAct Step ${step}] Thought: ${thought}`);
 
         // 2. 选择动作（支持并行）
@@ -226,9 +233,16 @@ export class ReActEngine {
       sessionId?: string;
     }
   ): AsyncGenerator<ThinkingStreamEvent> {
+    this.reset();
+
     yield { type: 'start', input };
 
     try {
+      const relevantMemories = await this.retrieveRelevantMemories(input);
+      const memoryContext = relevantMemories.length > 0
+        ? `\n\nRelevant past experiences:\n${relevantMemories.map(m => `- ${m.content}`).join('\n')}`
+        : '';
+
       for (let step = 1; step <= this.config.maxSteps; step++) {
         if (this.abortController.signal.aborted) {
           throw new Error('Thinking process aborted');
@@ -237,7 +251,7 @@ export class ReActEngine {
         this.state.currentStep = step;
         const stepStartTime = Date.now();
 
-        const thought = await this.generateThought(input, step);
+        const thought = await this.generateThought(input, step, memoryContext);
         yield { type: 'thought', step, thought };
 
         const actions = await this.selectActions(thought, step);
@@ -288,12 +302,35 @@ export class ReActEngine {
     return { ...this.state };
   }
 
+  reset(): void {
+    this.state = {
+      currentStep: 0,
+      steps: [],
+      reflections: [],
+      toolsUsed: new Set(),
+      startTime: Date.now(),
+      isComplete: false,
+    };
+    this.abortController = new AbortController();
+  }
+
   // ============================================================================
   // Private Methods
   // ============================================================================
 
-  private async generateThought(input: string, step: number): Promise<string> {
-    const prompt = this.buildThoughtPrompt(input, step);
+  private async retrieveRelevantMemories(input: string): Promise<Array<{ content: string; importance: number }>> {
+    try {
+      const memories = await this.memory.search(input, { limit: 5 });
+      return memories
+        .filter(m => m.importance && m.importance > 0.5)
+        .map(m => ({ content: m.content, importance: m.importance || 0 }));
+    } catch {
+      return [];
+    }
+  }
+
+  private async generateThought(input: string, step: number, memoryContext: string = ''): Promise<string> {
+    const prompt = this.buildThoughtPrompt(input, step, memoryContext);
 
     const response = await this.llm.complete({
       messages: [
@@ -455,11 +492,11 @@ Provide a brief reflection:`;
     return reflection;
   }
 
-  private buildThoughtPrompt(input: string, step: number): string {
+  private buildThoughtPrompt(input: string, step: number, memoryContext: string = ''): string {
     const history = this.formatHistory();
     const tools = this.formatTools();
 
-    return `Task: ${input}
+    return `Task: ${input}${memoryContext}
 
 Available Tools:
 ${tools}
@@ -514,7 +551,7 @@ Your action(s):`;
   }
 
   private parseActionLine(line: string): Action | null {
-    // 尝试解析 JSON
+    // 尝试解析完整 JSON
     try {
       const parsed = JSON.parse(line);
       if (parsed.action) {
@@ -525,11 +562,26 @@ Your action(s):`;
         };
       }
     } catch {
-      // 不是 JSON，继续文本解析
+      // 不是完整 JSON，继续文本解析
     }
 
-    // 文本解析
-    const finishMatch = line.match(/finish\s*[:：]\s*(.+)/i);
+    // 解析 finish:{"answer": "..."} 格式
+    const finishJsonMatch = line.match(/finish\s*[:：]\s*(\{.+\})/i);
+    if (finishJsonMatch) {
+      try {
+        const params = JSON.parse(finishJsonMatch[1]);
+        return {
+          type: 'finish',
+          name: 'finish',
+          parameters: params,
+        };
+      } catch {
+        // JSON 解析失败，使用文本格式
+      }
+    }
+
+    // 解析 finish:answer 文本格式
+    const finishMatch = line.match(/finish\s*[:：]\s*(?!{)(.+)/i);
     if (finishMatch) {
       return {
         type: 'finish',
@@ -538,6 +590,22 @@ Your action(s):`;
       };
     }
 
+    // 解析 tool:name({"key": "value"}) JSON 格式
+    const toolJsonMatch = line.match(/tool\s*[:：]\s*(\w+)\s*\((\{.+\})\)/i);
+    if (toolJsonMatch) {
+      try {
+        const params = JSON.parse(toolJsonMatch[2]);
+        return {
+          type: 'tool',
+          name: toolJsonMatch[1],
+          parameters: params,
+        };
+      } catch {
+        // JSON 解析失败，继续尝试其他格式
+      }
+    }
+
+    // 解析 tool:name(key=value) 文本格式
     const toolMatch = line.match(/tool\s*[:：]\s*(\w+)\s*\(([^)]*)\)/i);
     if (toolMatch) {
       return {
@@ -547,6 +615,22 @@ Your action(s):`;
       };
     }
 
+    // 解析 skill:name({"key": "value"}) JSON 格式
+    const skillJsonMatch = line.match(/skill\s*[:：]\s*(\w+)\s*\((\{.+\})\)/i);
+    if (skillJsonMatch) {
+      try {
+        const params = JSON.parse(skillJsonMatch[2]);
+        return {
+          type: 'skill',
+          name: skillJsonMatch[1],
+          parameters: params,
+        };
+      } catch {
+        // JSON 解析失败，继续尝试其他格式
+      }
+    }
+
+    // 解析 skill:name(key=value) 文本格式
     const skillMatch = line.match(/skill\s*[:：]\s*(\w+)\s*\(([^)]*)\)/i);
     if (skillMatch) {
       return {
@@ -599,11 +683,23 @@ Your action(s):`;
     let result = 'Tools:\n';
     tools.forEach((t) => {
       result += `- ${t.name}: ${t.description}\n`;
+      if (t.parameters && 'shape' in t.parameters) {
+        const shape = (t.parameters as { shape?: () => Record<string, unknown> }).shape?.();
+        if (shape) {
+          result += `  Parameters: ${JSON.stringify(Object.keys(shape))}\n`;
+        }
+      }
     });
 
     result += '\nSkills:\n';
     skills.forEach((s) => {
       result += `- ${s.name}: ${s.description}\n`;
+      if (s.inputSchema && 'shape' in s.inputSchema) {
+        const shape = (s.inputSchema as { shape?: () => Record<string, unknown> }).shape?.();
+        if (shape) {
+          result += `  Parameters: ${JSON.stringify(Object.keys(shape))}\n`;
+        }
+      }
     });
 
     return result;
@@ -639,7 +735,21 @@ Guidelines:
 3. You can execute multiple independent tools in parallel
 4. Observe the results and adapt your strategy
 5. When you have enough information, provide the final answer
-6. Be concise but thorough in your reasoning`;
+6. Be concise but thorough in your reasoning
+
+Output Format for Actions:
+- For tools: tool:tool_name({"param1": "value1", "param2": "value2"})
+- For skills: skill:skill_name({"param1": "value1"})
+- To finish: finish:{"answer": "your final answer"}
+- To think more: think:{"thought": "your reasoning"}
+
+Examples:
+User: What is the weather in Tokyo?
+Thought: I need to check the current weather in Tokyo.
+Action: tool:weather({"city": "Tokyo"})
+Observation: Temperature: 22°C, Clear sky
+Thought: I have the weather information.
+Action: finish:{"answer": "The current weather in Tokyo is 22°C with clear skies."}`;
   }
 }
 

@@ -441,11 +441,12 @@ export class WorkerPool extends EventEmitter {
     info.stats.tasksFailed++;
     this.emit('worker:error', { id, error });
 
-    // 重启 Worker
     this.terminateWorker(id).then(() => {
       if (!this.isShuttingDown) {
         this.createWorker();
       }
+    }).catch((err) => {
+      this.logger.error('Failed to restart worker', { id, error: err });
     });
   }
 
@@ -550,8 +551,20 @@ const ALLOWED_OPERATIONS: Record<string, (data: unknown) => Promise<unknown>> = 
   },
   'math:calculate': async (data) => {
     const { expression } = data as { expression: string };
-    // 安全的数学计算
-    return { success: true, result: eval(expression) }; // 仅用于数学表达式
+    const safeMathExpr = /^[0-9+\-*/().%\sMath.PI|Math.E|Math.sqrt|Math.pow|Math.abs|Math.floor|Math.ceil|Math.round|Math.min|Math.max|Math.sin|Math.cos|Math.tan|Math.log|Math.exp]+$/;
+    if (!safeMathExpr.test(expression)) {
+      return { success: false, error: 'Invalid math expression' };
+    }
+    try {
+      const mathFunc = new Function('Math', `'use strict'; return (${expression})`);
+      const result = mathFunc(Math);
+      if (typeof result !== 'number' || !Number.isFinite(result)) {
+        return { success: false, error: 'Invalid result: not a finite number' };
+      }
+      return { success: true, result };
+    } catch {
+      return { success: false, error: 'Failed to evaluate expression' };
+    }
   },
 };
 
