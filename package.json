@@ -1,6 +1,6 @@
 {
   "name": "@sdkwork/agent",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "description": "Enterprise-grade AI Agent Framework - DDD Architecture, Microkernel, ReAct Thinking, Multi-LLM Support, MCP Protocol, Secure Sandbox",
   "type": "module",
   "main": "dist/index.js",
