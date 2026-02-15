@@ -80,7 +80,7 @@ export class SkillPromptBuilder {
     } = options;
 
     // 过滤可调用的 Skill
-    let filteredEntries = invocableOnly
+    const filteredEntries = invocableOnly
       ? entries.filter(e => e.invocation?.disableModelInvocation !== true)
       : entries;
 

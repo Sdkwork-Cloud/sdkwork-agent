@@ -22,6 +22,14 @@
 
 import { EventEmitter } from '../utils/event-emitter.js';
 import { Logger, createLogger } from '../utils/logger.js';
+import type { 
+  MemoryStore, 
+  Memory, 
+  MemoryQuery, 
+  MemorySearchResult,
+  MemoryType,
+  MemorySource
+} from '../core/domain/memory.js';
 
 /**
  * 记忆条目
@@ -123,8 +131,9 @@ function estimateTokens(text: string): number {
 
 /**
  * 分层记忆系统
+ * 实现 MemoryStore 接口以支持作为 Agent 记忆存储
  */
-export class HierarchicalMemory extends EventEmitter {
+export class HierarchicalMemory extends EventEmitter implements MemoryStore {
   private config: HierarchicalMemoryConfig;
   private logger: Logger;
 
@@ -180,9 +189,9 @@ export class HierarchicalMemory extends EventEmitter {
   }
 
   /**
-   * 检索记忆（跨层级）
+   * 检索记忆（跨层级）- 原有方法，用于内部搜索
    */
-  retrieve(query: string, options: {
+  retrieveMemories(query: string, options: {
     k?: number;
     threshold?: number;
     tiers?: ('working' | 'shortTerm' | 'longTerm')[];
@@ -517,19 +526,6 @@ export class HierarchicalMemory extends EventEmitter {
   }
 
   /**
-   * 清空所有记忆
-   */
-  clear(): void {
-    this.workingMemory.clear();
-    this.shortTermMemory.clear();
-    this.longTermMemory.clear();
-    this.accessStats.clear();
-    this.totalAccesses = 0;
-    this.cacheHits = 0;
-    this.emit('memoryCleared');
-  }
-
-  /**
    * 生成唯一 ID
    */
   private generateId(): string {
@@ -541,8 +537,155 @@ export class HierarchicalMemory extends EventEmitter {
    */
   destroy(): void {
     this.stopAutoArchive();
-    this.clear();
+    this.workingMemory.clear();
+    this.shortTermMemory.clear();
+    this.longTermMemory.clear();
+    this.accessStats.clear();
     this.removeAllListeners();
+  }
+
+  // ============================================================================
+  // MemoryStore 接口实现
+  // ============================================================================
+
+  /**
+   * 存储记忆
+   * 将 Memory 转换为 MemoryEntry 并添加到工作记忆
+   */
+  async store(memory: Memory): Promise<void> {
+    const entry: MemoryEntry = {
+      id: memory.id,
+      content: memory.content,
+      timestamp: memory.timestamp,
+      importance: memory.score || 0.5,
+      embedding: memory.embedding,
+      metadata: {
+        source: memory.source,
+        type: this.mapMemoryTypeToEntryType(memory.type),
+        tags: memory.metadata?.tags,
+        accessCount: 0,
+        lastAccessed: Date.now(),
+      },
+    };
+
+    // 检查工作记忆是否已满
+    if (this.isTierFull('working')) {
+      this.evictFromWorkingMemory();
+    }
+
+    this.workingMemory.set(entry.id, entry);
+    this.accessStats.set(entry.id, { count: 0, lastAccessed: Date.now() });
+
+    this.emit('memoryAdded', { entry, tier: 'working' });
+  }
+
+  /**
+   * 检索记忆
+   */
+  async retrieve(id: string): Promise<Memory | undefined> {
+    // 从所有层级查找
+    let entry = this.workingMemory.get(id);
+    let tier: 'working' | 'shortTerm' | 'longTerm' = 'working';
+
+    if (!entry) {
+      entry = this.shortTermMemory.get(id);
+      tier = 'shortTerm';
+    }
+    if (!entry) {
+      entry = this.longTermMemory.get(id);
+      tier = 'longTerm';
+    }
+
+    if (!entry) return undefined;
+
+    // 更新访问统计
+    this.updateAccessStats(id);
+
+    return this.entryToMemory(entry, tier);
+  }
+
+  /**
+   * 搜索记忆
+   */
+  async search(query: MemoryQuery): Promise<MemorySearchResult[]> {
+    const results = this.retrieveMemories(query.content, {
+      k: query.limit || 10,
+      threshold: query.threshold,
+    });
+
+    return results.map(result => ({
+      memory: this.entryToMemory(result.entry, result.tier),
+      score: result.relevance,
+      relevance: result.relevance,
+    }));
+  }
+
+  /**
+   * 删除记忆
+   */
+  async delete(id: string): Promise<void> {
+    const deleted = 
+      this.workingMemory.delete(id) ||
+      this.shortTermMemory.delete(id) ||
+      this.longTermMemory.delete(id);
+
+    if (deleted) {
+      this.accessStats.delete(id);
+      this.emit('memoryDeleted', { id });
+    }
+  }
+
+  /**
+   * 清空所有记忆 (MemoryStore 接口)
+   */
+  async clear(): Promise<void> {
+    this.workingMemory.clear();
+    this.shortTermMemory.clear();
+    this.longTermMemory.clear();
+    this.accessStats.clear();
+    this.totalAccesses = 0;
+    this.cacheHits = 0;
+    this.emit('memoryCleared');
+  }
+
+  // ============================================================================
+  // 辅助方法
+  // ============================================================================
+
+  private mapMemoryTypeToEntryType(type: MemoryType): 'conversation' | 'fact' | 'event' | 'reflection' {
+    const mapping: Record<MemoryType, 'conversation' | 'fact' | 'event' | 'reflection'> = {
+      episodic: 'event',
+      semantic: 'fact',
+      procedural: 'reflection',
+    };
+    return mapping[type] || 'fact';
+  }
+
+  private mapEntryTypeToMemoryType(type: string): MemoryType {
+    const mapping: Record<string, MemoryType> = {
+      event: 'episodic',
+      fact: 'semantic',
+      reflection: 'procedural',
+      conversation: 'episodic',
+    };
+    return mapping[type] || 'semantic';
+  }
+
+  private entryToMemory(entry: MemoryEntry, tier: 'working' | 'shortTerm' | 'longTerm'): Memory {
+    return {
+      id: entry.id,
+      content: entry.content,
+      type: this.mapEntryTypeToMemoryType(entry.metadata?.type || 'fact'),
+      source: (entry.metadata?.source as MemorySource) || 'system',
+      metadata: {
+        tags: entry.metadata?.tags,
+        tier,
+        accessCount: entry.metadata?.accessCount,
+      },
+      timestamp: entry.timestamp,
+      score: entry.importance,
+      embedding: entry.embedding,
+    };
   }
 }
 

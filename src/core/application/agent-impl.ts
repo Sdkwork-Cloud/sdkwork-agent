@@ -48,6 +48,8 @@ import { PluginManagerImpl, createPluginManager } from './plugin-manager.js';
 import { Microkernel, createMicrokernel } from '../microkernel';
 import { ExecutionEngineImpl } from './execution-engine.js';
 import { createMemoryAdapter } from './memory-adapter.js';
+import { scanLazySkills, loadSkillLazy, loadSkillByNameLazy, getLazySkillEntries } from '../../skills/skill-loader.js';
+import { createSkillWatcher, type SkillChangeEvent } from '../../skills/watcher.js';
 
 
 // ============================================
@@ -71,6 +73,12 @@ export class AgentImpl extends EventEmitter implements Agent {
   private _skills: Map<string, Skill> = new Map();
   private _tools: Map<string, Tool> = new Map();
   private _memory?: MemoryStore;
+
+  // Lazy loading system
+  private _lazySkillsInitialized: boolean = false;
+
+  // Skill Watcher (for hot reloading)
+  private _skillWatcher?: ReturnType<typeof createSkillWatcher>;
 
   // Cached registry instances (lazy initialization)
   private _skillsRegistry?: import('../domain/skill').SkillRegistry;
@@ -123,16 +131,18 @@ export class AgentImpl extends EventEmitter implements Agent {
     // Subscribe to kernel events
     this._subscribeKernelEvents();
 
-    // Initialize capabilities
-    if (config.skills) {
-      for (const skill of config.skills) {
-        this._skills.set(skill.id, skill);
-      }
-    }
-
+    // Initialize tools (tools are lightweight, can be loaded upfront)
     if (config.tools) {
       for (const tool of config.tools) {
         this._tools.set(tool.id, tool);
+      }
+    }
+
+    // Skills use lazy loading, don't load upfront
+    // Pre-register skills from config to the registry for immediate access
+    if (config.skills) {
+      for (const skill of config.skills) {
+        this._skills.set(skill.id, skill);
       }
     }
 
@@ -144,8 +154,27 @@ export class AgentImpl extends EventEmitter implements Agent {
         skills: this._skills.size,
         tools: this._tools.size,
         memory: !!config.memory,
+        lazyLoading: true,
       },
     });
+  }
+
+  /**
+   * Initialize lazy skills system
+   */
+  private async _initLazySkills(): Promise<void> {
+    if (this._lazySkillsInitialized) {
+      return;
+    }
+
+    this.agentLogger.debug('Initializing lazy skills system...');
+    try {
+      const entries = await scanLazySkills();
+      this.agentLogger.debug(`Scanned ${entries.length} lazy skills`);
+      this._lazySkillsInitialized = true;
+    } catch (error) {
+      this.agentLogger.warn('Failed to initialize lazy skills', { error });
+    }
   }
 
   // ============================================
@@ -160,9 +189,24 @@ export class AgentImpl extends EventEmitter implements Agent {
         version: '1.0.0',
         dependencies: [],
         initialize: async () => {
-          // Initialize memory store
-          const { createMemoryStore } = await import('./memory-store');
-          this._memory = createMemoryStore(this._config.memory);
+          // Check if memory is already a MemoryStore instance
+          if (this._config.memory && typeof this._config.memory === 'object') {
+            // Check if it has MemoryStore methods (store, retrieve, search, delete, clear)
+            const mem = this._config.memory as Record<string, unknown>;
+            if (
+              typeof mem.store === 'function' &&
+              typeof mem.retrieve === 'function' &&
+              typeof mem.search === 'function' &&
+              typeof mem.delete === 'function'
+            ) {
+              // It's a MemoryStore instance
+              this._memory = this._config.memory as MemoryStore;
+            } else {
+              // It's a MemoryConfig, create default store
+              const { createMemoryStore } = await import('./memory-store');
+              this._memory = createMemoryStore(this._config.memory as import('../domain/memory.js').MemoryConfig);
+            }
+          }
         },
         destroy: async () => {
           // Cleanup memory
@@ -302,14 +346,32 @@ export class AgentImpl extends EventEmitter implements Agent {
           this._skills.delete(skillId);
         },
         get: (skillId: string) => this._skills.get(skillId),
-        getByName: (name: string) => {
+        getByName: async (name: string) => {
+          // First check already loaded skills
           for (const skill of this._skills.values()) {
             if (skill.name === name) return skill;
           }
+          
+          // Try to lazy load by name
+          try {
+            await this._initLazySkills();
+            const skill = await loadSkillByNameLazy(name);
+            if (skill) {
+              this._skills.set(skill.id, skill);
+              return skill;
+            }
+          } catch (error) {
+            this.agentLogger.warn(`Failed to lazy load skill by name: ${name}`, { error });
+          }
+          
           return undefined;
         },
-        list: () => Array.from(this._skills.values()),
+        list: () => {
+          // Return already loaded skills
+          return Array.from(this._skills.values());
+        },
         search: (query: string) => {
+          // Search already loaded skills
           return Array.from(this._skills.values()).filter(
             (s) => s.name.includes(query) || s.description.includes(query)
           );
@@ -389,6 +451,12 @@ export class AgentImpl extends EventEmitter implements Agent {
       // Initialize all services via kernel
       await this._kernel.initializeAll();
 
+      // Initialize lazy skills system
+      await this._initLazySkills();
+
+      // Start skill watcher for hot reloading
+      this._startSkillWatcher();
+
       this._setState(AgentState.READY);
 
       this._emitEvent('agent:started', {
@@ -400,6 +468,7 @@ export class AgentImpl extends EventEmitter implements Agent {
           mcp: this._mcpManager?.clients?.size || 0,
           plugins: this._pluginManager?.plugins?.size || 0,
           memory: !!this._config.memory,
+          hotReload: !!this._skillWatcher,
         },
       });
     } catch (error) {
@@ -446,6 +515,9 @@ export class AgentImpl extends EventEmitter implements Agent {
   async destroy(): Promise<void> {
     this._setState(AgentState.DESTROYED);
 
+    // Stop skill watcher
+    this._stopSkillWatcher();
+
     // Destroy all services via kernel
     await this._kernel.destroyAll();
 
@@ -460,6 +532,103 @@ export class AgentImpl extends EventEmitter implements Agent {
     });
 
     this.removeAllListeners();
+  }
+
+  /**
+   * Start the skill watcher for hot reloading
+   */
+  private _startSkillWatcher(): void {
+    try {
+      this._skillWatcher = createSkillWatcher(undefined, this.agentLogger);
+      
+      // Listen for skill changes
+      this._skillWatcher.on('change', (event: SkillChangeEvent) => {
+        this._handleSkillChange(event);
+      });
+
+      // Start watching all skill directories
+      this._skillWatcher.watchAll(process.cwd());
+      
+      const watchedDirs = this._skillWatcher.getWatchedDirs();
+      this.agentLogger.info('Skill watcher started', { watchedDirs });
+    } catch (error) {
+      this.agentLogger.warn('Failed to start skill watcher', { error });
+      this._skillWatcher = undefined;
+    }
+  }
+
+  /**
+   * Stop the skill watcher
+   */
+  private _stopSkillWatcher(): void {
+    if (this._skillWatcher) {
+      this._skillWatcher.unwatchAll();
+      this._skillWatcher.removeAllListeners();
+      this._skillWatcher = undefined;
+      this.agentLogger.info('Skill watcher stopped');
+    }
+  }
+
+  /**
+   * Handle skill change events (add, change, unlink)
+   */
+  private _handleSkillChange(event: SkillChangeEvent): void {
+    this.agentLogger.debug('Skill change detected', {
+      type: event.type,
+      source: event.source,
+      path: event.path,
+      skillName: event.skillName,
+    });
+
+    switch (event.type) {
+      case 'add':
+      case 'change':
+        // Invalidate cache for this skill
+        if (event.skillName) {
+          // Find and remove from cache
+          for (const [id, skill] of this._skills.entries()) {
+            if (skill.name === event.skillName) {
+              this._skills.delete(id);
+              this.agentLogger.debug('Skill cache invalidated', {
+                skillName: event.skillName,
+                skillId: id,
+              });
+              break;
+            }
+          }
+          
+          // Emit event
+          this._emitEvent('skill:updated', {
+            skillName: event.skillName,
+            source: event.source,
+            path: event.path,
+          });
+        }
+        break;
+        
+      case 'unlink':
+        // Remove from cache
+        if (event.skillName) {
+          for (const [id, skill] of this._skills.entries()) {
+            if (skill.name === event.skillName) {
+              this._skills.delete(id);
+              this.agentLogger.debug('Skill removed from cache', {
+                skillName: event.skillName,
+                skillId: id,
+              });
+              break;
+            }
+          }
+          
+          // Emit event
+          this._emitEvent('skill:removed', {
+            skillName: event.skillName,
+            source: event.source,
+            path: event.path,
+          });
+        }
+        break;
+    }
   }
 
   // ============================================
@@ -621,7 +790,30 @@ export class AgentImpl extends EventEmitter implements Agent {
   async executeSkill(skillId: string, input: string, context?: Partial<SkillExecutionContext>): Promise<SkillResult> {
     this._ensureReady();
 
-    const skill = this._skills.get(skillId);
+    // Try to get skill from cache first
+    let skill = this._skills.get(skillId);
+    
+    // If not found, try to lazy load it
+    if (!skill) {
+      try {
+        await this._initLazySkills();
+        const loadedSkill = await loadSkillLazy(skillId);
+        if (loadedSkill) {
+          skill = loadedSkill;
+          this._skills.set(skill.id, skill);
+        } else {
+          // Try by name as fallback
+          const skillByName = await loadSkillByNameLazy(skillId);
+          if (skillByName) {
+            skill = skillByName;
+            this._skills.set(skill.id, skill);
+          }
+        }
+      } catch (error) {
+        this.agentLogger.warn(`Failed to lazy load skill: ${skillId}`, { error });
+      }
+    }
+
     if (!skill) {
       throw new Error(`Skill ${skillId} not found`);
     }

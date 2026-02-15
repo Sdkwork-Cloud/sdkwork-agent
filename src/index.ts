@@ -66,6 +66,31 @@ export { NeuralMCTS } from './algorithms/neural-mcts.js';
 export { MemGPTMemory } from './memory/memgpt-memory.js';
 export { HierarchicalMemory, createHierarchicalMemory } from './memory/hierarchical-memory.js';
 export type { MemoryEntry, MemoryStats, MemoryRetrievalResult } from './memory/hierarchical-memory.js';
+export { GraphMemory, createGraphMemory } from './memory/graph-memory.js';
+export type {
+  KnowledgeNode,
+  KnowledgeEdge,
+  NodeType,
+  RelationType,
+  Triple,
+  GraphQueryOptions,
+  PathResult,
+  InferenceResult,
+  GraphMemoryConfig,
+} from './memory/graph-memory.js';
+export { createMemoryStore } from './core/application/memory-store.js';
+export type {
+  Memory,
+  MemoryType,
+  MemorySource,
+  MemoryMetadata,
+  MemoryQuery,
+  MemoryFilters,
+  MemorySearchResult,
+  MemoryStore,
+  AdvancedMemoryStore,
+  MemoryConfig,
+} from './core/domain/memory.js';
 
 // ============================================
 // Advanced Algorithms
@@ -201,6 +226,7 @@ export const AGENT_SKILLS_SPEC_VERSION = '1.0.0';
 import type { LLMProvider } from './llm/provider.js';
 import type { Skill } from './core/domain/skill.js';
 import type { Tool } from './core/domain/tool.js';
+import type { MemoryStore, MemoryConfig } from './core/domain/memory.js';
 import { AgentImpl } from './core/application/agent-impl.js';
 
 export interface CreateAgentOptions {
@@ -212,6 +238,13 @@ export interface CreateAgentOptions {
   skills?: Skill[];
   /** 工具列表 */
   tools?: Tool[];
+  /** 
+   * 记忆存储 - 支持三种方式
+   * 1. 自定义 MemoryStore 实例
+   * 2. MemoryConfig 配置（使用内置内存存储）
+   * 3. 不配置（不启用记忆）
+   */
+  memory?: MemoryStore | MemoryConfig;
 }
 
 /**
@@ -237,6 +270,7 @@ export function createAgent(llmProvider: LLMProvider, options: CreateAgentOption
     llm: llmProvider,
     skills: options.skills,
     tools: options.tools,
+    memory: options.memory,
   });
 }
 

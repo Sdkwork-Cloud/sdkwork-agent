@@ -406,7 +406,7 @@ export class IntentRecognizer extends EventEmitter {
 
     for (const skill of skills) {
       let score = 0;
-      let matchedKeywords: string[] = [];
+      const matchedKeywords: string[] = [];
 
       // 名称匹配
       if (lowerInput.includes(skill.name.toLowerCase())) {

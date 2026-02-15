@@ -327,7 +327,7 @@ export class FileSystemBackend extends EventEmitter implements IStorageBackend {
     const resolvedPath = this.resolvePath(dirPath);
     const entries = await fs.readdir(resolvedPath, { withFileTypes: true, recursive: options.recursive });
     
-    let results: FileMetadata[] = [];
+    const results: FileMetadata[] = [];
     
     for (const entry of entries) {
       const fullPath = path.join(dirPath, entry.name);

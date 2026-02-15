@@ -9,25 +9,7 @@
  */
 
 import { TUIRenderer, Theme, DEFAULT_THEME } from './renderer.js';
-
-// ANSI 代码
-const ANSI = {
-  reset: '\x1b[0m',
-  bold: '\x1b[1m',
-  dim: '\x1b[2m',
-  italic: '\x1b[3m',
-  underline: '\x1b[4m',
-  strikethrough: '\x1b[9m',
-  
-  // 颜色
-  cyan: '\x1b[36m',
-  green: '\x1b[32m',
-  yellow: '\x1b[33m',
-  blue: '\x1b[34m',
-  magenta: '\x1b[35m',
-  red: '\x1b[31m',
-  gray: '\x1b[90m',
-};
+import { ANSI, COLORS } from './ansi-codes.js';
 
 export class MarkdownRenderer {
   private renderer: TUIRenderer;
@@ -84,14 +66,12 @@ export class MarkdownRenderer {
    * 渲染标题
    */
   private renderHeadings(content: string): string {
-    // H1: # Title
     content = content.replace(/^# (.+)$/gm, (match, title) => {
-      return `\n${ANSI.bold}${ANSI.cyan}${title.toUpperCase()}${ANSI.reset}\n${ANSI.cyan}${'═'.repeat(title.length)}${ANSI.reset}`;
+      return `\n${ANSI.bold}${COLORS.primary}${title.toUpperCase()}${ANSI.reset}\n${COLORS.primary}${'═'.repeat(title.length)}${ANSI.reset}`;
     });
 
-    // H2: ## Title
     content = content.replace(/^## (.+)$/gm, (match, title) => {
-      return `\n${ANSI.bold}${ANSI.cyan}${title}${ANSI.reset}\n${ANSI.cyan}${'─'.repeat(title.length)}${ANSI.reset}`;
+      return `\n${ANSI.bold}${COLORS.primary}${title}${ANSI.reset}\n${COLORS.primary}${'─'.repeat(title.length)}${ANSI.reset}`;
     });
 
     // H3: ### Title
@@ -140,7 +120,7 @@ export class MarkdownRenderer {
    */
   private renderInlineCode(content: string): string {
     return content.replace(/`([^`]+)`/g, (match, code) => {
-      return `${ANSI.yellow}${code}${ANSI.reset}`;
+      return `${COLORS.warning}${code}${ANSI.reset}`;
     });
   }
 
@@ -157,24 +137,20 @@ export class MarkdownRenderer {
       
       let result = '\n';
       
-      // 顶部边框
-      result += `${ANSI.gray}┌${'─'.repeat(width)}┐${ANSI.reset}\n`;
+      result += `${COLORS.muted}┌${'─'.repeat(width)}┐${ANSI.reset}\n`;
       
-      // 语言标识
       if (language) {
-        result += `${ANSI.gray}│ ${ANSI.dim}${language.padEnd(width - 3)}${ANSI.gray}│${ANSI.reset}\n`;
-        result += `${ANSI.gray}├${'─'.repeat(width)}┤${ANSI.reset}\n`;
+        result += `${COLORS.muted}│ ${ANSI.dim}${language.padEnd(width - 3)}${COLORS.muted}│${ANSI.reset}\n`;
+        result += `${COLORS.muted}├${'─'.repeat(width)}┤${ANSI.reset}\n`;
       }
       
-      // 代码内容
       for (const line of lines) {
         const truncated = line.slice(0, width - 4);
         const padded = truncated.padEnd(width - 4);
-        result += `${ANSI.gray}│${ANSI.reset} ${padded} ${ANSI.gray}│${ANSI.reset}\n`;
+        result += `${COLORS.muted}│${ANSI.reset} ${padded} ${COLORS.muted}│${ANSI.reset}\n`;
       }
       
-      // 底部边框
-      result += `${ANSI.gray}└${'─'.repeat(width)}┘${ANSI.reset}\n`;
+      result += `${COLORS.muted}└${'─'.repeat(width)}┘${ANSI.reset}\n`;
       
       return result;
     });
@@ -184,25 +160,17 @@ export class MarkdownRenderer {
    * 渲染链接
    */
   private renderLinks(content: string): string {
-    // [text](url)
     return content.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (match, text, url) => {
-      return `${ANSI.underline}${ANSI.blue}${text}${ANSI.reset} ${ANSI.dim}(${url})${ANSI.reset}`;
+      return `${ANSI.underline}${COLORS.info}${text}${ANSI.reset} ${ANSI.dim}(${url})${ANSI.reset}`;
     });
   }
 
-  /**
-   * 渲染图片
-   */
   private renderImages(content: string): string {
-    // ![alt](url)
-    return content.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (match, alt, url) => {
-      return `${ANSI.gray}[Image: ${alt || 'untitled'}]${ANSI.reset}`;
+    return content.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (match, alt, _url) => {
+      return `${COLORS.muted}[Image: ${alt || 'untitled'}]${ANSI.reset}`;
     });
   }
 
-  /**
-   * 渲染引用块
-   */
   private renderBlockquotes(content: string): string {
     const lines = content.split('\n');
     const result: string[] = [];
@@ -215,13 +183,13 @@ export class MarkdownRenderer {
           inQuote = true;
         }
         const quoteText = line.slice(2);
-        result.push(`${ANSI.gray}│${ANSI.reset} ${ANSI.italic}${quoteText}${ANSI.reset}`);
+        result.push(`${COLORS.muted}│${ANSI.reset} ${ANSI.italic}${quoteText}${ANSI.reset}`);
       } else if (line.startsWith('>')) {
         if (!inQuote) {
           result.push('');
           inQuote = true;
         }
-        result.push(`${ANSI.gray}│${ANSI.reset}`);
+        result.push(`${COLORS.muted}│${ANSI.reset}`);
       } else {
         if (inQuote) {
           result.push('');
@@ -234,13 +202,10 @@ export class MarkdownRenderer {
     return result.join('\n');
   }
 
-  /**
-   * 渲染水平线
-   */
   private renderHorizontalRules(content: string): string {
     const width = Math.min(60, process.stdout.columns - 4 || 60);
     return content.replace(/^(---|___|\*\*\*)$/gm, () => {
-      return `\n${ANSI.gray}${'─'.repeat(width)}${ANSI.reset}\n`;
+      return `\n${COLORS.muted}${'─'.repeat(width)}${ANSI.reset}\n`;
     });
   }
 
@@ -251,7 +216,6 @@ export class MarkdownRenderer {
     const lines = content.split('\n');
     const result: string[] = [];
     let inList = false;
-    let listIndent = 0;
 
     for (const line of lines) {
       // 无序列表: - item 或 * item
@@ -263,11 +227,11 @@ export class MarkdownRenderer {
         const [, indent, text] = unorderedMatch;
         const level = Math.floor(indent.length / 2);
         const bullet = level % 2 === 0 ? '•' : '◦';
-        result.push(`${indent}${ANSI.cyan}${bullet}${ANSI.reset} ${text}`);
+        result.push(`${indent}${COLORS.primary}${bullet}${ANSI.reset} ${text}`);
         inList = true;
       } else if (orderedMatch) {
         const [, indent, number, text] = orderedMatch;
-        result.push(`${indent}${ANSI.cyan}${number}.${ANSI.reset} ${text}`);
+        result.push(`${indent}${COLORS.primary}${number}.${ANSI.reset} ${text}`);
         inList = true;
       } else {
         if (inList && line.trim() === '') {
@@ -343,28 +307,25 @@ export class MarkdownRenderer {
 
     let result = '\n';
 
-    // 顶部边框
-    result += ANSI.gray + '┌';
+    result += COLORS.muted + '┌';
     for (let i = 0; i < colCount; i++) {
       result += '─'.repeat(colWidths[i] + 2);
       if (i < colCount - 1) result += '┬';
     }
     result += '┐' + ANSI.reset + '\n';
 
-    // 表格内容
     rows.forEach((row, rowIndex) => {
-      result += ANSI.gray + '│' + ANSI.reset;
+      result += COLORS.muted + '│' + ANSI.reset;
       for (let col = 0; col < colCount; col++) {
         const cell = (row[col] || '').slice(0, colWidths[col]);
         const padded = cell.padEnd(colWidths[col]);
         const style = rowIndex === 0 ? ANSI.bold : '';
-        result += ` ${style}${padded}${ANSI.reset} ${ANSI.gray}│${ANSI.reset}`;
+        result += ` ${style}${padded}${ANSI.reset} ${COLORS.muted}│${ANSI.reset}`;
       }
       result += '\n';
 
-      // 分隔线（表头后）
       if (rowIndex === 0) {
-        result += ANSI.gray + '├';
+        result += COLORS.muted + '├';
         for (let i = 0; i < colCount; i++) {
           result += '─'.repeat(colWidths[i] + 2);
           if (i < colCount - 1) result += '┼';
@@ -373,8 +334,7 @@ export class MarkdownRenderer {
       }
     });
 
-    // 底部边框
-    result += ANSI.gray + '└';
+    result += COLORS.muted + '└';
     for (let i = 0; i < colCount; i++) {
       result += '─'.repeat(colWidths[i] + 2);
       if (i < colCount - 1) result += '┴';

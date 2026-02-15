@@ -8,23 +8,17 @@
  * @version 1.0.0
  */
 
-import * as readline from 'readline';
 import { stdin, stdout } from 'process';
+import { ANSI, COLORS } from './ansi-codes.js';
 
-const ANSI = {
-  reset: '\x1b[0m',
-  bold: '\x1b[1m',
-  dim: '\x1b[2m',
-  cursorUp: '\x1b[1A',
-  cursorDown: '\x1b[1B',
-  cursorHome: '\x1b[0G',
-  clearLine: '\x1b[2K',
-  clearScreenDown: '\x1b[0J',
-  hideCursor: '\x1b[?25l',
-  showCursor: '\x1b[?25h',
-  saveCursor: '\x1b[s',
-  restoreCursor: '\x1b[u',
-};
+const DEBUG = process.env.TUI_DEBUG === 'true';
+
+function debugLog(message: string, error?: unknown): void {
+  if (DEBUG) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.error(`${COLORS.warning}[TUI Debug]${ANSI.reset} ${message}${errorMsg ? `: ${errorMsg}` : ''}`);
+  }
+}
 
 export interface SelectOption<T = string> {
   value: T;
@@ -38,6 +32,7 @@ export interface SelectConfig<T = string> {
   options: SelectOption<T>[];
   defaultIndex?: number;
   pageSize?: number;
+  timeout?: number;
   theme?: {
     primary: string;
     secondary: string;
@@ -49,12 +44,12 @@ export interface SelectConfig<T = string> {
 }
 
 const DEFAULT_THEME = {
-  primary: '\x1b[36m',
-  secondary: '\x1b[90m',
-  selected: '\x1b[32m',
-  disabled: '\x1b[90m',
-  pointer: '\x1b[36m❯',
-  active: '\x1b[1m',
+  primary: COLORS.primary,
+  secondary: COLORS.secondary,
+  selected: COLORS.success,
+  disabled: COLORS.muted,
+  pointer: `${COLORS.primary}❯`,
+  active: ANSI.bold,
 };
 
 export class InteractiveSelector<T = string> {
@@ -63,6 +58,7 @@ export class InteractiveSelector<T = string> {
   private scrollTop: number;
   private resolved: boolean = false;
   private dataHandler: ((data: string) => void) | null = null;
+  private timeoutId: NodeJS.Timeout | null = null;
 
   constructor(config: SelectConfig<T>) {
     this.config = {
@@ -75,31 +71,25 @@ export class InteractiveSelector<T = string> {
   }
 
   async select(): Promise<T | null> {
-    // 处理空选项列表
     if (this.config.options.length === 0) {
-      console.log(`${this.config.theme?.secondary || '\x1b[90m'}没有可选项${ANSI.reset}`);
+      console.log(`${this.config.theme?.secondary || COLORS.secondary}没有可选项${ANSI.reset}`);
       return null;
     }
 
-    // 处理单个选项
     if (this.config.options.length === 1) {
       const option = this.config.options[0];
       if (option.disabled) {
-        console.log(`${this.config.theme?.disabled || '\x1b[90m'}唯一选项已禁用${ANSI.reset}`);
+        console.log(`${this.config.theme?.disabled || COLORS.muted}唯一选项已禁用${ANSI.reset}`);
         return null;
       }
       return option.value;
     }
 
     return new Promise((resolve) => {
-      // 隐藏光标
       stdout.write(ANSI.hideCursor);
 
-      // 显示初始选项
       this.render();
 
-      // 设置原始模式以捕获按键
-      // 注意：保存之前的 rawMode 状态，以便恢复
       const wasRaw = stdin.isTTY && stdin.isRaw;
 
       if (stdin.isTTY) {
@@ -108,13 +98,19 @@ export class InteractiveSelector<T = string> {
       stdin.resume();
       stdin.setEncoding('utf8');
 
-      // 创建数据处理器
+      if (this.config.timeout && this.config.timeout > 0) {
+        this.timeoutId = setTimeout(() => {
+          if (!this.resolved) {
+            this.cancel(resolve, wasRaw, true);
+          }
+        }, this.config.timeout);
+      }
+
       this.dataHandler = (data: string) => {
         if (this.resolved) return;
 
         const key = data.toString();
 
-        // 处理按键
         if (key === '\u001b[A' || key === 'k') {
           this.moveUp();
         } else if (key === '\u001b[B' || key === 'j') {
@@ -132,7 +128,6 @@ export class InteractiveSelector<T = string> {
         } else if (key === '\u001b' || key === 'q') {
           this.cancel(resolve, wasRaw);
         } else if (/^[0-9]$/.test(key)) {
-          // 数字键直接选择
           this.selectByNumber(parseInt(key), resolve, wasRaw);
         }
       };
@@ -141,24 +136,25 @@ export class InteractiveSelector<T = string> {
     });
   }
 
-  // 清理函数 - 恢复 stdin 状态
   private cleanup(wasRaw?: boolean): void {
+    if (this.timeoutId) {
+      clearTimeout(this.timeoutId);
+      this.timeoutId = null;
+    }
+
     if (this.dataHandler) {
       stdin.off('data', this.dataHandler);
       this.dataHandler = null;
     }
 
-    // 恢复 rawMode 状态
-    // 注意：CLI 的 readline 需要 rawMode，所以我们要恢复到之前的状态
     if (stdin.isTTY && wasRaw !== undefined) {
       try {
         stdin.setRawMode(wasRaw);
-      } catch {
-        // 忽略错误，某些情况下可能无法设置
+      } catch (err) {
+        debugLog('Failed to restore rawMode in InteractiveSelector.cleanup', err);
       }
     }
 
-    // 显示光标
     stdout.write(ANSI.showCursor);
   }
 
@@ -200,7 +196,6 @@ export class InteractiveSelector<T = string> {
 
       // 计算显示编号
       const displayNum = i + 1;
-      const numStr = displayNum > 9 ? '' : `${displayNum}`;
 
       if (isDisabled) {
         const line = `  ${theme.disabled}○ ${option.label}${ANSI.reset}`;
@@ -303,7 +298,6 @@ export class InteractiveSelector<T = string> {
     const option = this.config.options[this.selectedIndex];
     this.cleanup(wasRaw);
 
-    // 显示最终选择
     const theme = this.config.theme || DEFAULT_THEME;
     console.log('');
     console.log(`${theme.selected}✓${ANSI.reset} 已选择: ${option.label}`);
@@ -311,7 +305,7 @@ export class InteractiveSelector<T = string> {
     resolve(option.disabled ? null : option.value);
   }
 
-  private cancel(resolve: (value: T | null) => void, wasRaw?: boolean): void {
+  private cancel(resolve: (value: T | null) => void, wasRaw?: boolean, isTimeout = false): void {
     if (this.resolved) return;
     this.resolved = true;
 
@@ -319,7 +313,11 @@ export class InteractiveSelector<T = string> {
 
     const theme = this.config.theme || DEFAULT_THEME;
     console.log('');
-    console.log(`${theme.secondary}已取消${ANSI.reset}`);
+    if (isTimeout) {
+      console.log(`${theme.secondary}操作超时${ANSI.reset}`);
+    } else {
+      console.log(`${theme.secondary}已取消${ANSI.reset}`);
+    }
 
     resolve(null);
   }
@@ -494,12 +492,11 @@ export class MultiSelector<T = string> {
     if (stdin.isTTY && wasRaw !== undefined) {
       try {
         stdin.setRawMode(wasRaw);
-      } catch {
-        // 忽略错误
+      } catch (err) {
+        debugLog('Failed to restore rawMode in MultiSelector.cleanup', err);
       }
     }
 
-    // 显示光标
     stdout.write(ANSI.showCursor);
   }
 
@@ -606,26 +603,32 @@ export class MultiSelector<T = string> {
 /**
  * 输入框 - 使用原始输入模式，避免与 CLI readline 冲突
  */
+export interface PromptConfig {
+  defaultValue?: string;
+  timeout?: number;
+}
+
 export async function prompt(
   message: string,
-  defaultValue?: string
+  defaultValue?: string | PromptConfig
 ): Promise<string | null> {
+  const config: PromptConfig = typeof defaultValue === 'string' 
+    ? { defaultValue } 
+    : (defaultValue || {});
+
   return new Promise((resolve) => {
-    // 显示提示
-    const promptText = defaultValue
-      ? `${message} (${defaultValue}): `
+    const promptText = config.defaultValue
+      ? `${message} (${config.defaultValue}): `
       : `${message}: `;
     stdout.write(promptText);
 
-    // 保存之前的 rawMode 状态
     const wasRaw = stdin.isTTY && stdin.isRaw;
 
-    // 对于 prompt，我们需要关闭 rawMode 以便正常输入
     if (stdin.isTTY) {
       try {
         stdin.setRawMode(false);
-      } catch {
-        // 忽略错误
+      } catch (err) {
+        debugLog('Failed to disable rawMode in prompt', err);
       }
     }
     stdin.resume();
@@ -633,35 +636,49 @@ export async function prompt(
 
     let input = '';
     let resolved = false;
+    let timeoutId: NodeJS.Timeout | null = null;
 
     const cleanup = () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
       stdin.off('data', onData);
-      // 恢复 rawMode 状态
       if (stdin.isTTY && wasRaw !== undefined) {
         try {
           stdin.setRawMode(wasRaw);
-        } catch {
-          // 忽略错误
+        } catch (err) {
+          debugLog('Failed to restore rawMode in prompt cleanup', err);
         }
       }
     };
+
+    if (config.timeout && config.timeout > 0) {
+      timeoutId = setTimeout(() => {
+        if (!resolved) {
+          resolved = true;
+          cleanup();
+          stdout.write('\n');
+          console.log(`${COLORS.secondary}操作超时${ANSI.reset}`);
+          resolve(null);
+        }
+      }, config.timeout);
+    }
 
     const onData = (data: string) => {
       if (resolved) return;
 
       const key = data.toString();
 
-      // 处理 Enter 键
       if (key === '\r' || key === '\n') {
         resolved = true;
         cleanup();
         stdout.write('\n');
-        const result = input.trim() || defaultValue || '';
+        const result = input.trim() || config.defaultValue || '';
         resolve(result || null);
         return;
       }
 
-      // 处理 Ctrl+C
       if (key === '\u0003') {
         resolved = true;
         cleanup();
@@ -670,7 +687,6 @@ export async function prompt(
         return;
       }
 
-      // 处理退格键
       if (key === '\u007f' || key === '\b') {
         if (input.length > 0) {
           input = input.slice(0, -1);
@@ -679,7 +695,6 @@ export async function prompt(
         return;
       }
 
-      // 处理普通字符
       if (key >= ' ' && key <= '~') {
         input += key;
         stdout.write(key);
@@ -688,4 +703,44 @@ export async function prompt(
 
     stdin.on('data', onData);
   });
+}
+
+export interface PromptOptions {
+  defaultValue?: string;
+  validate?: (value: string) => string | true;
+  maxRetries?: number;
+  placeholder?: string;
+}
+
+export async function promptWithValidation(
+  message: string,
+  options: PromptOptions = {}
+): Promise<string | null> {
+  const { defaultValue, validate, maxRetries = 3, placeholder } = options;
+  let retries = 0;
+
+  while (retries < maxRetries) {
+    const value = await prompt(
+      placeholder ? `${message} (${placeholder})` : message,
+      defaultValue
+    );
+
+    if (value === null) {
+      return null;
+    }
+
+    if (!validate) {
+      return value;
+    }
+
+    const validationResult = validate(value);
+    if (validationResult === true) {
+      return value;
+    }
+
+    stdout.write(`${COLORS.error}✗ ${validationResult}${ANSI.reset}\n`);
+    retries++;
+  }
+
+  return null;
 }

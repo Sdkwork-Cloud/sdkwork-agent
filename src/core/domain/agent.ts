@@ -54,6 +54,8 @@ export type AgentEventType =
   | 'skill:invoked'
   | 'skill:completed'
   | 'skill:failed'
+  | 'skill:updated'
+  | 'skill:removed'
   // 记忆事件
   | 'memory:stored'
   | 'memory:retrieved'
@@ -355,7 +357,12 @@ export interface AgentConfig {
   skills?: import('./skill').Skill[];
   tools?: import('./tool').Tool[];
   mcp?: import('./mcp').MCPServerConfig[];
-  memory?: MemoryConfig;
+  
+  // Memory - 支持三种方式
+  // 1. 自定义 MemoryStore 实例
+  // 2. MemoryConfig 配置（使用内置内存存储）
+  // 3. 不配置（不启用记忆）
+  memory?: MemoryStore | MemoryConfig;
 }
 
 /**

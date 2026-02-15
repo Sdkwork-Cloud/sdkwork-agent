@@ -14,6 +14,14 @@
 import { EventEmitter } from '../utils/event-emitter.js';
 import { HNSWVectorDatabase } from './hnsw-vector-database.js';
 import type { SearchOptions } from './vector-database.js';
+import type { 
+  MemoryStore, 
+  Memory, 
+  MemoryQuery,
+  MemorySearchResult,
+  MemoryType,
+  MemorySource
+} from '../core/domain/memory.js';
 
 // ============================================
 // 类型定义
@@ -124,7 +132,7 @@ export interface Action {
   result?: unknown;
 }
 
-export interface MemorySearchResult {
+export interface MemGPTSearchResult {
   entry: RecallMemoryEntry | ArchivalMemoryEntry;
   score: number;
   source: 'core' | 'recall' | 'archival';
@@ -143,7 +151,11 @@ export interface MemoryStats {
 // MemGPT 记忆管理器
 // ============================================
 
-export class MemGPTMemory extends EventEmitter {
+/**
+ * MemGPT 风格分层记忆系统
+ * 实现 MemoryStore 接口以支持作为 Agent 记忆存储
+ */
+export class MemGPTMemory extends EventEmitter implements MemoryStore {
   private config: MemGPTConfig;
 
   // 四层记忆系统
@@ -355,8 +367,8 @@ export class MemGPTMemory extends EventEmitter {
     query: string,
     queryEmbedding?: number[],
     options: SearchOptions = {}
-  ): Promise<MemorySearchResult[]> {
-    const results: MemorySearchResult[] = [];
+  ): Promise<MemGPTSearchResult[]> {
+    const results: MemGPTSearchResult[] = [];
 
     // 1. 向量搜索 (如果有embedding)
     if (queryEmbedding) {
@@ -470,8 +482,8 @@ export class MemGPTMemory extends EventEmitter {
     query: string,
     queryEmbedding?: number[],
     options: SearchOptions = {}
-  ): Promise<MemorySearchResult[]> {
-    const results: MemorySearchResult[] = [];
+  ): Promise<MemGPTSearchResult[]> {
+    const results: MemGPTSearchResult[] = [];
 
     // 向量搜索
     if (queryEmbedding) {
@@ -628,14 +640,14 @@ export class MemGPTMemory extends EventEmitter {
   /**
    * 统一搜索所有记忆层
    */
-  async search(
+  async searchAll(
     query: string,
     queryEmbedding?: number[],
     options: { limit?: number; includeCore?: boolean } = {}
   ): Promise<{
     core: string[];
-    recall: MemorySearchResult[];
-    archival: MemorySearchResult[];
+    recall: MemGPTSearchResult[];
+    archival: MemGPTSearchResult[];
   }> {
     const { limit = 10, includeCore = true } = options;
 
@@ -746,7 +758,7 @@ export class MemGPTMemory extends EventEmitter {
   /**
    * 结果去重
    */
-  private deduplicateResults(results: MemorySearchResult[]): MemorySearchResult[] {
+  private deduplicateResults(results: MemGPTSearchResult[]): MemGPTSearchResult[] {
     const seen = new Set<string>();
     return results.filter(r => {
       if (seen.has(r.entry.id)) return false;
@@ -846,6 +858,145 @@ export class MemGPTMemory extends EventEmitter {
     await this.archivalVectorDB.clear();
 
     this.emit('memoryCleared');
+  }
+
+  // ============================================
+  // MemoryStore 接口实现
+  // ============================================
+
+  /**
+   * 存储记忆
+   * 将 Memory 转换为 RecallMemoryEntry
+   */
+  async store(memory: Memory): Promise<void> {
+    const entry: Omit<RecallMemoryEntry, 'id' | 'timestamp'> = {
+      role: this.mapSourceToRole(memory.source),
+      content: memory.content,
+      importance: memory.score || 0.5,
+      keywords: memory.metadata?.tags || [],
+      relatedIds: [],
+      embedding: memory.embedding,
+    };
+
+    await this.addRecallEntry(entry);
+  }
+
+  /**
+   * 检索记忆
+   */
+  async retrieve(id: string): Promise<Memory | undefined> {
+    // 先从回忆记忆查找
+    const recallEntry = this.recallMemory.get(id);
+    if (recallEntry) {
+      return this.recallEntryToMemory(recallEntry);
+    }
+
+    // 再从归档记忆查找
+    const archivalEntry = this.archivalMemory.get(id);
+    if (archivalEntry) {
+      return this.archivalEntryToMemory(archivalEntry);
+    }
+
+    return undefined;
+  }
+
+  /**
+   * 搜索记忆
+   */
+  async search(query: MemoryQuery): Promise<MemorySearchResult[]> {
+    const results = await this.searchRecall(query.content, undefined, {
+      limit: query.limit || 10,
+    });
+
+    return results.map(result => ({
+      memory: this.recallEntryToMemory(result.entry as RecallMemoryEntry),
+      score: result.score,
+      relevance: result.score,
+    }));
+  }
+
+  /**
+   * 删除记忆
+   */
+  async delete(id: string): Promise<void> {
+    // 从回忆记忆删除
+    if (this.recallMemory.has(id)) {
+      this.recallMemory.delete(id);
+      await this.recallVectorDB.delete(id);
+      this.emit('memoryDeleted', { id, source: 'recall' });
+      return;
+    }
+
+    // 从归档记忆删除
+    if (this.archivalMemory.has(id)) {
+      this.archivalMemory.delete(id);
+      await this.archivalVectorDB.delete(id);
+      this.emit('memoryDeleted', { id, source: 'archival' });
+    }
+  }
+
+  /**
+   * 清空所有记忆 (MemoryStore 接口)
+   */
+  async clearStore(): Promise<void> {
+    await this.clear();
+  }
+
+  // ============================================
+  // MemoryStore 辅助方法
+  // ============================================
+
+  private mapSourceToRole(source: MemorySource): 'user' | 'assistant' | 'system' {
+    const mapping: Record<MemorySource, 'user' | 'assistant' | 'system'> = {
+      conversation: 'user',
+      document: 'system',
+      system: 'system',
+      user: 'user',
+    };
+    return mapping[source] || 'user';
+  }
+
+  private mapRoleToSource(role: string): MemorySource {
+    const mapping: Record<string, MemorySource> = {
+      user: 'conversation',
+      assistant: 'conversation',
+      system: 'system',
+    };
+    return mapping[role] || 'system';
+  }
+
+  private recallEntryToMemory(entry: RecallMemoryEntry): Memory {
+    return {
+      id: entry.id,
+      content: entry.content,
+      type: 'episodic',
+      source: this.mapRoleToSource(entry.role),
+      metadata: {
+        tags: entry.keywords,
+        importance: entry.importance,
+        sentiment: entry.sentiment,
+      },
+      timestamp: entry.timestamp.getTime(),
+      score: entry.importance,
+      embedding: entry.embedding,
+    };
+  }
+
+  private archivalEntryToMemory(entry: ArchivalMemoryEntry): Memory {
+    return {
+      id: entry.id,
+      content: entry.summary,
+      type: 'semantic',
+      source: 'system',
+      metadata: {
+        category: entry.category,
+        originalLength: entry.originalLength,
+        accessCount: entry.accessCount,
+      },
+      timestamp: entry.createdAt.getTime(),
+      score: 0.5,
+      embedding: entry.embedding,
+    };
   }
 }
 

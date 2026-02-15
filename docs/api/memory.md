@@ -2,290 +2,350 @@
 
 Memory 是 SDKWork Browser Agent 的记忆存储系统，提供智能体的记忆能力。
 
-## MemoryStore
+## MemoryStore 接口
 
 ### 接口定义
 
 ```typescript
 interface MemoryStore {
-  store(item: Omit<MemoryItem, 'id'>): Promise<string>;
-  retrieve(id: string): Promise<MemoryItem | null>;
-  search(query: string, limit?: number): Promise<MemoryItem[]>;
+  store(memory: Memory): Promise<void>;
+  retrieve(id: string): Promise<Memory | undefined>;
+  search(query: MemoryQuery): Promise<MemorySearchResult[]>;
   delete(id: string): Promise<void>;
   clear(): Promise<void>;
 }
 ```
 
-### MemoryItem
+### Memory 类型
 
 ```typescript
-interface MemoryItem {
+interface Memory {
   id: string;
   content: string;
   type: MemoryType;
-  importance: number;
+  source: MemorySource;
+  metadata?: MemoryMetadata;
   timestamp: number;
-  expiresAt?: number;
-  metadata?: Record<string, unknown>;
+  score?: number;
   embedding?: number[];
 }
 
-type MemoryType = 
-  | 'short-term'    // 短期记忆
-  | 'long-term'     // 长期记忆
-  | 'episodic'      // 情景记忆
-  | 'semantic'      // 语义记忆
-  | 'preference'    // 偏好记忆
-  | 'fact';         // 事实记忆
+type MemoryType = 'episodic' | 'semantic' | 'procedural';
+type MemorySource = 'conversation' | 'document' | 'system' | 'user';
 ```
 
-## 使用示例
+## 使用方式
 
-### 基础使用
+Agent 创建时支持三种 Memory 配置方式：
+
+### 1. 使用内置内存存储
 
 ```typescript
 import { createAgent } from '@sdkwork/browser-agent';
 import { OpenAIProvider } from '@sdkwork/browser-agent/llm';
 
-const agent = createAgent(llm, { name: 'MemoryAgent' });
-await agent.initialize();
-
-// 存储记忆
-const memoryId = await agent.memory.store({
-  content: '用户喜欢简洁的回答',
-  type: 'preference',
-  importance: 0.8,
-  metadata: { source: 'user-feedback' }
-});
-
-// 检索记忆
-const memory = await agent.memory.retrieve(memoryId);
-console.log(memory?.content);
-
-// 搜索记忆
-const results = await agent.memory.search('偏好');
-console.log(results);
-
-// 删除记忆
-await agent.memory.delete(memoryId);
-
-await agent.destroy();
-```
-
-### 在 Skill 中使用
-
-```typescript
-const memorySkill: Skill = {
-  id: 'remember',
-  name: 'Remember',
-  description: 'Store and retrieve memories',
-  version: '1.0.0',
-  script: {
-    lang: 'typescript',
-    code: `
-      async function main() {
-        const { action, content, query } = $input;
-        
-        switch (action) {
-          case 'store':
-            const id = await $memory.store({
-              content,
-              type: 'fact',
-              importance: 0.7
-            });
-            return { stored: true, id };
-            
-          case 'search':
-            const results = await $memory.search(query, 10);
-            return { results };
-            
-          case 'get':
-            const memory = await $memory.get(content);
-            return { memory };
-        }
-      }
-    `,
-    entry: 'main'
-  },
-  input: {
-    type: 'object',
-    properties: {
-      action: { type: 'string', enum: ['store', 'search', 'get'] },
-      content: { type: 'string' },
-      query: { type: 'string' }
-    },
-    required: ['action']
+const agent = createAgent(llm, {
+  name: 'MemoryAgent',
+  // 使用 MemoryConfig 配置内置存储
+  memory: {
+    limit: 1000,
+    maxTokens: 128000,
   }
-};
-```
-
-## 记忆类型
-
-### 短期记忆
-
-会话级别的临时记忆：
-
-```typescript
-await agent.memory.store({
-  content: '当前对话主题是编程',
-  type: 'short-term',
-  importance: 0.5,
-  expiresAt: Date.now() + 3600000 // 1小时后过期
 });
 ```
 
-### 长期记忆
-
-持久化的重要记忆：
+### 2. 使用自定义 MemoryStore
 
 ```typescript
-await agent.memory.store({
-  content: '用户的名字是 Alice',
-  type: 'long-term',
-  importance: 0.9
-});
-```
+import { createAgent, type MemoryStore, type Memory, type MemoryQuery, type MemorySearchResult } from '@sdkwork/browser-agent';
 
-### 情景记忆
+// 实现自定义 MemoryStore
+class CustomMemoryStore implements MemoryStore {
+  private db: Database;
 
-按时间索引的事件记忆：
-
-```typescript
-await agent.memory.store({
-  content: '2024-01-15 用户询问了关于 TypeScript 的问题',
-  type: 'episodic',
-  importance: 0.6,
-  metadata: { date: '2024-01-15', topic: 'TypeScript' }
-});
-```
-
-### 语义记忆
-
-基于内容的记忆：
-
-```typescript
-await agent.memory.store({
-  content: 'TypeScript 是 JavaScript 的超集',
-  type: 'semantic',
-  importance: 0.7,
-  metadata: { category: 'programming' }
-});
-```
-
-## 记忆算法
-
-### 重要性评分
-
-```typescript
-interface ImportanceScorer {
-  score(item: MemoryItem): number;
-}
-
-class FrequencyImportanceScorer implements ImportanceScorer {
-  private accessCounts: Map<string, number> = new Map();
-  
-  score(item: MemoryItem): number {
-    const accessCount = this.accessCounts.get(item.id) || 0;
-    const recency = (Date.now() - item.timestamp) / (1000 * 60 * 60 * 24);
-    
-    return item.importance * 0.5 + 
-           Math.min(accessCount / 10, 0.3) + 
-           Math.max(0, 0.2 - recency * 0.01);
+  constructor(db: Database) {
+    this.db = db;
   }
-}
-```
 
-### 遗忘曲线
-
-```typescript
-interface ForgettingCurve {
-  calculate(item: MemoryItem): number;
-}
-
-class EbbinghausForgettingCurve implements ForgettingCurve {
-  calculate(item: MemoryItem): number {
-    const age = (Date.now() - item.timestamp) / (1000 * 60 * 60);
-    const retention = Math.exp(-age / 24);
-    return retention * item.importance;
+  async store(memory: Memory): Promise<void> {
+    await this.db.insert('memories', memory);
   }
-}
-```
 
-### 向量检索
-
-```typescript
-interface VectorRetriever {
-  search(query: string, limit: number): Promise<MemoryItem[]>;
-}
-
-class EmbeddingRetriever implements VectorRetriever {
-  constructor(private embedder: Embedder) {}
-  
-  async search(query: string, limit: number): Promise<MemoryItem[]> {
-    const queryEmbedding = await this.embedder.embed(query);
-    
-    const items = await this.getAllItems();
-    const scored = items.map(item => ({
-      item,
-      score: this.cosineSimilarity(queryEmbedding, item.embedding || [])
-    }));
-    
-    return scored
-      .sort((a, b) => b.score - a.score)
-      .slice(0, limit)
-      .map(s => s.item);
-  }
-  
-  private cosineSimilarity(a: number[], b: number[]): number {
-    const dot = a.reduce((sum, v, i) => sum + v * b[i], 0);
-    const magA = Math.sqrt(a.reduce((sum, v) => sum + v * v, 0));
-    const magB = Math.sqrt(b.reduce((sum, v) => sum + v * v, 0));
-    return dot / (magA * magB);
-  }
-}
-```
-
-## 自定义存储
-
-实现自定义记忆存储：
-
-```typescript
-import type { MemoryStore, MemoryItem } from '@sdkwork/browser-agent';
-
-class DatabaseMemoryStore implements MemoryStore {
-  constructor(private db: Database) {}
-  
-  async store(item: Omit<MemoryItem, 'id'>): Promise<string> {
-    const id = generateId();
-    await this.db.insert('memories', { ...item, id });
-    return id;
-  }
-  
-  async retrieve(id: string): Promise<MemoryItem | null> {
+  async retrieve(id: string): Promise<Memory | undefined> {
     return this.db.query('memories', { id });
   }
-  
-  async search(query: string, limit?: number): Promise<MemoryItem[]> {
-    return this.db.search('memories', query, limit);
+
+  async search(query: MemoryQuery): Promise<MemorySearchResult[]> {
+    const results = await this.db.search('memories', query.content, query.limit);
+    return results.map(memory => ({
+      memory,
+      score: 1.0,
+      relevance: 1.0,
+    }));
   }
-  
+
   async delete(id: string): Promise<void> {
     await this.db.delete('memories', { id });
   }
-  
+
   async clear(): Promise<void> {
     await this.db.truncate('memories');
   }
 }
+
+// 使用自定义存储
+const customStore = new CustomMemoryStore(myDatabase);
+
+const agent = createAgent(llm, {
+  name: 'CustomMemoryAgent',
+  memory: customStore, // 直接传入 MemoryStore 实例
+});
+```
+
+### 3. 不启用记忆
+
+```typescript
+const agent = createAgent(llm, {
+  name: 'StatelessAgent',
+  // 不配置 memory，不启用记忆功能
+});
+```
+
+## 内置 Memory 实现
+
+### 1. 默认内存存储
+
+```typescript
+import { createMemoryStore } from '@sdkwork/browser-agent';
+
+const memoryStore = createMemoryStore({
+  limit: 1000,        // 最大记忆数量
+  maxTokens: 128000,  // 最大 Token 数
+  enableCache: true,  // 启用缓存
+  cacheSize: 100,     // 缓存大小
+});
+```
+
+### 2. GraphMemory（知识图谱）
+
+```typescript
+import { GraphMemory, createGraphMemory } from '@sdkwork/browser-agent';
+import { createLogger } from '@sdkwork/browser-agent';
+
+const logger = createLogger({ name: 'GraphMemory' });
+
+const graphMemory = createGraphMemory(logger, {
+  maxNodes: 100000,
+  maxEdges: 500000,
+  autoIndex: true,
+  enableInference: true,
+});
+
+// 添加节点
+const node = graphMemory.addNode('Alice', 'entity', { type: 'person' }, 0.8);
+
+// 添加关系
+graphMemory.addEdge(
+  node.id,
+  targetNode.id,
+  'related_to',
+  0.9,
+  { since: '2024-01-01' }
+);
+
+// 多跳查询
+const results = graphMemory.multiHopQuery(node.id, { maxDepth: 3 });
+
+// 路径查找
+const paths = graphMemory.findPaths(sourceId, targetId, { maxDepth: 5 });
+
+// 关系推理
+const inference = graphMemory.inferRelations(node.id);
+```
+
+### 3. HierarchicalMemory（分层记忆）
+
+```typescript
+import { HierarchicalMemory, createHierarchicalMemory } from '@sdkwork/browser-agent';
+
+const hierarchicalMemory = createHierarchicalMemory({
+  levels: ['short-term', 'long-term', 'knowledge'],
+  consolidationThreshold: 0.7,
+  forgettingRate: 0.1,
+});
+```
+
+### 4. MemGPTMemory
+
+```typescript
+import { MemGPTMemory } from '@sdkwork/browser-agent';
+
+const memgptMemory = new MemGPTMemory({
+  coreMemoryLimit: 2000,
+  workingMemoryLimit: 10000,
+  recallMemoryLimit: 100000,
+});
+```
+
+## 完整示例
+
+### 使用 GraphMemory 作为 Agent 记忆
+
+```typescript
+import { createAgent, GraphMemory, createGraphMemory } from '@sdkwork/browser-agent';
+import { OpenAIProvider } from '@sdkwork/browser-agent/llm';
+import { createLogger } from '@sdkwork/browser-agent';
+
+const logger = createLogger({ name: 'Agent' });
+
+// 创建 GraphMemory
+const graphMemory = createGraphMemory(logger, {
+  maxNodes: 50000,
+  maxEdges: 200000,
+  enableInference: true,
+});
+
+// 创建 LLM 提供者
+const llm = new OpenAIProvider({
+  apiKey: process.env.OPENAI_API_KEY!,
+  model: 'gpt-4-turbo-preview',
+});
+
+// 创建 Agent，使用 GraphMemory
+const agent = createAgent(llm, {
+  name: 'KnowledgeAgent',
+  description: 'An agent with knowledge graph memory',
+  memory: graphMemory,
+});
+
+await agent.initialize();
+
+// 对话会自动使用记忆
+const response = await agent.chat({
+  messages: [
+    { id: '1', role: 'user', content: '我叫 Alice', timestamp: Date.now() }
+  ]
+});
+
+// 后续对话可以记住
+const response2 = await agent.chat({
+  messages: [
+    { id: '2', role: 'user', content: '我叫什么名字？', timestamp: Date.now() }
+  ]
+});
+
+await agent.destroy();
+```
+
+### 实现向量数据库存储
+
+```typescript
+import { 
+  createAgent, 
+  type MemoryStore, 
+  type Memory, 
+  type MemoryQuery, 
+  type MemorySearchResult 
+} from '@sdkwork/browser-agent';
+import { PineconeClient } from '@pinecone-database/pinecone';
+
+class VectorMemoryStore implements MemoryStore {
+  private pinecone: PineconeClient;
+  private indexName: string;
+  private embeddingModel: EmbeddingModel;
+
+  constructor(pinecone: PineconeClient, indexName: string, embeddingModel: EmbeddingModel) {
+    this.pinecone = pinecone;
+    this.indexName = indexName;
+    this.embeddingModel = embeddingModel;
+  }
+
+  async store(memory: Memory): Promise<void> {
+    const embedding = await this.embeddingModel.embed(memory.content);
+    
+    await this.pinecone.Index(this.indexName).upsert({
+      vectors: [{
+        id: memory.id,
+        values: embedding,
+        metadata: {
+          content: memory.content,
+          type: memory.type,
+          source: memory.source,
+          timestamp: memory.timestamp,
+          ...memory.metadata,
+        },
+      }],
+    });
+  }
+
+  async retrieve(id: string): Promise<Memory | undefined> {
+    const result = await this.pinecone.Index(this.indexName).fetch({
+      ids: [id],
+    });
+    
+    if (result.vectors[id]) {
+      const vector = result.vectors[id];
+      return {
+        id,
+        content: vector.metadata?.content as string,
+        type: vector.metadata?.type as MemoryType,
+        source: vector.metadata?.source as MemorySource,
+        timestamp: vector.metadata?.timestamp as number,
+        metadata: vector.metadata,
+      };
+    }
+    
+    return undefined;
+  }
+
+  async search(query: MemoryQuery): Promise<MemorySearchResult[]> {
+    const queryEmbedding = await this.embeddingModel.embed(query.content);
+    
+    const results = await this.pinecone.Index(this.indexName).query({
+      vector: queryEmbedding,
+      topK: query.limit || 10,
+      includeMetadata: true,
+    });
+
+    return results.matches.map(match => ({
+      memory: {
+        id: match.id,
+        content: match.metadata?.content as string,
+        type: match.metadata?.type as MemoryType,
+        source: match.metadata?.source as MemorySource,
+        timestamp: match.metadata?.timestamp as number,
+        metadata: match.metadata,
+      },
+      score: match.score || 0,
+      relevance: match.score || 0,
+    }));
+  }
+
+  async delete(id: string): Promise<void> {
+    await this.pinecone.Index(this.indexName).deleteOne(id);
+  }
+
+  async clear(): Promise<void> {
+    await this.pinecone.Index(this.indexName).deleteAll();
+  }
+}
+
+// 使用向量存储
+const vectorStore = new VectorMemoryStore(pinecone, 'agent-memory', embeddingModel);
+
+const agent = createAgent(llm, {
+  name: 'VectorMemoryAgent',
+  memory: vectorStore,
+});
 ```
 
 ## 最佳实践
 
-1. **合理设置重要性** - 根据记忆价值设置 importance
-2. **设置过期时间** - 短期记忆应设置 expiresAt
-3. **添加元数据** - 使用 metadata 存储额外信息
-4. **定期清理** - 清理过期和低重要性记忆
-5. **向量索引** - 为语义搜索启用向量嵌入
+1. **选择合适的存储** - 根据场景选择内存、图谱或向量存储
+2. **设置合理的限制** - 避免内存无限增长
+3. **定期清理** - 清理过期和低重要性记忆
+4. **使用元数据** - 利用 metadata 存储额外信息
+5. **实现高效检索** - 对于大量数据使用向量索引
 
 ## 相关文档
 

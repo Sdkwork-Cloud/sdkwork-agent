@@ -106,7 +106,7 @@ export {
 export {
   SkillWatcher,
   createSkillWatcher,
-  watchSkills,
+  watchAllSkills,
   waitForFileStability,
 } from './watcher.js';
 

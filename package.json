@@ -141,6 +141,7 @@
     "@inkjs/ui": "^2.0.0",
     "@modelcontextprotocol/sdk": "^1.12.0",
     "chalk": "^5.6.2",
+    "cli-highlight": "^2.1.11",
     "figures": "^6.1.0",
     "ink": "^6.6.0",
     "ink-big-text": "^2.0.0",

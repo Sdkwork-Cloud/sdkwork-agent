@@ -14,6 +14,14 @@
 
 import { EventEmitter } from '../utils/event-emitter.js';
 import { MemoryService, Logger } from '../skills/core/types.js';
+import type { 
+  MemoryStore, 
+  Memory, 
+  MemoryQuery, 
+  MemorySearchResult,
+  MemoryType,
+  MemorySource
+} from '../core/domain/memory.js';
 
 /**
  * 知识节点类型
@@ -191,8 +199,9 @@ export interface GraphMemoryConfig {
  * Graph Memory 实现
  *
  * 提供知识图谱的存储、查询和推理能力
+ * 实现 MemoryStore 接口以支持作为 Agent 记忆存储
  */
-export class GraphMemory extends EventEmitter implements MemoryService {
+export class GraphMemory extends EventEmitter implements MemoryService, MemoryStore {
   private nodes = new Map<string, KnowledgeNode>();
   private edges = new Map<string, KnowledgeEdge>();
   private adjacencyList = new Map<string, Set<string>>(); // nodeId -> edgeIds
@@ -665,13 +674,113 @@ export class GraphMemory extends EventEmitter implements MemoryService {
     }
   }
 
-  async search(query: string): Promise<unknown[]> {
-    const nodes = this.searchNodes(query);
-    return nodes.map(n => ({
-      name: n.name,
-      type: n.type,
-      properties: n.properties,
-    }));
+  // MemoryService.search - 接受 string 参数
+  async search(query: string): Promise<unknown[]>;
+  // MemoryStore.search - 接受 MemoryQuery 参数
+  async search(query: MemoryQuery): Promise<MemorySearchResult[]>;
+  // 实现
+  async search(query: string | MemoryQuery): Promise<unknown[] | MemorySearchResult[]> {
+    if (typeof query === 'string') {
+      // MemoryService.search 实现
+      const nodes = this.searchNodes(query);
+      return nodes.map(n => ({
+        name: n.name,
+        type: n.type,
+        properties: n.properties,
+      }));
+    } else {
+      // MemoryStore.search 实现
+      const options: GraphQueryOptions = {
+        limit: query.limit || 10,
+        nodeTypes: query.type ? [this.mapMemoryTypeToNodeType(query.type)] : undefined,
+      };
+      
+      const nodes = this.searchNodes(query.content, options);
+      
+      const results: MemorySearchResult[] = nodes.map(node => ({
+        memory: this.nodeToMemory(node)!,
+        score: node.importance,
+        relevance: node.accessCount / 100,
+      }));
+      
+      if (query.threshold) {
+        return results.filter(r => r.score >= query.threshold!);
+      }
+      
+      return results;
+    }
+  }
+
+  // ============================================================================
+  // MemoryStore 接口实现
+  // ============================================================================
+
+  /**
+   * 存储记忆
+   * 将 Memory 转换为知识图谱节点
+   */
+  async store(memory: Memory): Promise<void> {
+    const nodeType = this.mapMemoryTypeToNodeType(memory.type);
+    const node = this.findNodeByName(memory.id);
+    
+    if (node) {
+      this.updateNode(node.id, {
+        properties: {
+          ...node.properties,
+          content: memory.content,
+          source: memory.source,
+          metadata: memory.metadata,
+          embedding: memory.embedding,
+          score: memory.score,
+        },
+        importance: memory.score || node.importance,
+      });
+    } else {
+      const newNode = this.addNode(
+        memory.id,
+        nodeType,
+        {
+          content: memory.content,
+          source: memory.source,
+          metadata: memory.metadata,
+          embedding: memory.embedding,
+          score: memory.score,
+          timestamp: memory.timestamp,
+        },
+        memory.score || 0.5
+      );
+      
+      if (memory.metadata?.tags) {
+        for (const tag of memory.metadata.tags) {
+          const tagNode = this.findNodeByName(tag) || this.addNode(tag, 'concept', { tag: true });
+          this.addEdge(newNode.id, tagNode.id, 'has_property', 0.8);
+        }
+      }
+    }
+  }
+
+  /**
+   * 检索记忆
+   */
+  async retrieve(id: string): Promise<Memory | undefined> {
+    const node = this.getNode(id);
+    if (!node) return undefined;
+    
+    return this.nodeToMemory(node);
+  }
+
+  /**
+   * 删除记忆 (MemoryStore.delete)
+   */
+  async delete(id: string): Promise<void> {
+    this.removeNode(id);
+  }
+
+  /**
+   * 清空记忆
+   */
+  async clearStore(): Promise<void> {
+    this.clear();
   }
 
   // ============================================================================
@@ -732,7 +841,7 @@ export class GraphMemory extends EventEmitter implements MemoryService {
   /**
    * 清空图谱
    */
-  clear(): void {
+  clear(): Promise<void> {
     this.nodes.clear();
     this.edges.clear();
     this.adjacencyList.clear();
@@ -741,6 +850,8 @@ export class GraphMemory extends EventEmitter implements MemoryService {
       type: 'graph:cleared',
       timestamp: new Date(),
     });
+    
+    return Promise.resolve();
   }
 
   // ============================================================================
@@ -803,6 +914,40 @@ export class GraphMemory extends EventEmitter implements MemoryService {
     const avgStrength = edges.reduce((sum, e) => sum + e.strength, 0) / edges.length;
     const lengthPenalty = 1 / (1 + Math.log(edges.length + 1));
     return avgStrength * lengthPenalty;
+  }
+
+  private mapMemoryTypeToNodeType(type: MemoryType): NodeType {
+    const mapping: Record<MemoryType, NodeType> = {
+      episodic: 'event',
+      semantic: 'concept',
+      procedural: 'skill',
+    };
+    return mapping[type] || 'concept';
+  }
+
+  private nodeToMemory(node: KnowledgeNode): Memory {
+    return {
+      id: node.id,
+      content: node.properties.content as string || node.name,
+      type: this.mapNodeTypeToMemoryType(node.type),
+      source: (node.properties.source as MemorySource) || 'system',
+      metadata: node.properties.metadata as Record<string, unknown> | undefined,
+      timestamp: (node.properties.timestamp as number) || node.createdAt.getTime(),
+      score: node.importance,
+      embedding: node.properties.embedding as number[] | undefined,
+    };
+  }
+
+  private mapNodeTypeToMemoryType(type: NodeType): MemoryType {
+    const mapping: Record<NodeType, MemoryType> = {
+      event: 'episodic',
+      concept: 'semantic',
+      skill: 'procedural',
+      entity: 'semantic',
+      document: 'semantic',
+      tool: 'procedural',
+    };
+    return mapping[type] || 'semantic';
   }
 }
 

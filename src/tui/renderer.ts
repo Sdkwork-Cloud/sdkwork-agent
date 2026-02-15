@@ -2,191 +2,37 @@
 /**
  * TUI Renderer - 专业级终端渲染器
  *
- * 参考 Claude Code、Codex CLI、OpenCode 等顶级工具设计
- * 精简但功能完整，无冗余兼容性代码
+ * 参考 Claude Code、Codex CLI、OpenClaw、OpenCode 等顶级工具设计
+ * 融合行业最佳实践 - 完美的视觉体验
  *
  * @module TUI
- * @version 4.0.0
+ * @version 6.0.0
  */
 
 import { stdout } from 'process';
+import { ANSI } from './ansi-codes.js';
+import {
+  DEFAULT_THEME,
+  highlightCode,
+  type Theme,
+} from './theme.js';
 
 // ============================================
-// ANSI 颜色代码
+// 等待短语 - 参考 OpenClaw 设计
 // ============================================
 
-const ANSI = {
-  reset: '\x1b[0m',
-  bold: '\x1b[1m',
-  dim: '\x1b[2m',
-  italic: '\x1b[3m',
-  underline: '\x1b[4m',
-  blink: '\x1b[5m',
-  reverse: '\x1b[7m',
-  strikethrough: '\x1b[9m',
-
-  // 前景色
-  black: '\x1b[30m',
-  red: '\x1b[31m',
-  green: '\x1b[32m',
-  yellow: '\x1b[33m',
-  blue: '\x1b[34m',
-  magenta: '\x1b[35m',
-  cyan: '\x1b[36m',
-  white: '\x1b[37m',
-
-  // 亮前景色
-  brightBlack: '\x1b[90m',
-  brightRed: '\x1b[91m',
-  brightGreen: '\x1b[92m',
-  brightYellow: '\x1b[93m',
-  brightBlue: '\x1b[94m',
-  brightMagenta: '\x1b[95m',
-  brightCyan: '\x1b[96m',
-  brightWhite: '\x1b[97m',
-
-  // 背景色
-  bgBlack: '\x1b[40m',
-  bgRed: '\x1b[41m',
-  bgGreen: '\x1b[42m',
-  bgYellow: '\x1b[43m',
-  bgBlue: '\x1b[44m',
-  bgMagenta: '\x1b[45m',
-  bgCyan: '\x1b[46m',
-  bgWhite: '\x1b[47m',
-
-  // 光标控制
-  clearLine: '\x1b[2K',
-  clearLineRight: '\x1b[0K',
-  clearLineLeft: '\x1b[1K',
-  clearScreen: '\x1b[2J',
-  cursorHome: '\x1b[0G',
-  cursorUp: '\x1b[1A',
-  cursorDown: '\x1b[1B',
-  cursorForward: '\x1b[1C',
-  cursorBack: '\x1b[1D',
-  hideCursor: '\x1b[?25l',
-  showCursor: '\x1b[?25h',
-  saveCursor: '\x1b[s',
-  restoreCursor: '\x1b[u',
-  alternateScreen: '\x1b[?1049h',
-  mainScreen: '\x1b[?1049l',
-} as const;
-
-// ============================================
-// 主题系统
-// ============================================
-
-export interface Theme {
-  name: string;
-  primary: string;
-  secondary: string;
-  success: string;
-  warning: string;
-  error: string;
-  info: string;
-  muted: string;
-  border: string;
-  accent: string;
-  gradient: string[];
-  userBubble: string;
-  assistantBubble: string;
-}
-
-export const THEMES: Record<string, Theme> = {
-  default: {
-    name: 'Default',
-    primary: ANSI.cyan,
-    secondary: ANSI.brightBlack,
-    success: ANSI.green,
-    warning: ANSI.yellow,
-    error: ANSI.red,
-    info: ANSI.blue,
-    muted: ANSI.dim,
-    border: ANSI.brightBlack,
-    accent: ANSI.magenta,
-    gradient: [ANSI.cyan, ANSI.blue, ANSI.magenta],
-    userBubble: ANSI.cyan,
-    assistantBubble: ANSI.brightBlack,
-  },
-  ocean: {
-    name: 'Ocean',
-    primary: ANSI.brightBlue,
-    secondary: ANSI.blue,
-    success: ANSI.brightGreen,
-    warning: ANSI.brightYellow,
-    error: ANSI.brightRed,
-    info: ANSI.cyan,
-    muted: ANSI.dim,
-    border: ANSI.blue,
-    accent: ANSI.cyan,
-    gradient: [ANSI.blue, ANSI.cyan, ANSI.white],
-    userBubble: ANSI.brightBlue,
-    assistantBubble: ANSI.blue,
-  },
-  sunset: {
-    name: 'Sunset',
-    primary: ANSI.brightMagenta,
-    secondary: ANSI.magenta,
-    success: ANSI.brightGreen,
-    warning: ANSI.brightYellow,
-    error: ANSI.brightRed,
-    info: ANSI.yellow,
-    muted: ANSI.dim,
-    border: ANSI.magenta,
-    accent: ANSI.yellow,
-    gradient: [ANSI.red, ANSI.magenta, ANSI.yellow],
-    userBubble: ANSI.brightMagenta,
-    assistantBubble: ANSI.magenta,
-  },
-  forest: {
-    name: 'Forest',
-    primary: ANSI.brightGreen,
-    secondary: ANSI.green,
-    success: ANSI.brightCyan,
-    warning: ANSI.brightYellow,
-    error: ANSI.brightRed,
-    info: ANSI.green,
-    muted: ANSI.dim,
-    border: ANSI.green,
-    accent: ANSI.yellow,
-    gradient: [ANSI.green, ANSI.yellow, ANSI.cyan],
-    userBubble: ANSI.brightGreen,
-    assistantBubble: ANSI.green,
-  },
-  dark: {
-    name: 'Dark',
-    primary: ANSI.brightWhite,
-    secondary: ANSI.white,
-    success: ANSI.brightGreen,
-    warning: ANSI.brightYellow,
-    error: ANSI.brightRed,
-    info: ANSI.brightBlue,
-    muted: ANSI.brightBlack,
-    border: ANSI.brightBlack,
-    accent: ANSI.brightCyan,
-    gradient: [ANSI.white, ANSI.brightBlack, ANSI.black],
-    userBubble: ANSI.brightWhite,
-    assistantBubble: ANSI.white,
-  },
-  dracula: {
-    name: 'Dracula',
-    primary: '\x1b[38;5;117m',
-    secondary: '\x1b[38;5;189m',
-    success: '\x1b[38;5;84m',
-    warning: '\x1b[38;5;215m',
-    error: '\x1b[38;5;203m',
-    info: '\x1b[38;5;117m',
-    muted: ANSI.dim,
-    border: '\x1b[38;5;189m',
-    accent: '\x1b[38;5;212m',
-    gradient: ['\x1b[38;5;117m', '\x1b[38;5;189m', '\x1b[38;5;212m'],
-    userBubble: '\x1b[38;5;117m',
-    assistantBubble: '\x1b[38;5;189m',
-  },
-};
-
-export const DEFAULT_THEME = THEMES.default;
+const WAITING_PHRASES = [
+  'thinking',
+  'pondering',
+  'contemplating',
+  'mulling it over',
+  'chewing on that',
+  'processing',
+  'working on it',
+  'let me see',
+  'hmm',
+  'almost there',
+];
 
 // ============================================
 // 加载动画
@@ -198,7 +44,7 @@ const SPINNER_FRAMES = {
   bounce: ['⠁', '⠃', '⠇', '⡇', '⣇', '⣧', '⣷', '⣾', '⣽', '⣻', '⢿', '⡿', '⣟', '⣯', '⣷'],
   pulse: ['█', '▓', '▒', '░', '▒', '▓'],
   arrow: ['▹▹▹▹▹', '▸▹▹▹▹', '▹▸▹▹▹', '▹▹▸▹▹', '▹▹▹▸▹', '▹▹▹▹▸'],
-  progress: ['[          ]', '[=         ]', '[==        ]', '[===       ]', '[====      ]', '[=====     ]', '[======    ]', '[=======   ]', '[========  ]', '[========= ]', '[==========]'],
+  moon: ['🌑', '🌒', '🌓', '🌔', '🌕', '🌖', '🌗', '🌘'],
 };
 
 type SpinnerStyle = keyof typeof SPINNER_FRAMES;
@@ -210,6 +56,8 @@ export class LoadingIndicator {
   private theme: Theme;
   private style: SpinnerStyle = 'dots';
   private prefix = '';
+  private waitingTick = 0;
+  private waitingPhrase: string | null = null;
 
   constructor(theme: Theme = DEFAULT_THEME, style: SpinnerStyle = 'dots') {
     this.theme = theme;
@@ -221,6 +69,8 @@ export class LoadingIndicator {
     this.message = message;
     this.prefix = prefix;
     this.currentFrame = 0;
+    this.waitingTick = 0;
+    this.waitingPhrase = WAITING_PHRASES[Math.floor(Math.random() * WAITING_PHRASES.length)];
     this.render();
 
     const frameCount = SPINNER_FRAMES[this.style].length;
@@ -228,6 +78,7 @@ export class LoadingIndicator {
 
     this.interval = setInterval(() => {
       this.currentFrame = (this.currentFrame + 1) % frameCount;
+      this.waitingTick++;
       this.render();
     }, interval);
   }
@@ -250,11 +101,11 @@ export class LoadingIndicator {
   }
 
   succeed(message?: string): void {
-    this.stop(`${this.theme.success}✓${ANSI.reset} ${message || this.message}`);
+    this.stop(`${this.theme.success('✓')} ${message || this.message}`);
   }
 
   fail(message?: string): void {
-    this.stop(`${this.theme.error}✗${ANSI.reset} ${message || this.message}`);
+    this.stop(`${this.theme.error('✗')} ${message || this.message}`);
   }
 
   destroy(): void {
@@ -264,8 +115,14 @@ export class LoadingIndicator {
   private render(): void {
     const frames = SPINNER_FRAMES[this.style];
     const frame = frames[this.currentFrame];
-    const prefix = this.prefix ? `${this.theme.accent}${this.prefix}${ANSI.reset} ` : '';
-    const output = `${prefix}${this.theme.primary}${frame}${ANSI.reset} ${this.message}`;
+    const prefix = this.prefix ? `${this.theme.accent(this.prefix)} ` : '';
+    
+    let displayMessage = this.message;
+    if (this.waitingPhrase && this.waitingTick % 8 === 0) {
+      displayMessage = `${this.message} • ${this.waitingPhrase}`;
+    }
+
+    const output = `${prefix}${this.theme.accent(frame)} ${displayMessage}`;
     stdout.write(ANSI.cursorHome + ANSI.clearLine + output);
   }
 }
@@ -280,7 +137,7 @@ export class ProgressBar {
   private started = false;
   private startTime = 0;
 
-  constructor(theme: Theme = DEFAULT_THEME, width: number = 30) {
+  constructor(theme: Theme = DEFAULT_THEME, width: number = 40) {
     this.theme = theme;
     this.width = width;
   }
@@ -295,13 +152,13 @@ export class ProgressBar {
     const filled = Math.round((percent / 100) * this.width);
     const empty = this.width - filled;
 
-    const bar = `${this.theme.success}${'█'.repeat(filled)}${ANSI.dim}${'░'.repeat(empty)}${ANSI.reset}`;
+    const bar = `${this.theme.success('█'.repeat(filled))}${this.theme.dim('░'.repeat(empty))}`;
     const percentStr = `${percent.toFixed(1)}%`.padStart(6);
     const countStr = `${current}/${total}`.padStart(10);
 
-    let output = `${bar} ${this.theme.primary}${percentStr}${ANSI.reset} ${this.theme.muted}${countStr}${ANSI.reset}`;
+    let output = `${bar} ${this.theme.accent(percentStr)} ${this.theme.dim(countStr)}`;
     if (message) {
-      output += ` ${this.theme.muted}${message}${ANSI.reset}`;
+      output += ` ${this.theme.dim(message)}`;
     }
 
     stdout.write(ANSI.cursorHome + ANSI.clearLine + output);
@@ -312,7 +169,7 @@ export class ProgressBar {
     const durationStr = this.formatDuration(duration);
     stdout.write(ANSI.cursorHome + ANSI.clearLine);
     if (message) {
-      console.log(`${this.theme.success}✓${ANSI.reset} ${message} ${this.theme.muted}(${durationStr})${ANSI.reset}`);
+      console.log(`${this.theme.success('✓')} ${message} ${this.theme.dim(`(${durationStr})`)}`);
     }
     this.started = false;
   }
@@ -325,64 +182,6 @@ export class ProgressBar {
 }
 
 // ============================================
-// 思考过程显示
-// ============================================
-
-export class ThinkingDisplay {
-  private theme: Theme;
-  private currentStep = 0;
-  private totalSteps = 0;
-  private spinner: LoadingIndicator;
-  private thoughts: string[] = [];
-
-  constructor(theme: Theme = DEFAULT_THEME) {
-    this.theme = theme;
-    this.spinner = new LoadingIndicator(theme, 'dots');
-  }
-
-  start(totalSteps: number): void {
-    this.totalSteps = totalSteps;
-    this.currentStep = 0;
-    this.thoughts = [];
-    this.spinner.start('Thinking...', '🧠');
-  }
-
-  step(thought: string): void {
-    this.currentStep++;
-    this.thoughts.push(thought);
-    const truncated = thought.length > 50 ? thought.slice(0, 47) + '...' : thought;
-    this.spinner.update(`Step ${this.currentStep}/${this.totalSteps}: ${truncated}`);
-  }
-
-  toolCall(toolName: string, params?: Record<string, unknown>): void {
-    const paramsStr = params ? ` ${JSON.stringify(params).slice(0, 30)}` : '';
-    this.spinner.update(`${this.theme.accent}🔧${ANSI.reset} ${toolName}${paramsStr}`);
-  }
-
-  observation(observation: string): void {
-    const truncated = observation.length > 60 ? observation.slice(0, 57) + '...' : observation;
-    this.spinner.update(`${this.theme.info}👁${ANSI.reset} ${truncated}`);
-  }
-
-  complete(answer: string): void {
-    this.spinner.succeed('Thinking complete');
-    this.showSummary();
-  }
-
-  private showSummary(): void {
-    if (this.thoughts.length === 0) return;
-
-    console.log(`${ANSI.dim}${'─'.repeat(50)}${ANSI.reset}`);
-    console.log(`${this.theme.primary}Thinking Process:${ANSI.reset}`);
-    this.thoughts.forEach((thought, i) => {
-      const truncated = thought.length > 80 ? thought.slice(0, 77) + '...' : thought;
-      console.log(`  ${ANSI.dim}${i + 1}.${ANSI.reset} ${truncated}`);
-    });
-    console.log(`${ANSI.dim}${'─'.repeat(50)}${ANSI.reset}`);
-  }
-}
-
-// ============================================
 // 渲染器
 // ============================================
 
@@ -390,20 +189,17 @@ export class TUIRenderer {
   private theme: Theme;
   private loading: LoadingIndicator;
   private progressBar: ProgressBar;
-  private thinking: ThinkingDisplay;
 
   constructor(theme: Theme = DEFAULT_THEME) {
     this.theme = theme;
     this.loading = new LoadingIndicator(theme);
     this.progressBar = new ProgressBar(theme);
-    this.thinking = new ThinkingDisplay(theme);
   }
 
   getTerminalWidth(): number {
     return process.stdout.columns || 80;
   }
 
-  // 基础输出
   write(text: string): void {
     stdout.write(text);
   }
@@ -413,113 +209,170 @@ export class TUIRenderer {
   }
 
   clear(): void {
-    console.clear();
+    stdout.write(ANSI.cursorHome + ANSI.clearScreen);
   }
 
   clearLine(): void {
     stdout.write(ANSI.cursorHome + ANSI.clearLine);
   }
 
-  // 样式化输出
+  setTheme(theme: Theme): void {
+    this.theme = theme;
+    this.loading.destroy();
+    this.loading = new LoadingIndicator(theme);
+    this.progressBar = new ProgressBar(theme);
+  }
+
+  getTheme(): Theme {
+    return this.theme;
+  }
+
   primary(text: string): string {
-    return `${this.theme.primary}${text}${ANSI.reset}`;
+    return this.theme.accent(text);
   }
 
   secondary(text: string): string {
-    return `${this.theme.secondary}${text}${ANSI.reset}`;
+    return this.theme.dim(text);
   }
 
   success(text: string): string {
-    return `${this.theme.success}${text}${ANSI.reset}`;
+    return this.theme.success(text);
   }
 
   warning(text: string): string {
-    return `${this.theme.warning}${text}${ANSI.reset}`;
+    return this.theme.warning(text);
   }
 
   error(text: string): string {
-    return `${this.theme.error}${text}${ANSI.reset}`;
+    return this.theme.error(text);
   }
 
   info(text: string): string {
-    return `${this.theme.info}${text}${ANSI.reset}`;
+    return this.theme.info(text);
+  }
+
+  accent(text: string): string {
+    return this.theme.accent(text);
   }
 
   muted(text: string): string {
-    return `${this.theme.muted}${text}${ANSI.reset}`;
-  }
-
-  bold(text: string): string {
-    return `${ANSI.bold}${text}${ANSI.reset}`;
-  }
-
-  italic(text: string): string {
-    return `${ANSI.italic}${text}${ANSI.reset}`;
+    return this.theme.dim(text);
   }
 
   dim(text: string): string {
-    return `${ANSI.dim}${text}${ANSI.reset}`;
+    return this.theme.dim(text);
   }
 
-  // 渐变文字
+  bold(text: string): string {
+    return this.theme.bold(text);
+  }
+
+  italic(text: string): string {
+    return this.theme.italic(text);
+  }
+
+  underline(text: string): string {
+    return this.theme.underline(text);
+  }
+
+  strike(text: string): string {
+    return this.theme.strike(text);
+  }
+
+  highlight(text: string): string {
+    return this.theme.bold(this.theme.accent(text));
+  }
+
   gradient(text: string): string {
     const chars = text.split('');
-    const colors = this.theme.gradient;
-    return chars.map((char, i) => {
-      const colorIndex = Math.floor((i / chars.length) * colors.length);
-      return `${colors[colorIndex]}${char}${ANSI.reset}`;
-    }).join('');
+    const colors = [this.theme.accent, this.theme.accentSoft, this.theme.info];
+    return chars.map((char, i) => colors[i % colors.length](char)).join('');
   }
 
-  // 高亮文字
-  highlight(text: string): string {
-    return `${this.theme.accent}${ANSI.bold}${text}${ANSI.reset}`;
+  // 兼容旧接口
+  tokenUsage(promptTokens: number, completionTokens: number): void {
+    const total = promptTokens + completionTokens;
+    const bar = this.createMiniBar(total, 1000);
+    console.log(this.muted(`  Tokens: ${bar} ${promptTokens} + ${completionTokens} = ${total}`));
   }
 
-  // 边框框
-  box(content: string[], title?: string, style: 'single' | 'double' | 'rounded' = 'rounded'): void {
-    const width = Math.min(this.getTerminalWidth() - 4, 76);
-    const chars = {
-      single: { tl: '┌', tr: '┐', bl: '└', br: '┘', h: '─', v: '│', lt: '├', rt: '┤', tt: '┬', bt: '┴', x: '┼' },
-      double: { tl: '╔', tr: '╗', bl: '╚', br: '╝', h: '═', v: '║', lt: '╠', rt: '╣', tt: '╦', bt: '╩', x: '╬' },
-      rounded: { tl: '╭', tr: '╮', bl: '╰', br: '╯', h: '─', v: '│', lt: '├', rt: '┤', tt: '┬', bt: '┴', x: '┼' },
-    };
-    const c = chars[style];
-    const horizontal = c.h.repeat(width);
+  private createMiniBar(value: number, max: number): string {
+    const width = 10;
+    const filled = Math.round((value / max) * width);
+    return `${this.theme.success('█'.repeat(Math.min(filled, width)))}${this.theme.dim('░'.repeat(Math.max(0, width - filled)))}`;
+  }
 
-    this.newline();
-    console.log(this.theme.border + `${c.tl}${horizontal}${c.tr}` + ANSI.reset);
+  statusBar(left: string, right: string): void {
+    const rightWidth = right.length + 2;
+    const leftWidth = this.getTerminalWidth() - rightWidth - 2;
+    const leftPadded = left.slice(0, leftWidth).padEnd(leftWidth);
+    console.log(`${ANSI.reverse}${leftPadded} ${right} ${ANSI.reset}`);
+  }
 
+  promptLine(config: { model?: string; ready?: boolean }): string {
+    const status = config.ready !== false ? this.success('●') : this.warning('○');
+    const model = config.model ? this.dim(`[${config.model}]`) : '';
+    return `${status} ${model} ${this.primary('❯')} `;
+  }
+
+  footer(lines: string[]): void {
+    const width = this.getTerminalWidth();
+    console.log('');
+    console.log(`${this.theme.dim(`╭${'─'.repeat(width - 2)}╮`)}`);
+    for (const line of lines) {
+      console.log(`${this.theme.dim(`│`)} ${this.dim(line)}${' '.repeat(Math.max(0, width - line.length - 3))}${this.theme.dim(`│`)}`);
+    }
+    console.log(`${this.theme.dim(`╰${'─'.repeat(width - 2)}╯`)}`);
+    console.log('');
+  }
+
+  table(headers: string[], rows: string[][]): void {
+    const widths = headers.map((h, i) => {
+      const maxRowLen = Math.max(...rows.map(r => r[i]?.length || 0));
+      return Math.max(h.length, maxRowLen);
+    });
+    
+    const totalWidth = widths.reduce((a, b) => a + b, 0) + (widths.length - 1) * 3 + 4;
+    const border = this.theme.dim('─'.repeat(totalWidth - 2));
+    
+    console.log(`  ${this.theme.dim('┌')}${border.slice(2, -5)}${this.theme.dim('┐')}`);
+    
+    const headerRow = headers.map((h, i) => this.bold(h.padEnd(widths[i]))).join(` ${this.dim('│')} `);
+    console.log(`  ${this.theme.dim('│')} ${headerRow} ${this.theme.dim('│')}`);
+    console.log(`  ${this.theme.dim('├')}${border.slice(2, -5)}${this.theme.dim('┤')}`);
+    
+    for (const row of rows) {
+      const rowStr = row.map((cell, i) => (cell || '').padEnd(widths[i])).join(` ${this.dim('│')} `);
+      console.log(`  ${this.theme.dim('│')} ${rowStr} ${this.theme.dim('│')}`);
+    }
+    
+    console.log(`  ${this.theme.dim('└')}${border.slice(2, -5)}${this.theme.dim('┘')}`);
+  }
+
+  keyValuePair(pairs: [string, string | number | boolean][], title?: string): void {
     if (title) {
-      const titleLine = `${c.v} ${this.bold(title)}${' '.repeat(Math.max(0, width - title.length - 1))}${c.v}`;
-      console.log(this.theme.border + titleLine + ANSI.reset);
-      console.log(this.theme.border + `${c.lt}${horizontal}${c.rt}` + ANSI.reset);
+      console.log(`  ${this.bold(title)}`);
     }
-
-    for (const line of content) {
-      const truncated = line.slice(0, width - 4);
-      const padded = truncated + ' '.repeat(Math.max(0, width - truncated.length - 4));
-      console.log(this.theme.border + `${c.v} ${padded} ${c.v}` + ANSI.reset);
-    }
-
-    console.log(this.theme.border + `${c.bl}${horizontal}${c.br}` + ANSI.reset);
-    this.newline();
-  }
-
-  // 分隔线
-  divider(label?: string, char: string = '─'): void {
-    const width = this.getTerminalWidth() - 2;
-    if (label) {
-      const labelWidth = label.length + 2;
-      const leftWidth = Math.floor((width - labelWidth) / 2);
-      const rightWidth = width - labelWidth - leftWidth;
-      console.log(`${this.theme.muted}${char.repeat(leftWidth)}${ANSI.reset} ${this.dim(label)} ${this.theme.muted}${char.repeat(rightWidth)}${ANSI.reset}`);
-    } else {
-      console.log(this.theme.muted + char.repeat(width) + ANSI.reset);
+    const maxKeyLen = Math.max(...pairs.map(([k]) => k.length));
+    for (const [key, value] of pairs) {
+      const keyStr = this.dim(key.padEnd(maxKeyLen + 1));
+      const valueStr = typeof value === 'boolean' 
+        ? (value ? this.success('✓') : this.error('✗'))
+        : this.primary(String(value));
+      console.log(`    ${keyStr} ${valueStr}`);
     }
   }
 
-  // 加载状态
+  progressBarText(current: number, total: number, label?: string, width: number = 20): string {
+    const percent = total > 0 ? Math.min(100, (current / total) * 100) : 0;
+    const filled = Math.round((percent / 100) * width);
+    const empty = width - filled;
+    const bar = `${this.theme.success('█'.repeat(filled))}${this.theme.dim('░'.repeat(empty))}`;
+    const percentStr = `${percent.toFixed(0)}%`.padStart(4);
+    const labelStr = label ? `${label}: ` : '';
+    return `${this.dim(labelStr)}${bar} ${this.primary(percentStr)}`;
+  }
+
   startLoading(message: string, prefix: string = ''): void {
     this.loading.start(message, prefix);
   }
@@ -540,7 +393,6 @@ export class TUIRenderer {
     this.loading.fail(message);
   }
 
-  // 进度条
   updateProgress(current: number, total: number, message?: string): void {
     this.progressBar.update(current, total, message);
   }
@@ -549,41 +401,71 @@ export class TUIRenderer {
     this.progressBar.complete(message);
   }
 
-  // 思考过程
-  startThinking(totalSteps: number): void {
-    this.thinking.start(totalSteps);
+  box(content: string[], title?: string, style: 'single' | 'double' | 'rounded' = 'rounded'): void {
+    const width = Math.min(this.getTerminalWidth() - 4, 76);
+    const chars = {
+      single: { tl: '┌', tr: '┐', bl: '└', br: '┘', h: '─', v: '│', lt: '├', rt: '┤', tt: '┬', bt: '┴', x: '┼' },
+      double: { tl: '╔', tr: '╗', bl: '╚', br: '╝', h: '═', v: '║', lt: '╠', rt: '╣', tt: '╦', bt: '╩', x: '╬' },
+      rounded: { tl: '╭', tr: '╮', bl: '╰', br: '╯', h: '─', v: '│', lt: '├', rt: '┤', tt: '┬', bt: '┴', x: '┼' },
+    };
+    const c = chars[style];
+    const horizontal = c.h.repeat(width);
+
+    this.newline();
+    console.log(this.theme.border(`${c.tl}${horizontal}${c.tr}`));
+
+    if (title) {
+      const titleLine = `${c.v} ${this.theme.bold(title)}${' '.repeat(Math.max(0, width - title.length - 1))}${c.v}`;
+      console.log(this.theme.border(titleLine));
+      console.log(this.theme.border(`${c.lt}${horizontal}${c.rt}`));
+    }
+
+    for (const line of content) {
+      const truncated = line.slice(0, width - 4);
+      const padded = truncated + ' '.repeat(Math.max(0, width - truncated.length - 4));
+      console.log(this.theme.border(`${c.v} ${padded} ${c.v}`));
+    }
+
+    console.log(this.theme.border(`${c.bl}${horizontal}${c.br}`));
+    this.newline();
   }
 
-  thinkingStep(thought: string): void {
-    this.thinking.step(thought);
+  divider(label?: string, char: string = '─'): void {
+    const width = this.getTerminalWidth() - 2;
+    if (label) {
+      const labelWidth = label.length + 2;
+      const leftWidth = Math.floor((width - labelWidth) / 2);
+      const rightWidth = width - labelWidth - leftWidth;
+      console.log(`${this.theme.dim(char.repeat(leftWidth))} ${this.theme.dim(label)} ${this.theme.dim(char.repeat(rightWidth))}`);
+    } else {
+      console.log(this.theme.dim(char.repeat(width)));
+    }
   }
 
-  thinkingToolCall(toolName: string, params?: Record<string, unknown>): void {
-    this.thinking.toolCall(toolName, params);
+  userMessage(content: string): void {
+    const maxWidth = this.getTerminalWidth() - 10;
+    const lines = this.wrapText(content, maxWidth);
+
+    this.newline();
+    console.log(`${this.theme.userBg(this.theme.bold(' You '))}`);
+    lines.forEach(line => {
+      console.log(`  ${this.theme.userText(line)}`);
+    });
+    this.newline();
   }
 
-  thinkingObservation(observation: string): void {
-    this.thinking.observation(observation);
+  assistantMessage(content: string): void {
+    const maxWidth = this.getTerminalWidth() - 10;
+    const lines = this.wrapText(content, maxWidth);
+
+    this.newline();
+    console.log(`${this.theme.assistantBg(this.theme.bold(' Assistant '))}`);
+    lines.forEach(line => {
+      console.log(`  ${this.theme.assistantText(line)}`);
+    });
+    this.newline();
   }
 
-  completeThinking(answer: string): void {
-    this.thinking.complete(answer);
-  }
-
-  // 设置主题
-  setTheme(theme: Theme): void {
-    this.theme = theme;
-    this.loading.destroy();
-    this.loading = new LoadingIndicator(theme);
-    this.progressBar = new ProgressBar(theme);
-    this.thinking = new ThinkingDisplay(theme);
-  }
-
-  destroy(): void {
-    this.loading.destroy();
-  }
-
-  // 消息渲染 - 气泡样式
   message(role: 'user' | 'assistant', content: string): void {
     if (role === 'user') {
       this.userMessage(content);
@@ -592,31 +474,6 @@ export class TUIRenderer {
     }
   }
 
-  userMessage(content: string): void {
-    const label = 'You';
-    const maxWidth = this.getTerminalWidth() - 10;
-    const lines = this.wrapText(content, maxWidth);
-
-    console.log(`${this.theme.userBubble}${ANSI.bold} ${label} ${ANSI.reset}`);
-    lines.forEach(line => {
-      console.log(`  ${line}`);
-    });
-    this.newline();
-  }
-
-  assistantMessage(content: string): void {
-    const label = 'Assistant';
-    const maxWidth = this.getTerminalWidth() - 10;
-    const lines = this.wrapText(content, maxWidth);
-
-    console.log(`${this.theme.assistantBubble}${ANSI.bold} ${label} ${ANSI.reset}`);
-    lines.forEach(line => {
-      console.log(`  ${line}`);
-    });
-    this.newline();
-  }
-
-  // 系统消息
   systemMessage(content: string, type: 'info' | 'warning' | 'error' | 'success' = 'info'): void {
     const icons = {
       info: 'ℹ',
@@ -631,80 +488,92 @@ export class TUIRenderer {
       success: this.theme.success,
     };
 
-    console.log(`${colors[type]}${icons[type]}${ANSI.reset} ${this.dim(content)}`);
+    console.log(`${colors[type](icons[type])} ${this.theme.system(content)}`);
   }
 
-  // 工具调用显示
   toolCall(toolName: string, params: Record<string, unknown>, result?: unknown): void {
-    console.log(`${this.theme.accent}🔧 Tool:${ANSI.reset} ${this.bold(toolName)}`);
-    console.log(`   ${this.dim('Input:')} ${JSON.stringify(params).slice(0, 100)}`);
+    this.newline();
+    console.log(`${this.theme.toolPendingBg(` 🔧 ${this.theme.bold(toolName)} `)}`);
+    console.log(`   ${this.theme.dim('Input:')} ${this.theme.toolOutput(JSON.stringify(params).slice(0, 100))}`);
     if (result !== undefined) {
       const resultStr = typeof result === 'string' ? result : JSON.stringify(result);
-      console.log(`   ${this.dim('Output:')} ${resultStr.slice(0, 100)}`);
+      console.log(`   ${this.theme.dim('Output:')} ${this.theme.toolOutput(resultStr.slice(0, 100))}`);
     }
+    this.newline();
   }
 
-  // Token 使用统计
-  tokenUsage(promptTokens: number, completionTokens: number): void {
-    const total = promptTokens + completionTokens;
-    const bar = this.createMiniBar(total, 1000);
-    console.log(this.muted(`  Tokens: ${bar} ${promptTokens} + ${completionTokens} = ${total}`));
+  toolSuccess(toolName: string, message?: string): void {
+    this.newline();
+    console.log(`${this.theme.toolSuccessBg(` ✅ ${this.theme.bold(toolName)} `)} ${message ? this.theme.success(message) : ''}`);
+    this.newline();
   }
 
-  private createMiniBar(value: number, max: number): string {
-    const width = 10;
-    const filled = Math.round((value / max) * width);
-    return `${this.theme.success}${'█'.repeat(Math.min(filled, width))}${this.theme.muted}${'░'.repeat(Math.max(0, width - filled))}${ANSI.reset}`;
+  toolError(toolName: string, error?: string): void {
+    this.newline();
+    console.log(`${this.theme.toolErrorBg(` ❌ ${this.theme.bold(toolName)} `)} ${error ? this.theme.error(error) : ''}`);
+    this.newline();
   }
 
-  // 错误框
+  codeBlock(code: string, lang?: string): void {
+    const highlighted = highlightCode(code, lang);
+    const maxWidth = this.getTerminalWidth() - 4;
+
+    this.newline();
+    console.log(this.theme.border(`╭${'─'.repeat(maxWidth)}╮`));
+    highlighted.forEach((line) => {
+      const truncated = line.slice(0, maxWidth - 2);
+      const padded = truncated + ' '.repeat(Math.max(0, maxWidth - truncated.length - 2));
+      console.log(this.theme.border(`│ ${padded} │`));
+    });
+    console.log(this.theme.border(`╰${'─'.repeat(maxWidth)}╯`));
+    this.newline();
+  }
+
   errorBox(title: string, message: string, hint?: string): void {
     this.newline();
     const width = Math.min(this.getTerminalWidth() - 4, 74);
     const horizontal = '─'.repeat(width);
 
-    console.log(this.theme.error + `╭${horizontal}╮` + ANSI.reset);
-    console.log(this.theme.error + `│ ${this.bold(`✗ ${title}`)}${' '.repeat(Math.max(0, width - title.length - 3))}│` + ANSI.reset);
-    console.log(this.theme.error + `├${horizontal}┤` + ANSI.reset);
+    console.log(this.theme.error(`╭${horizontal}╮`));
+    console.log(this.theme.error(`│ ${this.theme.bold(`✗ ${title}`)}${' '.repeat(Math.max(0, width - title.length - 3))}│`));
+    console.log(this.theme.error(`├${horizontal}┤`));
 
     const lines = this.wrapText(message, width - 4);
     lines.forEach(line => {
-      console.log(this.theme.error + `│ ${line.padEnd(width - 2)}│` + ANSI.reset);
+      console.log(this.theme.error(`│ ${line.padEnd(width - 2)}│`));
     });
 
     if (hint) {
-      console.log(this.theme.error + `├${horizontal}┤` + ANSI.reset);
+      console.log(this.theme.error(`├${horizontal}┤`));
       const hintLines = this.wrapText(hint, width - 4);
       hintLines.forEach(line => {
-        console.log(this.theme.border + `│ ${this.secondary(line).padEnd(width - 2)}│` + ANSI.reset);
+        console.log(this.theme.border(`│ ${this.theme.dim(line).padEnd(width - 2)}│`));
       });
     }
 
-    console.log(this.theme.error + `╰${horizontal}╯` + ANSI.reset);
+    console.log(this.theme.error(`╰${horizontal}╯`));
     this.newline();
   }
 
-  // 成功框
   successBox(title: string, message: string): void {
     this.newline();
     const width = Math.min(this.getTerminalWidth() - 4, 74);
     const horizontal = '─'.repeat(width);
 
-    console.log(this.theme.success + `╭${horizontal}╮` + ANSI.reset);
-    console.log(this.theme.success + `│ ${this.bold(`✓ ${title}`)}${' '.repeat(Math.max(0, width - title.length - 3))}│` + ANSI.reset);
-    console.log(this.theme.success + `├${horizontal}┤` + ANSI.reset);
+    console.log(this.theme.success(`╭${horizontal}╮`));
+    console.log(this.theme.success(`│ ${this.theme.bold(`✓ ${title}`)}${' '.repeat(Math.max(0, width - title.length - 3))}│`));
+    console.log(this.theme.success(`├${horizontal}┤`));
 
     const lines = this.wrapText(message, width - 4);
     lines.forEach(line => {
-      console.log(this.theme.success + `│ ${line.padEnd(width - 2)}│` + ANSI.reset);
+      console.log(this.theme.success(`│ ${line.padEnd(width - 2)}│`));
     });
 
-    console.log(this.theme.success + `╰${horizontal}╯` + ANSI.reset);
+    console.log(this.theme.success(`╰${horizontal}╯`));
     this.newline();
   }
 
-  // 欢迎界面
-  welcome(config: { name: string; version?: string; description?: string }): void {
+  welcome(config: { name: string; version?: string; description?: string; provider?: string; model?: string }): void {
     this.clear();
 
     const art = [
@@ -718,37 +587,90 @@ export class TUIRenderer {
       '',
     ];
 
-    art.forEach(line => console.log(this.gradient(line)));
+    art.forEach(line => {
+      const colored = line.split('').map((char, i) => {
+        const colors = [this.theme.accent, this.theme.accentSoft, this.theme.info];
+        return colors[i % colors.length](char);
+      }).join('');
+      console.log(colored);
+    });
 
-    console.log(`  ${this.bold(config.name)} ${this.muted(config.version || '')}`);
-    console.log(`  ${this.secondary(config.description || 'Your AI-powered development companion')}`);
+    console.log(`  ${this.theme.bold(config.name)} ${this.theme.dim(config.version || '')}`);
+    console.log(`  ${this.theme.dim(config.description || '您的智能开发助手')}`);
+    
+    if (config.provider || config.model) {
+      console.log(`  ${this.theme.dim('提供商:')} ${this.theme.info(config.provider || 'default')} ${this.theme.dim('|')} ${this.theme.dim('模型:')} ${this.theme.success(config.model || 'unknown')}`);
+    }
+    
     this.newline();
 
-    this.divider('Commands');
-    console.log(`    ${this.primary('/help')}      Show available commands`);
-    console.log(`    ${this.primary('/clear')}     Clear conversation history`);
-    console.log(`    ${this.primary('/exit')}      Exit the CLI`);
-    console.log(`    ${this.primary('/model')}     Switch model`);
-    console.log(`    ${this.primary('/theme')}     Change theme`);
+    this.divider('快捷命令');
+    console.log(`    ${this.theme.accent('/help')}       显示所有命令`);
+    console.log(`    ${this.theme.accent('/clear')}      清空对话历史`);
+    console.log(`    ${this.theme.accent('/exit')}       退出 CLI`);
+    console.log(`    ${this.theme.accent('/model')}      切换 AI 模型`);
+    console.log(`    ${this.theme.accent('/stats')}      查看使用统计`);
+    console.log(`    ${this.theme.accent('/events')}     查看事件日志`);
     this.newline();
 
-    this.divider('Shortcuts');
-    console.log(`    ${this.primary('Ctrl+C')}     Exit`);
-    console.log(`    ${this.primary('Ctrl+L')}     Clear screen`);
-    console.log(`    ${this.primary('↑/↓')}        Navigate history`);
-    console.log(`    ${this.primary('Tab')}        Auto-complete`);
+    this.divider('快捷键');
+    console.log(`    ${this.theme.accent('Ctrl+C')}      退出 (按两次)`);
+    console.log(`    ${this.theme.accent('Ctrl+L')}      清屏`);
+    console.log(`    ${this.theme.accent('↑/↓')}         浏览命令历史`);
+    console.log(`    ${this.theme.accent('Tab')}         自动补全命令`);
+    console.log(`    ${this.theme.accent('Ctrl+U')}      清空输入行`);
+    this.newline();
+    
+    this.divider(undefined, '─');
+    console.log(`  ${this.theme.dim('💡 提示:')} 所有智能体事件 (技能、工具、MCP) 都被追踪。使用 ${this.theme.accent('/events')} 查看。`);
     this.newline();
   }
 
-  // 状态栏
-  statusBar(left: string, right: string): void {
-    const rightWidth = right.length + 2;
-    const leftWidth = this.getTerminalWidth() - rightWidth - 2;
-    const leftPadded = left.slice(0, leftWidth).padEnd(leftWidth);
-    console.log(`${ANSI.reverse}${leftPadded} ${right} ${ANSI.reset}`);
+  statusLine(config: {
+    model?: string;
+    provider?: string;
+    messages?: number;
+    tokens?: number;
+    session?: string;
+  }): void {
+    const parts: string[] = [];
+    
+    if (config.provider && config.model) {
+      parts.push(`${this.theme.info(config.provider)}:${this.theme.success(config.model)}`);
+    } else if (config.model) {
+      parts.push(`${this.theme.success(config.model)}`);
+    }
+    
+    if (config.messages !== undefined) {
+      parts.push(`${this.theme.dim('msgs:')}${this.theme.accent(config.messages.toString())}`);
+    }
+    
+    if (config.tokens !== undefined) {
+      parts.push(`${this.theme.dim('toks:')}${this.theme.dim(config.tokens.toLocaleString())}`);
+    }
+    
+    if (config.session) {
+      parts.push(`${this.theme.dim('session:')}${this.theme.info(config.session)}`);
+    }
+    
+    const line = parts.join(` ${this.theme.dim('|')} `);
+    console.log(`${this.theme.dim('┌')} ${line} ${'─'.repeat(Math.max(0, this.getTerminalWidth() - line.length - 4))}`);
   }
 
-  // 文本换行
+  header(title: string, subtitle?: string): void {
+    const width = this.getTerminalWidth();
+    const titleLine = subtitle ? `${this.theme.bold(title)} ${this.theme.dim('─')} ${this.theme.dim(subtitle)}` : this.theme.bold(title);
+    console.log('');
+    console.log(`${this.theme.accent(`╭${'─'.repeat(width - 2)}╮`)}`);
+    console.log(`${this.theme.accent(`│`)} ${titleLine}${' '.repeat(Math.max(0, width - titleLine.length - 3))}${this.theme.accent(`│`)}`);
+    console.log(`${this.theme.accent(`╰${'─'.repeat(width - 2)}╯`)}`);
+    console.log('');
+  }
+
+  destroy(): void {
+    this.loading.destroy();
+  }
+
   private wrapText(text: string, maxWidth: number): string[] {
     const words = text.split(' ');
     const lines: string[] = [];
@@ -768,13 +690,64 @@ export class TUIRenderer {
   }
 }
 
-// ============================================
-// 便捷函数
-// ============================================
-
 export function createRenderer(theme?: Theme): TUIRenderer {
   return new TUIRenderer(theme);
 }
 
-// 默认导出
 export default TUIRenderer;
+
+export { THEMES, DEFAULT_THEME, type Theme } from './theme.js';
+
+export class ThinkingDisplay {
+  private theme: Theme;
+  private currentStep = 0;
+  private totalSteps = 0;
+  private spinner: LoadingIndicator;
+  private thoughts: string[] = [];
+
+  constructor(theme: Theme = DEFAULT_THEME) {
+    this.theme = theme;
+    this.spinner = new LoadingIndicator(theme, 'dots');
+  }
+
+  start(totalSteps: number): void {
+    this.totalSteps = totalSteps;
+    this.currentStep = 0;
+    this.thoughts = [];
+    this.spinner.start('思考中...', '🧠');
+  }
+
+  step(thought: string): void {
+    this.currentStep++;
+    this.thoughts.push(thought);
+    const truncated = thought.length > 50 ? thought.slice(0, 47) + '...' : thought;
+    this.spinner.update(`步骤 ${this.currentStep}/${this.totalSteps}: ${truncated}`);
+  }
+
+  toolCall(toolName: string, params?: Record<string, unknown>): void {
+    const paramsStr = params ? ` ${JSON.stringify(params).slice(0, 30)}` : '';
+    this.spinner.update(`${this.theme.accent('🔧')} ${toolName}${paramsStr}`);
+  }
+
+  observation(observation: string): void {
+    const truncated = observation.length > 60 ? observation.slice(0, 57) + '...' : observation;
+    this.spinner.update(`${this.theme.info('👁')} ${truncated}`);
+  }
+
+  complete(_answer: string): void {
+    this.spinner.succeed('思考完成');
+    this.showSummary();
+  }
+
+  private showSummary(): void {
+    if (this.thoughts.length === 0) return;
+
+    stdout.write(`${ANSI.dim}${'─'.repeat(50)}${ANSI.reset}\n`);
+    stdout.write(`${this.theme.accent('思考过程:')}\n`);
+    this.thoughts.forEach((thought, i) => {
+      const truncated = thought.length > 80 ? thought.slice(0, 77) + '...' : thought;
+      stdout.write(`  ${ANSI.dim}${i + 1}.${ANSI.reset} ${truncated}\n`);
+    });
+    stdout.write(`${ANSI.dim}${'─'.repeat(50)}${ANSI.reset}\n`);
+  }
+}

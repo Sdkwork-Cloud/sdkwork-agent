@@ -577,14 +577,14 @@ export class SkillRegistry {
       this.watcher.on('change', onChange);
     }
 
-    this.watcher.watch(workspaceDir);
+    this.watcher.watchAll(workspaceDir);
   }
 
   /**
    * 停止监视
    */
   unwatch(workspaceDir: string): void {
-    this.watcher?.unwatch(workspaceDir);
+    this.watcher?.unwatchDir(workspaceDir);
   }
 
   /**

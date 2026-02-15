@@ -298,8 +298,8 @@ export interface SkillRegistry {
   unregister(skillId: string): void;
   /** 获取 Skill */
   get(skillId: string): Skill | undefined;
-  /** 根据名称获取 */
-  getByName(name: string): Skill | undefined;
+  /** 根据名称获取（支持懒加载） */
+  getByName(name: string): Promise<Skill | undefined> | Skill | undefined;
   /** 列出所有 */
   list(): Skill[];
   /** 搜索 */
