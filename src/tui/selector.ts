@@ -59,6 +59,7 @@ export class InteractiveSelector<T = string> {
   private resolved: boolean = false;
   private dataHandler: ((data: string) => void) | null = null;
   private timeoutId: NodeJS.Timeout | null = null;
+  private firstRender: boolean = true;
 
   constructor(config: SelectConfig<T>) {
     this.config = {
@@ -177,14 +178,22 @@ export class InteractiveSelector<T = string> {
       stdout.write(ANSI.cursorUp + ANSI.clearLine);
     }
 
-    // 显示标题
+    // 显示标题（只在第一次渲染时显示，后续保持空白行占位）
     stdout.write(ANSI.cursorHome + ANSI.clearLine);
-    console.log(`${theme.primary}${this.config.message}${ANSI.reset}`);
-    console.log('');
+    if (this.firstRender) {
+      console.log(`${theme.primary}${this.config.message}${ANSI.reset}`);
+      console.log('');
+      this.firstRender = false;
+    } else {
+      // 保持与第一次相同的布局，只清除这一行但留空
+      stdout.write(ANSI.clearLine + '\r\n');
+    }
 
     // 显示滚动指示器（上方）
     if (this.scrollTop > 0) {
       console.log(ANSI.clearLine + `${theme.secondary}  ↑ 还有 ${this.scrollTop} 个选项${ANSI.reset}`);
+    } else {
+      console.log(ANSI.clearLine);
     }
 
     // 显示选项
@@ -193,9 +202,6 @@ export class InteractiveSelector<T = string> {
       const option = options[i];
       const isSelected = i === this.selectedIndex;
       const isDisabled = option.disabled;
-
-      // 计算显示编号
-      const displayNum = i + 1;
 
       if (isDisabled) {
         const line = `  ${theme.disabled}○ ${option.label}${ANSI.reset}`;
@@ -212,16 +218,24 @@ export class InteractiveSelector<T = string> {
       }
     }
 
+    // 清除多余的选项行
+    for (let i = endIndex; i < this.scrollTop + pageSize; i++) {
+      console.log(ANSI.clearLine);
+    }
+
     // 显示滚动指示器（下方）
     if (totalOptions > pageSize) {
       const more = totalOptions - endIndex;
       if (more > 0) {
         console.log(ANSI.clearLine + `${theme.secondary}  ↓ 还有 ${more} 个选项${ANSI.reset}`);
+      } else {
+        console.log(ANSI.clearLine);
       }
+    } else {
+      console.log(ANSI.clearLine);
     }
 
     // 显示操作提示
-    console.log('');
     stdout.write(ANSI.clearLine);
     const position = `${theme.secondary}[${this.selectedIndex + 1}/${totalOptions}]${ANSI.reset}`;
     const hints = ` ↑/↓ 选择 | Enter 确认 | 0-9 快速选择 | Esc 取消`;
@@ -429,6 +443,7 @@ export class MultiSelector<T = string> {
   private scrollTop: number;
   private resolved: boolean = false;
   private dataHandler: ((data: string) => void) | null = null;
+  private firstRender: boolean = true;
 
   constructor(config: SelectConfig<T>) {
     this.config = {
@@ -511,10 +526,15 @@ export class MultiSelector<T = string> {
       stdout.write(ANSI.cursorUp + ANSI.clearLine);
     }
 
-    // 显示标题
+    // 显示标题（只在第一次渲染时显示，后续保持空白行占位）
     stdout.write(ANSI.cursorHome + ANSI.clearLine);
-    console.log(`${theme.primary}${this.config.message}${ANSI.reset}`);
-    console.log('');
+    if (this.firstRender) {
+      console.log(`${theme.primary}${this.config.message}${ANSI.reset}`);
+      console.log('');
+      this.firstRender = false;
+    } else {
+      stdout.write(ANSI.clearLine + '\r\n');
+    }
 
     // 显示选项
     const endIndex = Math.min(this.scrollTop + pageSize, options.length);
@@ -530,8 +550,12 @@ export class MultiSelector<T = string> {
       console.log(ANSI.clearLine + pointer + checkbox + ' ' + label);
     }
 
+    // 清除多余的选项行
+    for (let i = endIndex; i < this.scrollTop + pageSize; i++) {
+      console.log(ANSI.clearLine);
+    }
+
     // 显示操作提示
-    console.log('');
     stdout.write(ANSI.clearLine);
     const hints = `${theme.secondary}↑/↓ 移动 | Space 选择 | a 全选 | Enter 确认 | Esc 取消${ANSI.reset}`;
     console.log(hints);
@@ -668,18 +692,24 @@ export async function prompt(
     const onData = (data: string) => {
       if (resolved) return;
 
-      const key = data.toString();
+      const str = data.toString();
 
-      if (key === '\r' || key === '\n') {
+      // Check for Enter key (might be at the end of pasted content)
+      if (str.includes('\r') || str.includes('\n')) {
         resolved = true;
         cleanup();
+        // Extract content before newline (for paste scenarios)
+        const beforeNewline = str.split(/[\r\n]/)[0];
+        input += beforeNewline;
+        stdout.write(beforeNewline);
         stdout.write('\n');
         const result = input.trim() || config.defaultValue || '';
         resolve(result || null);
         return;
       }
 
-      if (key === '\u0003') {
+      // Handle Ctrl+C
+      if (str === '\u0003') {
         resolved = true;
         cleanup();
         stdout.write('\n');
@@ -687,7 +717,8 @@ export async function prompt(
         return;
       }
 
-      if (key === '\u007f' || key === '\b') {
+      // Handle backspace
+      if (str === '\u007f' || str === '\b') {
         if (input.length > 0) {
           input = input.slice(0, -1);
           stdout.write('\b \b');
@@ -695,9 +726,13 @@ export async function prompt(
         return;
       }
 
-      if (key >= ' ' && key <= '~') {
-        input += key;
-        stdout.write(key);
+      // Handle paste or single character input
+      // Filter out control characters and only keep printable chars
+      for (const char of str) {
+        if (char >= ' ' && char <= '~') {
+          input += char;
+          stdout.write(char);
+        }
       }
     };
 

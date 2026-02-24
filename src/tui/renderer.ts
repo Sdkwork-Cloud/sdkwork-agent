@@ -22,16 +22,11 @@ import {
 // ============================================
 
 const WAITING_PHRASES = [
-  'thinking',
-  'pondering',
-  'contemplating',
-  'mulling it over',
-  'chewing on that',
-  'processing',
-  'working on it',
-  'let me see',
-  'hmm',
-  'almost there',
+  '正在分析...',
+  '处理中...',
+  '请稍候...',
+  '努力工作中...',
+  '马上就好...',
 ];
 
 // ============================================
@@ -118,8 +113,8 @@ export class LoadingIndicator {
     const prefix = this.prefix ? `${this.theme.accent(this.prefix)} ` : '';
     
     let displayMessage = this.message;
-    if (this.waitingPhrase && this.waitingTick % 8 === 0) {
-      displayMessage = `${this.message} • ${this.waitingPhrase}`;
+    if (this.waitingPhrase && this.waitingTick % 10 === 0) {
+      displayMessage = `${this.message} ${this.theme.dim(this.waitingPhrase)}`;
     }
 
     const output = `${prefix}${this.theme.accent(frame)} ${displayMessage}`;
@@ -326,7 +321,15 @@ export class TUIRenderer {
     console.log('');
   }
 
-  table(headers: string[], rows: string[][]): void {
+  table(headers: string[], rows: string[][], options?: {
+    style?: 'rounded' | 'borderless' | 'compact';
+    alignments?: Array<'left' | 'center' | 'right'>;
+    maxHeight?: number;
+  }): void {
+    const style = options?.style ?? 'rounded';
+    const alignments = options?.alignments ?? headers.map(() => 'left');
+    const maxHeight = options?.maxHeight ?? 0;
+    
     const widths = headers.map((h, i) => {
       const maxRowLen = Math.max(...rows.map(r => r[i]?.length || 0));
       return Math.max(h.length, maxRowLen);
@@ -335,18 +338,64 @@ export class TUIRenderer {
     const totalWidth = widths.reduce((a, b) => a + b, 0) + (widths.length - 1) * 3 + 4;
     const border = this.theme.dim('─'.repeat(totalWidth - 2));
     
-    console.log(`  ${this.theme.dim('┌')}${border.slice(2, -5)}${this.theme.dim('┐')}`);
-    
-    const headerRow = headers.map((h, i) => this.bold(h.padEnd(widths[i]))).join(` ${this.dim('│')} `);
-    console.log(`  ${this.theme.dim('│')} ${headerRow} ${this.theme.dim('│')}`);
-    console.log(`  ${this.theme.dim('├')}${border.slice(2, -5)}${this.theme.dim('┤')}`);
-    
-    for (const row of rows) {
-      const rowStr = row.map((cell, i) => (cell || '').padEnd(widths[i])).join(` ${this.dim('│')} `);
-      console.log(`  ${this.theme.dim('│')} ${rowStr} ${this.theme.dim('│')}`);
+    if (style === 'rounded') {
+      console.log(`  ${this.theme.dim('┌')}${border.slice(2, -5)}${this.theme.dim('┐')}`);
+      
+      const headerRow = headers.map((h, i) => {
+        const padded = h.padEnd(widths[i], ' ');
+        return alignments[i] === 'center' 
+          ? this.center(h, widths[i]) 
+          : (alignments[i] === 'right' ? padded.padStart(widths[i]) : padded);
+      }).join(` ${this.dim('│')} `);
+      console.log(`  ${this.theme.dim('│')} ${this.bold(headerRow)} ${this.theme.dim('│')}`);
+      console.log(`  ${this.theme.dim('├')}${border.slice(2, -5)}${this.theme.dim('┤')}`);
+      
+      let visibleRows = rows;
+      if (maxHeight > 0 && rows.length > maxHeight) {
+        visibleRows = rows.slice(0, maxHeight);
+        const truncated = rows.length - maxHeight;
+        for (const row of visibleRows) {
+          const rowStr = row.map((cell, i) => {
+            const content = cell || '';
+            return alignments[i] === 'center' 
+              ? this.center(content, widths[i]) 
+              : (alignments[i] === 'right' ? content.padStart(widths[i]) : content.padEnd(widths[i]));
+          }).join(` ${this.dim('│')} `);
+          console.log(`  ${this.theme.dim('│')} ${rowStr} ${this.theme.dim('│')}`);
+        }
+        console.log(`  ${this.theme.dim('│')} ${this.dim(`... 还有 ${truncated} 行`)}${' '.repeat(totalWidth - 20)}${this.theme.dim('│')}`);
+      } else {
+        for (const row of visibleRows) {
+          const rowStr = row.map((cell, i) => {
+            const content = cell || '';
+            return alignments[i] === 'center' 
+              ? this.center(content, widths[i]) 
+              : (alignments[i] === 'right' ? content.padStart(widths[i]) : content.padEnd(widths[i]));
+          }).join(` ${this.dim('│')} `);
+          console.log(`  ${this.theme.dim('│')} ${rowStr} ${this.theme.dim('│')}`);
+        }
+      }
+      
+      console.log(`  ${this.theme.dim('└')}${border.slice(2, -5)}${this.theme.dim('┘')}`);
+    } else if (style === 'borderless') {
+      const headerRow = headers.join('  ');
+      console.log(this.bold(headerRow));
+      for (const row of rows) {
+        console.log(row.join('  '));
+      }
+    } else if (style === 'compact') {
+      console.log(headers.join(' │ '));
+      console.log(widths.map(w => '─'.repeat(w)).join('─┼─'));
+      for (const row of rows) {
+        console.log(row.join(' │ '));
+      }
     }
-    
-    console.log(`  ${this.theme.dim('└')}${border.slice(2, -5)}${this.theme.dim('┘')}`);
+  }
+
+  private center(text: string, width: number): string {
+    const padding = Math.max(0, width - text.length);
+    const left = Math.floor(padding / 2);
+    return ' '.repeat(left) + text + ' '.repeat(padding - left);
   }
 
   keyValuePair(pairs: [string, string | number | boolean][], title?: string): void {
@@ -361,6 +410,154 @@ export class TUIRenderer {
         : this.primary(String(value));
       console.log(`    ${keyStr} ${valueStr}`);
     }
+  }
+
+  json(data: unknown, options?: {
+    indent?: number;
+    maxDepth?: number;
+    theme?: 'colored' | 'plain';
+    collapsed?: boolean;
+  }): void {
+    const indent = options?.indent ?? 2;
+    const maxDepth = options?.maxDepth ?? 3;
+    const theme = options?.theme ?? 'colored';
+    const collapsed = options?.collapsed ?? false;
+    
+    const formatJson = (obj: unknown, depth: number, inArray: boolean): string => {
+      if (obj === null) return this.theme.null('null');
+      if (obj === undefined) return this.theme.null('undefined');
+      
+      if (typeof obj === 'boolean') {
+        return obj ? this.theme.success('true') : this.theme.error('false');
+      }
+      
+      if (typeof obj === 'number') {
+        return this.theme.number(String(obj));
+      }
+      
+      if (typeof obj === 'string') {
+        if (theme === 'colored') {
+          return this.theme.string(`"${obj}"`);
+        }
+        return `"${obj}"`;
+      }
+      
+      if (Array.isArray(obj)) {
+        if (obj.length === 0) return this.theme.dim('[]');
+        if (depth >= maxDepth && !collapsed) {
+          return this.theme.dim(`[Array(${obj.length})]`);
+        }
+        const items = obj.map(item => formatJson(item, depth + 1, true));
+        if (theme === 'colored') {
+          return `${this.theme.dim('[')}\n${' '.repeat((depth + 1) * indent)}${items.join(this.dim(', '))}\n${' '.repeat(depth * indent)}${this.theme.dim(']')}`;
+        }
+        return `[${items.join(', ')}]`;
+      }
+      
+      if (typeof obj === 'object') {
+        const entries = Object.entries(obj as Record<string, unknown>);
+        if (entries.length === 0) return this.theme.dim('{}');
+        if (depth >= maxDepth && !collapsed) {
+          return this.theme.dim(`{Object(${entries.length})}`);
+        }
+        const items = entries.map(([key, value]) => {
+          const formattedValue = formatJson(value, depth + 1, false);
+          if (theme === 'colored') {
+            return `${this.theme.key(key)}: ${formattedValue}`;
+          }
+          return `"${key}": ${formattedValue}`;
+        });
+        if (theme === 'colored') {
+          return `${this.theme.dim('{')}\n${' '.repeat((depth + 1) * indent)}${items.join(this.dim(',\n') + ' '.repeat((depth + 1) * indent))}\n${' '.repeat(depth * indent)}${this.theme.dim('}')}`;
+        }
+        return `{${items.join(', ')}}`;
+      }
+      
+      return String(obj);
+    };
+    
+    console.log(formatJson(data, 0, false));
+  }
+
+  tree(data: Record<string, unknown>, options?: {
+    indent?: number;
+    maxDepth?: number;
+    collapsed?: boolean;
+  }): void {
+    const indent = options?.indent ?? 2;
+    const maxDepth = options?.maxDepth ?? 3;
+    const collapsed = options?.collapsed ?? false;
+    
+    const renderTree = (obj: unknown, key: string | null, depth: number, isLast: boolean, prefix: string): void => {
+      const connector = isLast ? '└── ' : '├── ';
+      const childPrefix = isLast ? '    ' : '│   ';
+      
+      if (obj === null || obj === undefined) {
+        const displayKey = key !== null ? `${connector}${key}: ` : '';
+        console.log(`${prefix}${displayKey}${this.theme.null(String(obj))}`);
+        return;
+      }
+      
+      if (typeof obj === 'boolean') {
+        const displayKey = key !== null ? `${connector}${key}: ` : '';
+        const value = obj ? this.theme.success('true') : this.theme.error('false');
+        console.log(`${prefix}${displayKey}${value}`);
+        return;
+      }
+      
+      if (typeof obj === 'number') {
+        const displayKey = key !== null ? `${connector}${key}: ` : '';
+        console.log(`${prefix}${displayKey}${this.theme.number(String(obj))}`);
+        return;
+      }
+      
+      if (typeof obj === 'string') {
+        const displayKey = key !== null ? `${connector}${key}: ` : '';
+        console.log(`${prefix}${displayKey}${this.theme.string(`"${obj}"`)}`);
+        return;
+      }
+      
+      if (Array.isArray(obj)) {
+        const displayKey = key !== null ? `${connector}${key}` : '';
+        const label = obj.length > 0 ? `${displayKey} [${obj.length}]` : `${displayKey} []`;
+        console.log(`${prefix}${this.theme.dim(label)}`);
+        
+        if (depth >= maxDepth && !collapsed) {
+          console.log(`${prefix}${childPrefix}${this.theme.dim('...')}`);
+          return;
+        }
+        
+        obj.forEach((item, index) => {
+          renderTree(item, `[${index}]`, depth + 1, index === obj.length - 1, prefix + childPrefix);
+        });
+        return;
+      }
+      
+      if (typeof obj === 'object') {
+        const entries = Object.entries(obj as Record<string, unknown>);
+        const displayKey = key !== null ? `${connector}${key}` : '';
+        const label = entries.length > 0 ? `${displayKey} {${entries.length}}` : `${displayKey} {}`;
+        console.log(`${prefix}${this.theme.dim(label)}`);
+        
+        if (depth >= maxDepth && !collapsed) {
+          console.log(`${prefix}${childPrefix}${this.theme.dim('...')}`);
+          return;
+        }
+        
+        entries.forEach(([k, v], index) => {
+          renderTree(v, k, depth + 1, index === entries.length - 1, prefix + childPrefix);
+        });
+        return;
+      }
+      
+      const displayKey = key !== null ? `${connector}${key}: ` : '';
+      console.log(`${prefix}${displayKey}${String(obj)}`);
+    };
+    
+    console.log(this.theme.bold('Tree View:'));
+    console.log(this.theme.dim('─'.repeat(40)));
+    renderTree(data, null, 0, true, '');
+    console.log(this.theme.dim('─'.repeat(40)));
   }
 
   progressBarText(current: number, total: number, label?: string, width: number = 20): string {
@@ -704,6 +901,7 @@ export class ThinkingDisplay {
   private totalSteps = 0;
   private spinner: LoadingIndicator;
   private thoughts: string[] = [];
+  private startTime = 0;
 
   constructor(theme: Theme = DEFAULT_THEME) {
     this.theme = theme;
@@ -714,39 +912,43 @@ export class ThinkingDisplay {
     this.totalSteps = totalSteps;
     this.currentStep = 0;
     this.thoughts = [];
-    this.spinner.start('思考中...', '🧠');
+    this.startTime = Date.now();
+    this.spinner.start('分析中...', '🧠');
   }
 
   step(thought: string): void {
     this.currentStep++;
     this.thoughts.push(thought);
-    const truncated = thought.length > 50 ? thought.slice(0, 47) + '...' : thought;
-    this.spinner.update(`步骤 ${this.currentStep}/${this.totalSteps}: ${truncated}`);
+    const truncated = thought.length > 40 ? thought.slice(0, 37) + '...' : thought;
+    const elapsed = Math.round((Date.now() - this.startTime) / 1000);
+    this.spinner.update(`[${elapsed}s] 步骤 ${this.currentStep}/${this.totalSteps}: ${truncated}`);
   }
 
   toolCall(toolName: string, params?: Record<string, unknown>): void {
-    const paramsStr = params ? ` ${JSON.stringify(params).slice(0, 30)}` : '';
-    this.spinner.update(`${this.theme.accent('🔧')} ${toolName}${paramsStr}`);
+    const paramsStr = params ? ` ${JSON.stringify(params).slice(0, 20)}...` : '';
+    this.spinner.update(`🔧 调用: ${toolName}${paramsStr}`);
   }
 
   observation(observation: string): void {
-    const truncated = observation.length > 60 ? observation.slice(0, 57) + '...' : observation;
-    this.spinner.update(`${this.theme.info('👁')} ${truncated}`);
+    const truncated = observation.length > 50 ? observation.slice(0, 47) + '...' : observation;
+    this.spinner.update(`📋 结果: ${truncated}`);
   }
 
   complete(_answer: string): void {
-    this.spinner.succeed('思考完成');
+    const elapsed = Math.round((Date.now() - this.startTime) / 1000);
+    this.spinner.succeed(`完成 (${elapsed}s)`);
     this.showSummary();
   }
 
   private showSummary(): void {
     if (this.thoughts.length === 0) return;
 
+    stdout.write(`\n${ANSI.dim}${'─'.repeat(50)}${ANSI.reset}\n`);
+    stdout.write(`${this.theme.accent('📝 执行摘要')}\n`);
     stdout.write(`${ANSI.dim}${'─'.repeat(50)}${ANSI.reset}\n`);
-    stdout.write(`${this.theme.accent('思考过程:')}\n`);
-    this.thoughts.forEach((thought, i) => {
-      const truncated = thought.length > 80 ? thought.slice(0, 77) + '...' : thought;
-      stdout.write(`  ${ANSI.dim}${i + 1}.${ANSI.reset} ${truncated}\n`);
+    this.thoughts.slice(-3).forEach((thought, i) => {
+      const truncated = thought.length > 60 ? thought.slice(0, 57) + '...' : thought;
+      stdout.write(`  ${this.theme.primary('•')} ${truncated}\n`);
     });
     stdout.write(`${ANSI.dim}${'─'.repeat(50)}${ANSI.reset}\n`);
   }

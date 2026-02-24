@@ -36,8 +36,12 @@ export type AgentEventType =
   | 'chat:message'
   | 'chat:stream'
   | 'chat:completed'
- | 'chat:aborted'
+  | 'chat:aborted'
   | 'chat:error'
+  // 思考事件
+  | 'thinking:started'
+  | 'thinking:step'
+  | 'thinking:complete'
   // 执行事件
   | 'execution:started'
   | 'execution:step'
@@ -54,6 +58,7 @@ export type AgentEventType =
   | 'skill:invoked'
   | 'skill:completed'
   | 'skill:failed'
+  | 'skill:progress'
   | 'skill:updated'
   | 'skill:removed'
   // 记忆事件

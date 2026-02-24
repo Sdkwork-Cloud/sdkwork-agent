@@ -36,5 +36,10 @@
     }
   },
   "include": ["src/**/*", "tests/**/*"],
-  "exclude": ["node_modules", "dist", "src/**/examples/**/*"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    "src/**/examples/**/*",
+    "src/skills/builtin/*/assets/templates/**/*"
+  ]
 }

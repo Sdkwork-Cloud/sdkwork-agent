@@ -2,79 +2,142 @@
 
 This directory contains built-in skills following the **Agent Skills Specification**.
 
+## Naming Convention
+
+**Format**: `{language}-{platform?}-{role}`
+
+### Language/Framework Codes
+
+| Code | Language/Framework | Description |
+|------|-------------------|-------------|
+| `react` | React | React ecosystem (TypeScript/JavaScript) |
+| `vue` | Vue | Vue ecosystem (TypeScript/JavaScript) |
+| `flutter` | Flutter | Flutter/Dart cross-platform |
+| `kotlin` | Kotlin | Kotlin for Android |
+| `swift` | Swift | Swift for iOS/macOS |
+| `arkts` | ArkTS | ArkTS for HarmonyOS |
+| `mini` | Mini Program | Cross-platform mini programs |
+
+### Platform Codes
+
+| Code | Platform | Description |
+|------|----------|-------------|
+| `web` | PC Web | Desktop web applications |
+| `h5` | Mobile Web | Mobile web apps, PWA |
+| `backend` | Admin Panel | Backend admin systems |
+| `android` | Android | Android native |
+| `ios` | iOS | iOS native |
+| `harmony` | HarmonyOS | HarmonyOS native |
+
+### Role Codes
+
+| Code | Role | Description |
+|------|------|-------------|
+| `architect` | Architect | Design + Create + Refactor + Optimize |
+| `fixer` | Fixer | Bug fixing and troubleshooting |
+| `creator` | Creator | Project scaffolding and generation |
+
+---
+
 ## Directory Structure
 
 ```
 src/skills/builtin/
-├── echo/                   # Debug utility
-│   └── SKILL.md
-├── math/                   # Mathematical calculations
-│   └── SKILL.md
-├── list-skills/            # Skill discovery
-│   └── SKILL.md
-├── lyrics-generator/       # Music lyrics creation
-│   └── SKILL.md
-├── index.ts                # TypeScript implementations
-└── builtin.ts              # Re-export file
+├── echo/                        # Debug utility
+├── code-review/                 # Code review assistant
+├── image-prompt-engineer/       # AI image prompt generator
+├── video-director/              # Video production assistant
+├── video-prompt-engineer/       # AI video prompt generator
+│
+├── react-web-architect/         # React PC web architect ✅
+├── react-backend-architect/     # React admin panel architect ✅
+├── react-h5-architect/          # React mobile web architect ✅
+│
+├── mini-architect/              # Mini program architect 📋
+├── flutter-architect/           # Flutter architect 📋
+├── kotlin-android-architect/    # Kotlin Android architect 📋
+├── swift-ios-architect/         # Swift iOS architect 📋
+├── arkts-harmony-architect/     # ArkTS HarmonyOS architect 📋
+│
+├── index.ts                     # TypeScript implementations
+└── loader.ts                    # Skill loader
 ```
 
-## SKILL.md Format
-
-Each skill directory contains a `SKILL.md` file with:
-
-### YAML Frontmatter (Required)
-
-```yaml
 ---
-name: skill-name # Required: 1-64 chars, lowercase alphanumeric + hyphens
-description: Description # Required: 1-1024 chars, what it does + when to use it
-license: MIT # Optional: License name
-compatibility: Requirements # Optional: Environment requirements
-metadata:
-  author: Author Name # Optional
-  version: '1.0.0' # Optional
-  category: category-name # Optional: For organization
-  tags: 'tag1 tag2 tag3' # Optional: Space-separated tags
+
+## Skill Categories
+
+### React Architecture Skills
+
+| Skill | Language | Platform | Capabilities |
+|-------|----------|----------|--------------|
+| `react-web-architect` | React/TS | PC Web | Design, Create, Refactor, Optimize |
+| `react-backend-architect` | React/TS | Admin Panel | Design, Create, Refactor, Secure |
+| `react-h5-architect` | React/TS | Mobile Web | Design, Create, Refactor, Enhance |
+
+### Mobile Architecture Skills
+
+| Skill | Language | Platform | Capabilities |
+|-------|----------|----------|--------------|
+| `mini-architect` | TS/JS | Mini Program | Design, Create, Refactor, Cross-Platform |
+| `flutter-architect` | Dart | Cross-Platform | Design, Create, Refactor, Integrate |
+| `kotlin-android-architect` | Kotlin | Android | Design, Create, Refactor, Modernize |
+| `swift-ios-architect` | Swift | iOS | Design, Create, Refactor, Modernize |
+| `arkts-harmony-architect` | ArkTS | HarmonyOS | Design, Create, Refactor, Distribute |
+
+### Content Generation Skills
+
+| Skill | Target | Description |
+|-------|--------|-------------|
+| `image-prompt-engineer` | AI Images | Midjourney, Jimeng, NanoBanana prompts |
+| `video-prompt-engineer` | AI Videos | Runway, Pika, Kling prompts |
+| `video-director` | Video Production | Storyboards, scripts, shot lists |
+
+### Utility Skills
+
+| Skill | Target | Description |
+|-------|--------|-------------|
+| `echo` | Debug | Echo back input for testing |
+| `code-review` | Development | Code review and suggestions |
+
 ---
+
+## Platform Coverage
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                          Platform Coverage                               │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│   Web Platform (React)                                                   │
+│   ├── react-web-architect        (PC Frontend)           ✅ Ready       │
+│   └── react-backend-architect    (Admin Panel)           ✅ Ready       │
+│                                                                          │
+│   Mobile Platform                                                        │
+│   ├── react-h5-architect         (Mobile Web/PWA)        ✅ Ready       │
+│   ├── mini-architect             (Mini Programs)         📋 Planned     │
+│   ├── flutter-architect          (Flutter Apps)          📋 Planned     │
+│   ├── kotlin-android-architect   (Android Native)        📋 Planned     │
+│   ├── swift-ios-architect        (iOS Native)            📋 Planned     │
+│   └── arkts-harmony-architect    (HarmonyOS)             📋 Planned     │
+│                                                                          │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Markdown Body
+---
 
-After the frontmatter, include:
+## Architect Capabilities
 
-- Detailed description
-- Usage examples
-- Parameter documentation
-- Notes and limitations
+All `*-architect` skills support four core capabilities:
 
-## Naming Conventions
+| Capability | Description |
+|------------|-------------|
+| **Design** | Architecture design, pattern selection, technology decisions |
+| **Create** | Project scaffolding, boilerplate generation, initial setup |
+| **Refactor** | Code restructuring, migration, optimization |
+| **Specialize** | Platform-specific features (Secure, Enhance, Modernize, etc.) |
 
-Per Agent Skills Specification:
-
-- ✅ Valid: `echo`, `math`, `list-skills`, `pdf-extract`
-- ❌ Invalid: `Echo` (uppercase), `-echo` (starts with hyphen), `echo--test` (consecutive hyphens)
-
-## TypeScript Implementation
-
-While SKILL.md provides the metadata and documentation, the actual implementation is in `index.ts`:
-
-```typescript
-export const skillName: Skill = {
-  name: 'skill-name',
-  description: '...',
-  parameters: { ... },
-  handler: async (params, context) => { ... },
-  metadata: { ... },
-};
-```
-
-## Adding New Skills
-
-1. Create directory: `mkdir src/skills/builtin/my-skill`
-2. Create SKILL.md with proper frontmatter
-3. Add implementation to `index.ts`
-4. Export from `builtin.ts`
-5. Register in agent initialization
+---
 
 ## Progressive Disclosure
 
@@ -86,6 +149,8 @@ Following the Agent Skills Specification:
    - Full SKILL.md body
 3. **Resources** (as needed): Loaded on demand
    - `scripts/`, `references/`, `assets/` directories
+
+---
 
 ## References
 

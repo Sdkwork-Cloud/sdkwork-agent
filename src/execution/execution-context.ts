@@ -55,11 +55,11 @@ export interface ExecutionContextOptions {
 // ============================================
 
 export const DEFAULT_EXECUTION_LIMITS: ExecutionLimits = {
-  maxDepth: 10,
-  maxSteps: 50,
-  maxSameActionRepeat: 3,
-  timeout: 60000,
-  maxTotalTime: 300000, // 5 minutes
+  maxDepth: 20, // 增加到 20 层
+  maxSteps: 100, // 增加到 100 步
+  maxSameActionRepeat: 10, // 增加到 10 次
+  timeout: 300000, // 增加到 5 分钟
+  maxTotalTime: 600000, // 增加到 10 分钟
 };
 
 // ============================================

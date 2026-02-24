@@ -229,6 +229,7 @@ export class SkillLoader extends EventEmitter implements ISkillLoader {
   private loadingPromises = new Map<string, Promise<SkillLoadResult>>();
   private config: Required<SkillLoaderConfig>;
   private activeLoads = 0;
+  private loadQueue: Array<() => void> = [];
   private cacheStats = { hits: 0, misses: 0 };
 
   constructor(config: SkillLoaderConfig = {}) {
@@ -361,9 +362,11 @@ export class SkillLoader extends EventEmitter implements ISkillLoader {
     }
     this.cacheStats.misses++;
 
-    // 检查并发限制
-    while (this.activeLoads >= this.config.maxConcurrentLoads) {
-      await delay(10);
+    // 检查并发限制 - 使用队列替代忙等待
+    if (this.activeLoads >= this.config.maxConcurrentLoads) {
+      await new Promise<void>(resolve => {
+        this.loadQueue.push(resolve);
+      });
     }
 
     this.activeLoads++;
@@ -371,6 +374,9 @@ export class SkillLoader extends EventEmitter implements ISkillLoader {
     // 开始加载
     const loadPromise = this.doLoadFull(path).finally(() => {
       this.activeLoads--;
+      // 唤醒队列中的下一个等待者
+      const next = this.loadQueue.shift();
+      if (next) next();
     });
 
     // 存储加载 Promise

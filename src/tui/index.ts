@@ -140,4 +140,111 @@ export type {
 } from './conversation-manager.js';
 
 export { ANSI, COLORS, colorize, bold, dim, underline };
+
+export {
+  getProviderIcon,
+  getProviderDescription,
+  isProviderRecommended,
+  getProviderDisplayInfo,
+  maskApiKey,
+  formatBaseUrl,
+  formatContextWindow,
+  type ProviderDisplayInfo,
+} from './provider-display.js';
+
+export {
+  type SDKWorkConfig,
+  type Session,
+  type HistoryEntry,
+  type UsageStats,
+  type Command,
+  type LLMConfig,
+  getLLMBaseUrl,
+  getLLMApiKey,
+  isLLMConfigured,
+} from './types.js';
+
+export { cliConfig, type CLIConfig } from './cli-config.js';
+export { storage, type SessionMessage } from './storage.js';
+export {
+  TUIError,
+  ConfigError,
+  ValidationError,
+  ProviderError,
+  formatError,
+  isRetryableError,
+} from './errors.js';
+
+export {
+  trim,
+  truncate,
+  capitalize,
+  camelCase,
+  kebabCase,
+  snakeCase,
+  pascalCase,
+  trimLines,
+  removePrefix,
+  removeSuffix,
+  padStart,
+  padEnd,
+  repeat,
+  reverse,
+  wordCount,
+  slugify,
+  escapeHtml,
+  unescapeHtml,
+  escapeRegex,
+  isBlank,
+  isNotBlank,
+  defaultIfBlank,
+  lines,
+  unlines,
+  words,
+  unwords,
+  first,
+  last,
+  splitOnce,
+} from './string-utils.js';
+
+export {
+  t,
+  tn,
+  setLocale,
+  getLocale,
+  i18n,
+  type I18n,
+} from './i18n.js';
+
+export {
+  type Maybe,
+  isNil,
+  isNotNil,
+  defaultTo,
+  defaultToLazy,
+  firstNotNil,
+  coalesce,
+  requireValue,
+  requireValueAsync,
+  isEmpty,
+  isNotEmpty,
+  safeString,
+  safeNumber,
+  safeBoolean,
+  safeArray,
+  safeObject,
+  safeJson,
+  safeStringify,
+  safeAccess,
+  safeAccessPath,
+  safeAssign,
+  safeMerge,
+  clamp,
+  inRange,
+  ensureArray,
+  ensureString,
+  ensureNumber,
+  ensureBoolean,
+} from './safety.js';
+
 export { main } from './cli.js';

@@ -320,6 +320,7 @@ export class PerfectSkillLoader extends EventEmitter implements ISkillLoader {
   private loadingPromises = new Map<string, Promise<SkillLoadResult>>();
   private config: Required<PerfectSkillLoaderConfig>;
   private activeLoads = 0;
+  private loadQueue: Array<() => void> = [];
   private cacheStats: CacheStats = { hits: 0, misses: 0, evictions: 0, totalLoadTime: 0, loadCount: 0 };
   private metrics = new Map<string, SkillMetrics>();
 
@@ -435,14 +436,19 @@ export class PerfectSkillLoader extends EventEmitter implements ISkillLoader {
 
     this.cacheStats.misses++;
 
-    // 并发控制
-    while (this.activeLoads >= this.config.maxConcurrentLoads) {
-      await delay(10);
+    // 并发控制 - 使用队列替代忙等待
+    if (this.activeLoads >= this.config.maxConcurrentLoads) {
+      await new Promise<void>(resolve => {
+        this.loadQueue.push(resolve);
+      });
     }
 
     this.activeLoads++;
     const loadPromise = this.doLoadFull(path).finally(() => {
       this.activeLoads--;
+      // 唤醒队列中的下一个等待者
+      const next = this.loadQueue.shift();
+      if (next) next();
     });
 
     if (cached) {

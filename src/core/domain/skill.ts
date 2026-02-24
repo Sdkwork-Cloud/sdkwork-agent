@@ -41,6 +41,9 @@ export interface Skill {
   
   /** 元数据 */
   meta?: Record<string, unknown>;
+  
+  /** SKILL.md 原始内容（可选，用于显示详情） */
+  content?: string;
 }
 
 /**
@@ -161,8 +164,12 @@ export interface SkillInjectedAPI {
    * 调用 LLM
    * @example
    * const result = await $llm('请分析这段代码');
+   * // 或使用流式输出
+   * for await (const chunk of $llm.stream('请分析这段代码')) { console.log(chunk); }
    */
-  $llm: (prompt: string, options?: LLMOptions) => Promise<string>;
+  $llm: ((prompt: string, options?: LLMOptions) => Promise<string>) & {
+    stream: (prompt: string, options?: LLMOptions) => AsyncGenerator<string, void, unknown>;
+  };
   
   /**
    * 调用 Tool
@@ -185,6 +192,13 @@ export interface SkillInjectedAPI {
    * const value = await $memory.get('key');
    */
   $memory: SkillMemoryAPI;
+  
+  /**
+   * 报告执行进度（支持渐进式披露）
+   * @example
+   * $progress(50, '处理中...', { step: 2 });
+   */
+  $progress: (progress: number, message?: string, data?: Record<string, unknown>) => void;
   
   /**
    * 引用文件访问

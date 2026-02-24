@@ -28,9 +28,22 @@ import type { AgentConfig, AgentEvent, AgentEventType } from '../core/domain/age
 import type { Skill } from '../core/domain/skill.js';
 import type { Tool } from '../core/domain/tool.js';
 import { loadAllSkills } from '../skills/skill-loader.js';
+import { SmartSkillRecognizer, createSmartRecognizer, type RecognitionResult } from '../skills/smart-recognizer.js';
 import { TUIRenderer, createRenderer, THEMES } from './renderer.js';
+import { ANSI, COLORS, colorize, bold, dim } from './ansi-codes.js';
 import { select, confirm, prompt } from './selector.js';
 import { PREDEFINED_PROVIDERS, type ModelProvider } from '../config/model-config.js';
+import type { LLMConfig } from './types.js';
+import {
+  getProviderIcon,
+  getProviderDescription,
+  isProviderRecommended,
+  getProviderDisplayInfo,
+  maskApiKey,
+  formatBaseUrl,
+  formatContextWindow,
+  type ProviderDisplayInfo,
+} from './provider-display.js';
 import { createEventLogger } from './event-logger.js';
 import { createConversationManager } from './conversation-manager.js';
 import {
@@ -194,8 +207,7 @@ const COMMANDS: Command[] = [
   { name: 'exit', description: '退出 CLI', alias: ['quit', 'q'], category: 'general' },
   { name: 'config', description: '显示/修改配置', usage: 'config [key=value]', examples: ['config', 'config theme=dark', 'config baseUrl=https://api.example.com'], category: 'settings' },
   { name: 'setup', description: '配置向导', category: 'settings' },
-  { name: 'skills', description: '列出可用技能', alias: ['ls'], category: 'capabilities' },
-  { name: 'skill', description: '执行技能', usage: 'skill <name> [params]', examples: ['skill translate text="Hello" targetLanguage="zh"', 'skill code --help'], category: 'capabilities' },
+  { name: 'skills', description: '列出/执行技能', alias: ['ls'], usage: 'skills [name|category|search]', examples: ['skills', 'skills translate', 'skills 代码开发', 'skills image'], category: 'capabilities' },
   { name: 'active', description: '管理活动技能', usage: 'active [skill-name|clear]', examples: ['active', 'active translate', 'active clear'], category: 'capabilities' },
   { name: 'tools', description: '列出可用工具', category: 'capabilities' },
   { name: 'model', description: '切换/显示模型', usage: 'model [model-id]', examples: ['model', 'model gpt-4'], category: 'settings' },
@@ -359,52 +371,70 @@ function getApiKeySetupInstructions(): string {
 
 async function showConfigWizard(renderer: TUIRenderer): Promise<SDKWorkConfig | null> {
   renderer.clear();
-  renderer.box([
-    '',
-    renderer.bold(renderer.primary('🚀 SDKWork Agent CLI')),
-    '',
-    '欢迎使用 SDKWork Agent',
-    '让我们开始配置...',
-    '',
-  ], '配置向导');
+  
+  console.log('');
+  console.log(renderer.bold(renderer.primary('  ╔═══════════════════════════════════╗')));
+  console.log(renderer.bold(renderer.primary('  ║    🚀 SDKWork Agent CLI 初始化    ║')));
+  console.log(renderer.bold(renderer.primary('  ╚═══════════════════════════════════╝')));
+  console.log('');
 
-  console.log(renderer.warning('⚠️  未检测到 API Key 配置'));
-  console.log(getApiKeySetupInstructions());
-  console.log(renderer.secondary('支持的提供商:'));
-  Object.entries(PREDEFINED_PROVIDERS).forEach(([_, provider]) => {
-    console.log(`  ${renderer.primary('•')} ${provider.displayName} (${provider.models.length} 个模型)`);
+  console.log(renderer.dim('  欢迎使用 SDKWork Agent，让我们开始配置...'));
+  console.log('');
+
+  const apiKeyInstructions = getApiKeySetupInstructions();
+  if (apiKeyInstructions) {
+    console.log(renderer.warning('  ⚠️  未检测到 API Key'));
+    console.log(renderer.dim(apiKeyInstructions));
+    console.log('');
+  }
+
+  console.log(renderer.secondary('  📦 支持的 AI 提供商:'));
+  Object.entries(PREDEFINED_PROVIDERS).forEach(([key, provider]) => {
+    const icon = getProviderIcon(key);
+    const desc = getProviderDescription(key) || `${provider.models.length} 个模型`;
+    const recommended = isProviderRecommended(key) ? ' ' + renderer.success('✓ 推荐') : '';
+    console.log(`    ${icon} ${provider.displayName}: ${renderer.dim(desc)}${recommended}`);
   });
   console.log('');
 
   const rl = readline.createInterface({ input: stdin, output: stdout });
 
   // 选择提供商
-  console.log(renderer.primary('请选择提供商:'));
+  console.log(renderer.primary('  ┌─────────────────────────────────────┐'));
+  console.log(renderer.primary('  │  请选择 AI 提供商                     │'));
+  console.log(renderer.primary('  └─────────────────────────────────────┘'));
   const providers = Object.entries(PREDEFINED_PROVIDERS);
   providers.forEach(([key, p], i) => {
-    const current = key === 'openai' ? renderer.dim(' (推荐)') : '';
-    console.log(`  ${renderer.primary(`[${i + 1}]`)} ${p.displayName}${current}`);
+    const icon = getProviderIcon(key);
+    const recommended = isProviderRecommended(key) ? renderer.success(' ← 推荐') : '';
+    console.log(`    ${renderer.primary(`[${i + 1}]`)} ${icon} ${p.displayName}${recommended}`);
   });
+  console.log('');
 
   const providerIdx = await new Promise<number>((resolve) => {
-    rl.question(renderer.primary('> '), (answer) => {
+    rl.question(renderer.primary('  请选择 (1-' + providers.length + '): '), (answer) => {
       const idx = parseInt(answer) - 1;
       resolve(isNaN(idx) || idx < 0 || idx >= providers.length ? 0 : idx);
     });
   });
   const selectedProvider = (providers[providerIdx]?.[0] as ModelProvider) || 'openai';
   const provider = PREDEFINED_PROVIDERS[selectedProvider];
+  const providerIcon = getProviderIcon(selectedProvider);
+  const providerDisplay = getProviderDisplayInfo(selectedProvider);
 
   // 选择模型
   console.log('');
-  console.log(renderer.primary('请选择模型:'));
+  console.log(renderer.primary('  ┌─────────────────────────────────────┐'));
+  console.log(renderer.primary(`  │  请选择模型 (${providerIcon} ${provider.displayName})  │`));
+  console.log(renderer.primary('  └─────────────────────────────────────┘'));
   provider.models.forEach((m, i) => {
-    const recommended = m.id.includes('gpt-4') ? renderer.dim(' (推荐)') : '';
-    console.log(`  ${renderer.primary(`[${i + 1}]`)} ${m.name} ${renderer.dim(`(${m.id})`)}${recommended}`);
+    const recommended = m.recommendedFor?.includes('coding') ? ' ' + renderer.success('← 推荐') : '';
+    console.log(`    ${renderer.primary(`[${i + 1}]`)} ${m.name} ${renderer.dim(`(${m.id})`)}${recommended}`);
   });
+  console.log('');
 
   const modelIdx = await new Promise<number>((resolve) => {
-    rl.question(renderer.primary('> '), (answer) => {
+    rl.question(renderer.primary('  请选择 (1-' + provider.models.length + '): '), (answer) => {
       const idx = parseInt(answer) - 1;
       resolve(isNaN(idx) || idx < 0 || idx >= provider.models.length ? 0 : idx);
     });
@@ -413,25 +443,37 @@ async function showConfigWizard(renderer: TUIRenderer): Promise<SDKWorkConfig | 
 
   // 输入 API Key
   console.log('');
+  console.log(renderer.primary('  ┌─────────────────────────────────────┐'));
+  console.log(renderer.primary('  │  请输入 API Key                     │'));
+  console.log(renderer.primary('  └─────────────────────────────────────┘'));
+  console.log(renderer.dim(`  提供商: ${providerIcon} ${provider.displayName}`));
+  console.log(renderer.dim(`  模型: ${selectedModel}`));
+  console.log(renderer.dim(`  API文档: ${provider.docsUrl || '无'}`));
+  console.log('');
+
   const apiKey = await new Promise<string>((resolve) => {
-    rl.question(renderer.primary('🔑 请输入 API Key: '), (answer) => resolve(answer.trim()));
+    rl.question(renderer.primary('  🔑 API Key: '), (answer) => resolve(answer.trim()));
   });
 
   // 询问是否启用自动保存
   console.log('');
-  console.log(renderer.primary('是否启用自动保存会话?'));
-  console.log(`  ${renderer.primary('[1]')} 是`);
-  console.log(`  ${renderer.primary('[2]')} 否`);
+  console.log(renderer.primary('  ┌─────────────────────────────────────┐'));
+  console.log(renderer.primary('  │  自动保存会话?                       │'));
+  console.log(renderer.primary('  └─────────────────────────────────────┘'));
+  console.log(`    ${renderer.primary('[1]')} ${renderer.success('是')} - 保存会话历史`);
+  console.log(`    ${renderer.primary('[2]')} ${renderer.muted('否')} - 不保存`);
+  console.log('');
 
   const autoSaveChoice = await new Promise<string>((resolve) => {
-    rl.question(renderer.primary('> '), (answer) => resolve(answer.trim()));
+    rl.question(renderer.primary('  请选择 (1-2): '), (answer) => resolve(answer.trim()));
   });
   const autoSave = autoSaveChoice !== '2';
 
   rl.close();
 
   if (!apiKey) {
-    console.log(renderer.secondary('👋 未提供 API Key，退出程序。'));
+    console.log('');
+    console.log(renderer.dim('  👋 未提供 API Key，退出程序。'));
     return null;
   }
 
@@ -447,12 +489,25 @@ async function showConfigWizard(renderer: TUIRenderer): Promise<SDKWorkConfig | 
   };
 
   saveCLIConfig(config);
-  renderer.successBox('配置完成', '配置已保存！即将启动...');
+  
+  console.log('');
+  console.log(renderer.success('  ✅ 配置完成!'));
+  console.log(renderer.dim('  ──────────────────────────────────────'));
+  console.log(renderer.dim(`  提供商: ${providerIcon} ${provider.displayName}`));
+  console.log(renderer.dim(`  模型: ${selectedModel}`));
+  console.log(renderer.dim(`  自动保存: ${autoSave ? '是' : '否'}`));
+  console.log(renderer.dim('  ──────────────────────────────────────'));
+  console.log('');
+  console.log(renderer.primary('  正在启动 SDKWork Agent...'));
+  console.log('');
+  
   return config;
 }
 
 async function loadConfig(renderer: TUIRenderer): Promise<SDKWorkConfig | null> {
   const cliConfig = loadCLIConfig();
+  
+  console.log('[DEBUG] loadConfig - Loaded config:', JSON.stringify(cliConfig.llm));
   
   // 支持多个提供商的 API Key 环境变量
   const envApiKeys: Record<string, string | undefined> = {
@@ -467,28 +522,62 @@ async function loadConfig(renderer: TUIRenderer): Promise<SDKWorkConfig | null> 
     doubao: process.env.DOUBAO_API_KEY,
   };
   
+  // 获取当前 provider
+  const provider = cliConfig.provider || 'openai';
+  
   // 优先使用配置文件中的 API Key，其次使用环境变量
   const configApiKey = cliConfig.llm && typeof cliConfig.llm === 'object' && 'apiKey' in cliConfig.llm 
     ? cliConfig.llm.apiKey 
     : undefined;
   
-  const provider = cliConfig.provider || 'openai';
+  console.log('[DEBUG] loadConfig - configApiKey:', configApiKey ? `${configApiKey.substring(0, 8)}...` : 'undefined');
+  
   const apiKey = configApiKey || envApiKeys[provider] || envApiKeys.openai;
+
+  console.log('[DEBUG] loadConfig - Final apiKey:', apiKey ? `${apiKey.substring(0, 8)}...` : 'undefined');
 
   if (!apiKey) {
     return await showConfigWizard(renderer);
   }
 
+  // 获取当前模型
+  const model = cliConfig.model || getDefaultModel(provider);
+
   return {
     name: cliConfig.name || 'SDKWork Agent',
-    provider: cliConfig.provider || 'openai',
-    model: cliConfig.model || 'gpt-4',
+    provider,
+    model,
     theme: cliConfig.theme || 'default',
-    llm: cliConfig.llm || { provider: cliConfig.provider || 'openai', apiKey, model: cliConfig.model || 'gpt-4' },
+    llm: {
+      provider,
+      apiKey,
+      model,
+      baseUrl: (cliConfig.llm as LLMConfig | undefined)?.baseUrl,
+    },
     autoSave: cliConfig.autoSave ?? true,
     showTokens: cliConfig.showTokens ?? true,
     streamOutput: cliConfig.streamOutput ?? true,
   };
+}
+
+function getDefaultModel(provider: string): string {
+  const providerConfig = PREDEFINED_PROVIDERS[provider as ModelProvider];
+  if (providerConfig?.defaultModel) {
+    return providerConfig.defaultModel;
+  }
+  // 默认模型
+  const defaults: Record<string, string> = {
+    openai: 'gpt-4o',
+    anthropic: 'claude-sonnet-4-20250514',
+    google: 'gemini-2.0-flash-exp',
+    moonshot: 'moonshot-v1-8k',
+    minimax: 'abab6.5s-chat',
+    zhipu: 'glm-4',
+    qwen: 'qwen-turbo',
+    deepseek: 'deepseek-chat',
+    doubao: 'doubao-seed-2-0-pro-260215',
+  };
+  return defaults[provider] || 'gpt-4o';
 }
 
 async function loadCapabilities(): Promise<{ skills: Skill[]; tools: Tool[] }> {
@@ -623,29 +712,41 @@ async function showModelSettings(
 
     const currentProvider = PREDEFINED_PROVIDERS[config.provider || 'openai'];
     const currentBaseUrl = (config.llm as { baseUrl?: string })?.baseUrl;
+    const icon = getProviderIcon(config.provider);
+    const currentApiKey = (config.llm as { apiKey?: string })?.apiKey;
+    const hasApiKey = !!currentApiKey;
+    const maskedApiKey = maskApiKey(currentApiKey);
+    const displayBaseUrl = formatBaseUrl(currentBaseUrl);
 
     const settingsBox: string[] = [
       '',
-      `${renderer.bold(renderer.primary('🤖 模型设置'))}`,
+      renderer.bold(renderer.primary('🤖 AI 模型配置')),
       '',
-      `${renderer.dim('当前配置:')}`,
-      `  ${renderer.primary('提供商:')} ${currentProvider?.displayName || config.provider}`,
-      `  ${renderer.primary('模型:')} ${config.model}`,
-      `  ${renderer.primary('Base URL:')} ${currentBaseUrl ? renderer.info(currentBaseUrl) : renderer.muted('使用默认')}`,
+      renderer.dim('┌─────────────────────────────────────┐'),
+      renderer.dim('│') + '  ' + renderer.bold('当前配置') + renderer.dim('                     │'),
+      renderer.dim('├─────────────────────────────────────┤'),
+      renderer.dim('│') + ` ${icon} 提供商: ${renderer.primary(currentProvider?.displayName || config.provider || 'openai')}` + renderer.dim('                      │').slice(-9),
+      renderer.dim('│') + ` 🔑 API Key: ${hasApiKey ? renderer.success(maskedApiKey) : renderer.warning('未设置')}` + renderer.dim('                      │').slice(-9),
+      renderer.dim('│') + ` 🤖 模型:   ${renderer.secondary(config.model || 'gpt-4o-mini')}` + renderer.dim('                      │').slice(-Math.max(0, 30 - (config.model || 'gpt-4o-mini').length)),
+      renderer.dim('│') + ` 🔗 Base:   ${currentBaseUrl ? renderer.warning(displayBaseUrl) : renderer.muted('使用默认地址')}` + renderer.dim('                      │').slice(-9),
+      renderer.dim('└─────────────────────────────────────┘'),
       '',
     ];
 
     renderer.box(settingsBox, '⚙️ 模型配置');
 
+    const providerDisplayName = currentProvider?.displayName || config.provider || 'OpenAI';
+    
     const options = [
-      { value: 'provider', label: '🔌 切换提供商', description: '选择不同的 AI 提供商' },
+      { value: 'apikey', label: '🔑 设置 API Key', description: hasApiKey ? `当前: ${maskedApiKey}` : '点击设置' },
+      { value: 'provider', label: '🔌 切换提供商', description: `当前: ${icon} ${providerDisplayName}` },
       { value: 'model', label: '🤖 选择模型', description: `当前: ${config.model}` },
-      { value: 'baseurl', label: '🌐 设置 Base URL', description: currentBaseUrl ? '修改 API 地址' : '设置自定义 API 地址' },
+      { value: 'baseurl', label: '🌐 设置 Base URL', description: currentBaseUrl ? `当前: ${currentBaseUrl.substring(0, 30)}...` : `默认: ${currentProvider?.defaultBaseUrl?.substring(0, 30)}...` },
       { value: 'custom', label: '📝 自定义模型', description: '输入任意模型 ID' },
       { value: 'done', label: '✅ 完成设置', description: '保存并返回' },
     ];
 
-    const choice = await select('选择操作:', options, {
+    const choice = await select('⬇️  选择操作:', options, {
       pageSize: 6,
       theme: getSelectorTheme(renderer),
     });
@@ -656,20 +757,80 @@ async function showModelSettings(
     }
 
     switch (choice) {
-      case 'provider':
-        const providerOptions = Object.entries(PREDEFINED_PROVIDERS).map(([key, p]) => ({
-          value: key,
-          label: p.displayName,
-          description: key === config.provider ? '(当前)' : `${p.models.length} 个模型`,
-        }));
+      case 'apikey':
+        console.log('');
+        console.log(renderer.box([
+          '',
+          renderer.bold('🔑 API Key 设置'),
+          '',
+          renderer.dim(`提供商: ${icon} ${currentProvider?.displayName || config.provider}`),
+          renderer.dim(`API Key: ${maskedApiKey}`),
+          '',
+        ], '🔐 当前 API Key'));
+        
+        console.log('');
+        console.log(renderer.dim('  获取 API Key:'));
+        console.log(renderer.dim(`  • ${currentProvider?.apiKeyUrl || '请访问对应官网获取'}`));
+        console.log('');
+        
+        const newApiKey = await prompt(
+          renderer.primary('  🔑 请输入新的 API Key (留空不修改):'),
+          ''
+        );
+        
+        if (newApiKey && newApiKey.trim()) {
+          const trimmedKey = newApiKey.trim();
+          console.log('[DEBUG] Input API Key:', trimmedKey);
+          
+          config.llm = { 
+            ...config.llm, 
+            apiKey: trimmedKey,
+            provider: config.provider 
+          } as SDKWorkConfig['llm'];
+          
+          console.log('[DEBUG] config.llm before setLLM:', JSON.stringify(config.llm));
+          
+          agentInstance.setLLM(config.llm);
+          
+          console.log('[DEBUG] After setLLM, calling saveCLIConfig');
+          saveCLIConfig(config);
+          
+          console.log('[DEBUG] Config saved, reading back:');
+          const savedConfig = loadCLIConfig();
+          console.log('[DEBUG] Saved llm:', JSON.stringify(savedConfig.llm));
+          
+          const masked = trimmedKey.substring(0, 4) + '****' + trimmedKey.substring(trimmedKey.length - 4);
+          renderer.successBox(
+            '✅ API Key 已更新',
+            `🔑 新 API Key: ${renderer.success(masked)}\n` +
+            `📝 提供商: ${currentProvider?.displayName}`
+          );
+        } else {
+          renderer.systemMessage('API Key 未修改', 'info');
+        }
+        
+        await prompt(renderer.dim('  按 Enter 继续...'), '');
+        break;
 
-        const newProvider = await select('选择提供商:', providerOptions, {
-          pageSize: 6,
+      case 'provider':
+        const providerOptions = Object.entries(PREDEFINED_PROVIDERS).map(([key, p]) => {
+          const isCurrent = key === config.provider;
+          const displayInfo = getProviderDisplayInfo(key);
+          return {
+            value: key,
+            label: `${displayInfo.icon} ${p.displayName}`,
+            description: isCurrent ? `✅ ${displayInfo.description} • 当前使用中` : displayInfo.description,
+          };
+        });
+
+        const newProvider = await select('🔌 选择 AI 提供商:', providerOptions, {
+          pageSize: 8,
           theme: getSelectorTheme(renderer),
         });
 
         if (newProvider && newProvider !== config.provider) {
           const provider = PREDEFINED_PROVIDERS[newProvider as ModelProvider];
+          const prevProvider = config.provider;
           config.provider = newProvider as ModelProvider;
           config.model = provider.models[0]?.id;
           config.llm = {
@@ -680,19 +841,41 @@ async function showModelSettings(
           } as SDKWorkConfig['llm'];
           agentInstance.setLLM(config.llm);
           saveCLIConfig(config);
-          renderer.successBox('配置已更新', `提供商: ${provider.displayName}\n模型: ${config.model}`);
+          
+          const newProviderIcon = getProviderIcon(newProvider);
+          renderer.successBox(
+            '✅ 提供商已切换',
+            `${newProviderIcon} ${provider.displayName}\n` +
+            `📝 默认模型: ${config.model}\n` +
+            `🔗 Base URL: ${provider.defaultBaseUrl}`
+          );
+          
+          await prompt(renderer.dim('按 Enter 继续...'), '');
         }
         break;
 
       case 'model':
         const providerForModels = PREDEFINED_PROVIDERS[config.provider || 'openai'];
-        const modelOptions = providerForModels?.models.map((m) => ({
-          value: m.id,
-          label: m.name,
-          description: m.id === config.model ? '(当前)' : '',
-        })) || [];
+        const currentModelInfo = providerForModels?.models.find(m => m.id === config.model);
+        
+        const modelOptions = providerForModels?.models.map((m) => {
+          const isCurrent = m.id === config.model;
+          const modelDesc = formatContextWindow(m.contextWindow);
+          return {
+            value: m.id,
+            label: isCurrent ? `⭐ ${m.name}` : m.name,
+            description: isCurrent 
+              ? `✅ 当前使用中 ${modelDesc ? '• ' + modelDesc : ''}` 
+              : modelDesc,
+          };
+        }) || [];
 
-        const newModel = await select('选择模型:', modelOptions, {
+        console.log('');
+        console.log(renderer.dim(`  当前提供商: ${providerForModels?.displayName || config.provider}`));
+        console.log(renderer.dim(`  当前模型: ${config.model}`));
+        console.log('');
+
+        const newModel = await select('🤖 选择 AI 模型:', modelOptions, {
           pageSize: 8,
           theme: getSelectorTheme(renderer),
         });
@@ -702,7 +885,15 @@ async function showModelSettings(
           config.llm = { ...config.llm, model: config.model } as SDKWorkConfig['llm'];
           agentInstance.setLLM(config.llm);
           saveCLIConfig(config);
-          renderer.successBox('模型已切换', `当前模型: ${newModel}`);
+          
+          const selectedModel = providerForModels?.models.find(m => m.id === newModel);
+          renderer.successBox(
+            '✅ 模型已切换',
+            `🤖 ${selectedModel?.name || newModel}\n` +
+            `📝 模型ID: ${newModel}`
+          );
+          
+          await prompt(renderer.dim('按 Enter 继续...'), '');
         }
         break;
 
@@ -711,12 +902,25 @@ async function showModelSettings(
         const defaultUrl = providerForUrl?.defaultBaseUrl || '官方 API';
 
         console.log('');
-        console.log(`  ${renderer.dim('当前设置:')} ${currentBaseUrl ? renderer.info(currentBaseUrl) : renderer.muted('未设置 (使用默认)')}`);
-        console.log(`  ${renderer.dim('默认地址:')} ${renderer.secondary(defaultUrl)}`);
+        console.log(renderer.box([
+          '',
+          renderer.bold('🌐 API 地址设置'),
+          '',
+          renderer.dim('当前配置:'),
+          `  ${renderer.primary('自定义地址:')} ${currentBaseUrl ? renderer.info(currentBaseUrl) : renderer.muted('未设置')}`,
+          `  ${renderer.primary('默认地址:')} ${renderer.secondary(defaultUrl)}`,
+          '',
+        ], '🔗 当前 API 配置'));
+        
+        console.log('');
+        console.log(renderer.dim('  提示:'));
+        console.log(renderer.dim('  • 留空使用默认地址'));
+        console.log(renderer.dim('  • 输入 "-" 清除自定义地址'));
+        console.log(renderer.dim('  • 输入自定义地址使用代理/镜像'));
         console.log('');
 
         const newBaseUrl = await prompt(
-          '请输入 Base URL (留空重置为默认，输入 "-" 清除)',
+          `📡 请输入 Base URL`,
           currentBaseUrl || ''
         );
 
@@ -773,15 +977,15 @@ async function showModelSettings(
   }
 }
 
-function getCompletions(input: string, skills: Skill[], commands: Command[]): string[] {
+function getCompletions(input: string, skills: Skill[], commands: Command[], config?: SDKWorkConfig): string[] {
   const completions: string[] = [];
 
-  if (input.startsWith('/skill ')) {
+  if (input.startsWith('/skills ')) {
     // 技能名称补全
-    const partial = input.slice(7).toLowerCase();
+    const partial = input.slice(8).toLowerCase();
     skills.forEach(skill => {
       if (skill.name.toLowerCase().startsWith(partial)) {
-        completions.push(`/skill ${skill.name}`);
+        completions.push(`/skills ${skill.name}`);
       }
     });
   } else if (input.startsWith('/session ')) {
@@ -792,12 +996,33 @@ function getCompletions(input: string, skills: Skill[], commands: Command[]): st
         completions.push(`/session ${cmd}`);
       }
     });
+  } else if (input.startsWith('/provider') && !input.includes(' ')) {
+    // 无参数时显示所有提供商
+    Object.keys(PREDEFINED_PROVIDERS).forEach(provider => {
+      completions.push(`/provider ${provider}`);
+    });
   } else if (input.startsWith('/provider ')) {
     // 提供商补全
     const partial = input.slice(10).toLowerCase();
     Object.keys(PREDEFINED_PROVIDERS).forEach(provider => {
       if (provider.startsWith(partial)) {
         completions.push(`/provider ${provider}`);
+      }
+    });
+  } else if (input.startsWith('/model') && !input.includes(' ')) {
+    // 无参数时显示当前提供商的所有模型
+    const provider = PREDEFINED_PROVIDERS[config?.provider || 'openai'];
+    provider?.models.forEach(model => {
+      completions.push(`/model ${model.id}`);
+    });
+  } else if (input.startsWith('/model ')) {
+    // 模型补全 - 需要获取当前provider的模型列表
+    const providerKey = (input.match(/\/model\s+(\S+)/)?.[1] || '') as ModelProvider;
+    const provider = PREDEFINED_PROVIDERS[providerKey] || PREDEFINED_PROVIDERS[config?.provider as ModelProvider || 'openai'];
+    const partial = input.slice(7).toLowerCase();
+    provider?.models.forEach((model: { id: string; name: string }) => {
+      if (model.id.toLowerCase().startsWith(partial) || model.name.toLowerCase().startsWith(partial)) {
+        completions.push(`/model ${model.id}`);
       }
     });
   } else if (input.startsWith('/theme ')) {
@@ -880,6 +1105,9 @@ export async function main(): Promise<void> {
     await agent.initialize();
     logger.info('Agent initialized');
 
+    // 注册技能到识别器（在识别器创建后）
+    // 注意：这里先创建识别器，后面会注册技能
+
     const eventLogger = createEventLogger({
       maxEvents: 200,
       showTimestamp: true,
@@ -909,20 +1137,47 @@ export async function main(): Promise<void> {
       'execution:started', 'execution:step', 'execution:progress', 'execution:completed', 'execution:failed',
       'tool:invoking', 'tool:invoked', 'tool:completed', 'tool:failed',
       'skill:invoking', 'skill:invoked', 'skill:completed', 'skill:failed',
+      'skill:progress',
       'memory:stored', 'memory:retrieved', 'memory:searched',
     ];
 
+    // 事件监听器管理
+    const eventHandlers = new Map<string, (event: AgentEvent) => void>();
+
     for (const eventType of allAgentEvents) {
-      agent.on(eventType, (event: AgentEvent) => {
+      const handler = (event: AgentEvent) => {
         conversationManager.handleAgentEvent(event);
-      });
+      };
+      eventHandlers.set(eventType, handler);
+      agent.on(eventType, handler);
     }
 
-    agent.on('*', (event: AgentEvent) => {
+    const wildcardHandler = (event: AgentEvent) => {
       logger.debug(`Event: ${event.type}`, { payload: event.payload });
-    });
+    };
+    eventHandlers.set('*', wildcardHandler);
+    agent.on('*', wildcardHandler);
 
     const agentInstance = agent;
+
+    // 事件监听器清理函数
+    const cleanupEventListeners = () => {
+      for (const [eventType, handler] of eventHandlers) {
+        agentInstance.off(eventType, handler);
+      }
+      eventHandlers.clear();
+    };
+
+    // 注册清理函数到进程退出
+    const exitHandler = () => {
+      cleanupEventListeners();
+      if (autosaveInterval) {
+        clearInterval(autosaveInterval);
+      }
+    };
+    process.on('exit', exitHandler);
+    process.on('SIGINT', exitHandler);
+    process.on('SIGTERM', exitHandler);
 
     conversationManager.createSession('Main Session');
 
@@ -961,9 +1216,54 @@ export async function main(): Promise<void> {
       prompt: renderer.primary('❯ '),
       history: history.map(h => h.input).slice(-CONFIG_CONSTANTS.HISTORY_EXPORT_LIMIT),
       completer: (line: string) => {
-        const completions = getCompletions(line, skills, COMMANDS);
+        const completions = getCompletions(line, skills, COMMANDS, config);
         return [completions, line];
       },
+    });
+
+    // 自定义历史记录处理 - 修复光标定位问题
+    let historyIndex = -1;
+    let currentInput = '';
+    const historyList = history.map(h => h.input).slice(-CONFIG_CONSTANTS.HISTORY_EXPORT_LIMIT);
+
+    // 监听键盘事件来处理历史记录导航
+    stdin.on('keypress', (char: string | undefined, key: { name: string; sequence: string; ctrl: boolean; meta: boolean; shift: boolean } | null) => {
+      if (!key) return;
+      
+      if (key.name === 'up') {
+        // 上箭头 - 向后浏览历史
+        if (historyIndex < historyList.length - 1) {
+          if (historyIndex === -1) {
+            currentInput = rl.line;
+          }
+          historyIndex++;
+          const historyItem = historyList[historyList.length - 1 - historyIndex];
+          if (historyItem !== undefined) {
+            // 清除当前行并显示历史记录
+            process.stdout.write(`\r${ANSI.clearLine}${renderer.primary('❯ ')}${historyItem}`);
+            // 使用 _refreshLine 方法刷新行（内部 API）
+            (rl as unknown as { _refreshLine: () => void })._refreshLine?.();
+          }
+        }
+      } else if (key.name === 'down') {
+        // 下箭头 - 向前浏览历史
+        if (historyIndex > 0) {
+          historyIndex--;
+          const historyItem = historyList[historyList.length - 1 - historyIndex];
+          if (historyItem !== undefined) {
+            process.stdout.write(`\r${ANSI.clearLine}${renderer.primary('❯ ')}${historyItem}`);
+            (rl as unknown as { _refreshLine: () => void })._refreshLine?.();
+          }
+        } else if (historyIndex === 0) {
+          // 返回到当前输入
+          historyIndex = -1;
+          process.stdout.write(`\r${ANSI.clearLine}${renderer.primary('❯ ')}${currentInput}`);
+          (rl as unknown as { _refreshLine: () => void })._refreshLine?.();
+        }
+      } else if (key.name !== 'return' && key.name !== 'enter') {
+        // 其他按键重置历史索引
+        historyIndex = -1;
+      }
     });
 
     let autosaveInterval: NodeJS.Timeout | null = null;
@@ -984,10 +1284,11 @@ export async function main(): Promise<void> {
 
     function showHint(): void {
       const hints = [
+        '直接用自然语言对话，AI 会理解你的意图！',
         '输入 /help 查看可用命令',
         '按 Tab 键自动补全命令',
         '按 ↑/↓ 浏览历史记录',
-        '使用 /skill <name> 执行技能',
+        '使用 /skill <name> 进入沉浸式技能模式',
         '使用 /session save 保存会话',
         '使用 /model 切换 AI 模型',
         '使用 /config 查看和修改配置',
@@ -999,17 +1300,45 @@ export async function main(): Promise<void> {
         '所有技能、工具、MCP调用都会被追踪记录',
         '使用 /active 查看当前活动技能',
         '使用 /active clear 清除活动技能',
-        '设置活动技能后，直接输入内容即可使用',
-        '活动技能模式下输入 /clear 快速退出',
-        '活动技能模式下输入 /active 查看状态',
+        '使用 /active history 查看技能执行历史',
+        '使用 /exit 退出技能模式',
+        '使用 /skill <name> 在技能模式下切换技能',
       ];
       const hint = hints[Math.floor(Math.random() * hints.length)];
       console.log(renderer.dim(`💡 ${hint}`));
     }
 
-    // 活动技能跟踪 - 保持上下文的技能系统
+    // 活动技能跟踪 - 保持上下文的技能系统（增强版）
     let activeSkill: string | null = null;
     let lastSkillExecution: { name: string; params: Record<string, unknown>; result?: unknown } | null = null;
+
+    // 智能技能识别器
+    const skillRecognizer = createSmartRecognizer({
+      confidenceThreshold: 0.4,
+      maxSuggestions: 3,
+    });
+
+    // 注册已加载的技能到识别器
+    const loadedSkills = agent.skills.list();
+    for (const skill of loadedSkills) {
+      skillRecognizer.registerSkill(skill, {
+        keywords: (skill.meta?.keywords as string[]) || [],
+        priority: (skill.meta?.category as string) === 'core' ? 10 : 5,
+      });
+    }
+    logger.info(`Registered ${loadedSkills.length} skills to recognizer`);
+
+    // 自动技能识别开关
+    let autoSkillRecognition = true;
+    interface SkillExecutionHistory {
+      name: string;
+      params: Record<string, unknown>;
+      result?: unknown;
+      timestamp: number;
+      success: boolean;
+    }
+    let skillExecutionHistory: SkillExecutionHistory[] = [];
+    const MAX_HISTORY_SIZE = 10;
 
     // 每隔几次交互显示一次提示
     let interactionCount = 0;
@@ -1204,6 +1533,40 @@ export async function main(): Promise<void> {
           conversationManager.clearCurrentSession();
           eventLogger.clear();
           renderer.systemMessage('对话历史已清空', 'success');
+          break;
+
+        case 'auto':
+          autoSkillRecognition = !autoSkillRecognition;
+          renderer.systemMessage(
+            `自动技能识别已${autoSkillRecognition ? '开启' : '关闭'}`,
+            autoSkillRecognition ? 'success' : 'warning'
+          );
+          if (autoSkillRecognition) {
+            renderer.systemMessage('💡 系统将自动识别您的输入并匹配相应的技能', 'info');
+          }
+          break;
+
+        case 'recognize':
+        case 'detect':
+          if (!args) {
+            renderer.systemMessage('用法: /recognize <输入内容>', 'warning');
+            break;
+          }
+          const testRecognition = skillRecognizer.recognize(args);
+          if (testRecognition.bestMatch) {
+            const m = testRecognition.bestMatch;
+            console.log('');
+            console.log(`${renderer.bold('🎯 最佳匹配')}: ${m.skill.name}`);
+            console.log(`${renderer.dim('   置信度')}: ${(m.confidence * 100).toFixed(1)}%`);
+            console.log(`${renderer.dim('   匹配关键词')}: ${m.matchedKeywords.join(', ') || '无'}`);
+            console.log(`${renderer.dim('   提取参数')}: ${Object.keys(m.extractedParams).length > 0 ? JSON.stringify(m.extractedParams) : '无'}`);
+            if (testRecognition.alternatives.length > 0) {
+              console.log(`${renderer.dim('   备选')}: ${testRecognition.alternatives.map(a => `${a.skill.name}(${(a.confidence * 100).toFixed(0)}%)`).join(', ')}`);
+            }
+            console.log('');
+          } else {
+            renderer.systemMessage('未识别到匹配的技能', 'warning');
+          }
           break;
 
         case 'exit':
@@ -1457,30 +1820,50 @@ export async function main(): Promise<void> {
 
         case 'skills':
         case 'ls':
-          if (!args) {
-            break;
-          }
-          
           const skillsList = agentInstance.skills.list();
           if (skillsList.length === 0) {
             renderer.systemMessage('暂无可用技能', 'warning');
-          } else {
+            break;
+          }
+          
+          // 如果有参数，检查是否是技能名称（执行技能）或搜索/分类
+          if (args) {
+            const trimmedArgs = args.trim();
+            
+            // 检查是否是技能名称（直接执行）
+            const targetSkill = skillsList.find(s => 
+              s.name.toLowerCase() === trimmedArgs.toLowerCase() ||
+              s.name.toLowerCase().startsWith(trimmedArgs.toLowerCase())
+            );
+            
+            if (targetSkill && targetSkill.name.toLowerCase() === trimmedArgs.toLowerCase()) {
+              // 精确匹配，执行技能
+              args = targetSkill.name;
+              // 跳转到 skill 命令处理
+              return handleCommand('skill', args);
+            }
+          }
+          
+          // 显示技能列表（无参数或搜索/分类）
+          {
             let filteredSkills = [...skillsList];
             let activeCategory: string | null = null;
             let searchQuery: string | null = null;
             
-            const trimmedArgs = args.trim();
             const categoryOrder = ['文本处理', '代码开发', '文件操作', '分析搜索', '工具集成', '其他'];
             
-            if (categoryOrder.includes(trimmedArgs)) {
-              activeCategory = trimmedArgs;
-              filteredSkills = filteredSkills.filter(s => getSkillCategory(s.name) === activeCategory);
-            } else {
-              searchQuery = trimmedArgs.toLowerCase();
-              filteredSkills = filteredSkills.filter(s => 
-                s.name.toLowerCase().includes(searchQuery!) || 
-                (s.description && s.description.toLowerCase().includes(searchQuery!))
-              );
+            if (args) {
+              const trimmedArgs = args.trim();
+              if (categoryOrder.includes(trimmedArgs)) {
+                activeCategory = trimmedArgs;
+                filteredSkills = filteredSkills.filter(s => getSkillCategory(s.name) === activeCategory);
+              } else {
+                searchQuery = trimmedArgs.toLowerCase();
+                filteredSkills = filteredSkills.filter(s => 
+                  s.name.toLowerCase().includes(searchQuery!) || 
+                  (s.description && s.description.toLowerCase().includes(searchQuery!))
+                );
+              }
             }
             
             console.log('');
@@ -1571,6 +1954,39 @@ export async function main(): Promise<void> {
             lastSkillExecution = null;
             updatePrompt();
             renderer.systemMessage('已清除活动技能，返回普通对话模式', 'success');
+          } else if (activeCmd === 'history' || activeCmd === 'log') {
+            // 显示执行历史
+            if (skillExecutionHistory.length === 0) {
+              renderer.systemMessage('暂无执行历史记录', 'info');
+            } else {
+              const historyInfo: string[] = ['', renderer.bold('📜 技能执行历史')];
+              
+              skillExecutionHistory.forEach((record, idx) => {
+                const icon = getSkillIcon(record.name);
+                const timeStr = new Date(record.timestamp).toLocaleTimeString();
+                const successMark = record.success ? renderer.success('✓') : renderer.error('✗');
+                historyInfo.push('');
+                historyInfo.push(`  ${renderer.dim(`[${timeStr}]`)} ${successMark} ${icon} ${record.name}`);
+                if (Object.keys(record.params).length > 0) {
+                  historyInfo.push(renderer.dim('    参数:'));
+                  Object.entries(record.params).forEach(([k, v]) => {
+                    const valueStr = typeof v === 'object' 
+                      ? JSON.stringify(v).slice(0, 30) 
+                      : String(v).slice(0, 30);
+                    historyInfo.push(`      ${renderer.primary(k)}: ${valueStr}`);
+                  });
+                }
+              });
+              
+              historyInfo.push('');
+              historyInfo.push(renderer.dim('  命令:'));
+              historyInfo.push(`    ${renderer.primary('/active')} - 查看当前活动技能`);
+              historyInfo.push(`    ${renderer.primary('/active <name>')} - 切换活动技能`);
+              historyInfo.push(`    ${renderer.primary('/active clear')} - 清除活动技能`);
+              historyInfo.push('');
+              
+              renderer.box(historyInfo, '📜 执行历史');
+            }
           } else if (activeCmd) {
             const targetSkill = await agentInstance.skills.getByName(activeCmd);
             if (targetSkill) {
@@ -1598,16 +2014,18 @@ export async function main(): Promise<void> {
                 skillInfo.push('');
               }
               
-              skillInfo.push(renderer.dim('  命令:'));
+              skillInfo.push(renderer.dim('  快捷命令:'));
+              skillInfo.push(`    ${renderer.primary('/exit')} - 退出技能模式`);
+              skillInfo.push(`    ${renderer.primary('/skills other')} - 切换到其他技能`);
               skillInfo.push(`    ${renderer.primary('/active clear')} - 清除活动技能`);
-              skillInfo.push(`    ${renderer.primary('/active <name>')} - 切换到其他技能`);
+              skillInfo.push(`    ${renderer.primary('/active history')} - 查看执行历史`);
               skillInfo.push('');
-              skillInfo.push(renderer.dim('  直接输入内容即可使用此技能'));
+              skillInfo.push(renderer.dim('  💡 直接输入内容即可处理'));
               skillInfo.push('');
               
-              renderer.box(skillInfo, '⚡ 当前活动技能');
+              renderer.box(skillInfo, '🎯 沉浸式技能模式');
             } else {
-              const noActiveSkillInfo: string[] = ['', renderer.dim('  当前没有活动技能'), '', renderer.dim('  使用:'), `    ${renderer.primary('/skill <name>')} - 执行技能后可设为活动`, `    ${renderer.primary('/active <name>')} - 直接设置活动技能`, ''];
+              const noActiveSkillInfo: string[] = ['', renderer.dim('  当前没有活动技能'), '', renderer.dim('  使用:'), `    ${renderer.primary('/skills <name>')} - 执行技能后进入沉浸模式`, `    ${renderer.primary('/active <name>')} - 直接进入技能模式`, `    ${renderer.primary('/active history')} - 查看执行历史`, ''];
               renderer.box(noActiveSkillInfo, '⚡ 活动技能');
             }
           }
@@ -1688,48 +2106,82 @@ export async function main(): Promise<void> {
               }
               break;
             }
-
-            if (naturalInput === '--help' || naturalInput === '-h') {
+            
+            if (naturalInput === '--help' || naturalInput === '-h' || naturalInput === '--raw') {
               const icon = getSkillIcon(skill.name);
               const category = getSkillCategory(skill.name);
               const inputSchema = skill.input;
               const requiredParams: string[] = inputSchema?.required || [];
               const properties = inputSchema?.properties || {};
+              const showRaw = naturalInput === '--raw';
               
               console.log('');
-              const helpLines: string[] = [
-                '',
-                `${icon} ${renderer.bold(skill.name)}${skill.version ? renderer.dim(` v${skill.version}`) : ''}`,
-                `${renderer.dim('📁 分类:')} ${category}`,
-                `${renderer.dim('📝 描述:')} ${skill.description}`,
-                '',
-              ];
-              
-              if (Object.keys(properties).length > 0) {
-                helpLines.push(renderer.bold('📋 参数:'));
-                const maxParamLen = Math.max(...Object.keys(properties).map(p => p.length));
+              if (!showRaw) {
+                const helpLines: string[] = [
+                  '',
+                  `${icon} ${renderer.bold(skill.name)}${skill.version ? renderer.dim(` v${skill.version}`) : ''}`,
+                  `${renderer.dim('📁 分类:')} ${category}`,
+                  `${renderer.dim('📝 描述:')} ${skill.description}`,
+                  '',
+                ];
                 
-                Object.entries(properties).forEach(([paramName, paramDef]) => {
-                  const def = paramDef as { type?: string; description?: string; enum?: string[]; default?: unknown };
-                  const isRequired = requiredParams.includes(paramName);
-                  const requiredMark = isRequired ? renderer.error('*') : ' ';
-                  const typeInfo = def.type || 'any';
-                  const defaultInfo = def.default !== undefined ? renderer.dim(` (默认: ${def.default})`) : '';
-                  const enumInfo = def.enum ? renderer.dim(` [${def.enum.join('|')}]`) : '';
+                if (Object.keys(properties).length > 0) {
+                  helpLines.push(renderer.bold('📋 参数:'));
+                  const maxParamLen = Math.max(...Object.keys(properties).map(p => p.length));
                   
-                  helpLines.push(`  ${renderer.primary(paramName.padEnd(maxParamLen))}${requiredMark} ${renderer.dim(`<${typeInfo}>`)} ${def.description || ''}${defaultInfo}${enumInfo}`);
-                });
+                  Object.entries(properties).forEach(([paramName, paramDef]) => {
+                    const def = paramDef as { type?: string; description?: string; enum?: string[]; default?: unknown };
+                    const isRequired = requiredParams.includes(paramName);
+                    const requiredMark = isRequired ? renderer.error('*') : ' ';
+                    const typeInfo = def.type || 'any';
+                    const defaultInfo = def.default !== undefined ? renderer.dim(` (默认: ${def.default})`) : '';
+                    const enumInfo = def.enum ? renderer.dim(` [${def.enum.join('|')}]`) : '';
+                    
+                    helpLines.push(`  ${renderer.primary(paramName.padEnd(maxParamLen))}${requiredMark} ${renderer.dim(`<${typeInfo}>`)} ${def.description || ''}${defaultInfo}${enumInfo}`);
+                  });
+                  helpLines.push('');
+                  helpLines.push(`${renderer.dim('*')} ${renderer.dim('必填参数')}`);
+                }
+                
                 helpLines.push('');
-                helpLines.push(`${renderer.dim('*')} ${renderer.dim('必填参数')}`);
+                helpLines.push(`${renderer.dim('💡 用法:')} /skill ${skillName} [params]`);
+                helpLines.push(`${renderer.dim('   示例:')} /skill ${skillName} param1=value1 param2=value2`);
+                helpLines.push('');
+                
+                renderer.box(helpLines, '📖 技能帮助');
               }
               
-              helpLines.push('');
-              helpLines.push(`${renderer.dim('💡 用法:')} /skill ${skillName} [params]`);
-              helpLines.push(`${renderer.dim('   示例:')} /skill ${skillName} param1=value1 param2=value2`);
-              helpLines.push('');
+              // 显示 SKILL.md 完整内容（如果存在）
+              const skillContent = (skill as { content?: string }).content;
+              if (skillContent) {
+                console.log('');
+                const contentLines = skillContent.split('\n');
+                
+                if (showRaw) {
+                  // 显示完整内容
+                  console.log(renderer.box(contentLines, '📄 完整 SKILL.md'));
+                } else {
+                  // 显示前 100 行
+                  const maxLines = 100;
+                  const displayLines = contentLines.slice(0, maxLines);
+                  console.log(renderer.box(displayLines, '📄 完整文档'));
+                  
+                  if (contentLines.length > maxLines) {
+                    console.log(renderer.dim(`\n  ... (还有 ${contentLines.length - maxLines} 行，输入 /skill ${skillName} --raw 查看完整内容)`));
+                  }
+                }
+              }
               
-              renderer.box(helpLines, '📖 技能帮助');
-              break;
+              // 如果不是 --raw 模式，询问是否执行
+              if (!showRaw) {
+                const shouldExecute = await confirm('是否执行此技能?', true);
+                if (!shouldExecute) {
+                  break;
+                }
+              } else {
+                // --raw 模式只显示内容，不执行
+                break;
+              }
             }
 
             const inputSchema = skill.input;
@@ -1740,6 +2192,97 @@ export async function main(): Promise<void> {
             if (naturalInput) {
               const parsedParams = parseNaturalLanguageInput(naturalInput, properties);
               Object.assign(params, parsedParams);
+            }
+
+            // 如果用户没有输入任何内容，提示用户输入
+            if (!naturalInput && Object.keys(params).length === 0) {
+              console.log('');
+              console.log(renderer.bold(`🎯 执行技能: ${skillName}`));
+              console.log(renderer.dim(`  ${skill.description}`));
+              console.log('');
+              
+              // 检查技能是否有参数定义
+              const hasProperties = Object.keys(properties).length > 0;
+              
+              if (hasProperties) {
+                // 有参数定义，提示用户输入
+                console.log(renderer.bold('📝 请输入参数 (直接回车跳过):'));
+                console.log('');
+                
+                for (const [paramName, paramDef] of Object.entries(properties)) {
+                  const def = paramDef as { 
+                    type?: string; 
+                    description?: string; 
+                    enum?: string[];
+                    default?: unknown;
+                  };
+                  const isRequired = requiredParams.includes(paramName);
+                  const requiredMark = isRequired ? renderer.error('*') : ' ';
+                  const typeInfo = def.type ? `<${def.type}>` : '';
+                  const descInfo = def.description ? ` - ${def.description}` : '';
+                  const promptText = `${renderer.primary(paramName)}${requiredMark}${typeInfo}${descInfo}`;
+                  
+                  let inputValue: string | null | undefined;
+                  
+                  if (def.enum && def.enum.length > 0) {
+                    const enumOptions = def.enum.map(v => ({
+                      value: String(v),
+                      label: String(v),
+                    }));
+                    inputValue = await select(promptText, enumOptions, {
+                      theme: getSelectorTheme(renderer),
+                    });
+                  } else {
+                    inputValue = await prompt(promptText, def.default ? String(def.default) : '');
+                  }
+                  
+                  if (inputValue && inputValue.trim() !== '') {
+                    if (def.type === 'number') {
+                      params[paramName] = Number(inputValue);
+                    } else if (def.type === 'boolean') {
+                      params[paramName] = inputValue.toLowerCase() === 'true';
+                    } else {
+                      params[paramName] = inputValue;
+                    }
+                  } else if (def.default !== undefined) {
+                    params[paramName] = def.default;
+                  }
+                }
+                
+                // 如果用户跳过了所有参数且没有必填参数，询问是否确认执行
+                if (Object.keys(params).length === 0 && requiredParams.length === 0) {
+                  console.log('');
+                  const shouldContinue = await confirm('未输入任何参数，是否继续执行技能?', false);
+                  if (!shouldContinue) {
+                    renderer.systemMessage('已取消技能执行', 'warning');
+                    break;
+                  }
+                }
+              } else {
+                // 没有参数定义，提示用户输入通用内容
+                console.log(renderer.bold('📝 请输入内容:'));
+                console.log(renderer.dim('  (输入描述或参数，直接回车取消执行)'));
+                console.log('');
+                
+                const userInput = await prompt('输入', '');
+                if (userInput && userInput.trim() !== '') {
+                  // 尝试解析为参数格式，否则作为通用输入
+                  const parsed = parseNaturalLanguageInput(userInput, {});
+                  if (Object.keys(parsed).length > 0) {
+                    Object.assign(params, parsed);
+                  } else {
+                    // 作为 prompt 或 input 参数
+                    params['prompt'] = userInput;
+                    params['input'] = userInput;
+                    params['description'] = userInput;
+                  }
+                } else {
+                  // 用户没有输入任何内容，取消执行
+                  renderer.systemMessage('已取消技能执行', 'warning');
+                  break;
+                }
+              }
+              console.log('');
             }
 
             const missingParams = requiredParams.filter((p: string) => !(p in params) && !(properties[p] as { default?: unknown })?.default);
@@ -1855,8 +2398,9 @@ export async function main(): Promise<void> {
               }
             }
 
-            console.log('');
             const icon = getSkillIcon(skill.name);
+
+            console.log('');
             console.log(`${icon} ${renderer.bold(skill.name)}${skill.version ? renderer.dim(` v${skill.version}`) : ''}`);
             if (Object.keys(params).length > 0) {
               console.log('');
@@ -1873,14 +2417,47 @@ export async function main(): Promise<void> {
 
             try {
               renderer.startLoading('执行中...', '⚡');
+              
+              // 监听进度事件
+              const progressHandler = (event: AgentEvent) => {
+                if (event.type === 'skill:progress') {
+                  const data = event.payload as { progress: number; message: string };
+                  renderer.updateProgress(data.progress, 100, data.message);
+                }
+              };
+              agentInstance.on('skill:progress', progressHandler);
+              
               const skillResult = await agentInstance.executeSkill(skill.id, JSON.stringify(params));
+              
+              // 移除进度监听
+              agentInstance.off('skill:progress', progressHandler);
+              
               const executionDuration = Date.now() - executionStartTime;
               renderer.succeedLoading(`${formatDuration(executionDuration)}`);
 
               if (skillResult.success) {
                 const resultData = skillResult.data;
+                
+                const category = getSkillCategory(skill.name);
+                const resultIcon = getSkillIcon(skill.name);
                 console.log('');
-                console.log(renderer.bold('✅ 执行成功!'));
+                console.log(renderer.box([
+                  '',
+                  `${resultIcon} ${renderer.bold(skill.name)}${skill.version ? renderer.dim(` v${skill.version}`) : ''}`,
+                  renderer.dim(`📁 ${category}`),
+                  renderer.dim(`📝 ${skill.description}`),
+                  '',
+                ], '📋 技能信息'));
+                
+                // 检查是否有 SKILL.md 原始内容
+                const skillContent = (skill as { content?: string }).content;
+                if (skillContent) {
+                  console.log('');
+                  console.log(renderer.dim('  💡 输入 /skill ' + skill.name + ' --help 查看完整文档'));
+                }
+                
+                console.log('');
+                console.log(renderer.bold('✅ 执行结果:'));
                 console.log('');
                 
                 if (typeof resultData === 'string') {
@@ -1909,6 +2486,19 @@ export async function main(): Promise<void> {
                 stats.toolsUsed[skillName] = (stats.toolsUsed[skillName] || 0) + 1;
                 saveStats(stats);
                 
+                // 记录到执行历史
+                const executionRecord: SkillExecutionHistory = {
+                  name: skillName,
+                  params: { ...params },
+                  result: resultData,
+                  timestamp: Date.now(),
+                  success: true
+                };
+                skillExecutionHistory.unshift(executionRecord);
+                if (skillExecutionHistory.length > MAX_HISTORY_SIZE) {
+                  skillExecutionHistory.pop();
+                }
+                
                 // 设置活动技能，保持上下文
                 activeSkill = skillName;
                 lastSkillExecution = {
@@ -1918,34 +2508,31 @@ export async function main(): Promise<void> {
                 };
                 updatePrompt();
                 
-                // 询问用户是否继续使用此技能
-                const continueOptions = [
-                  { value: 'continue', label: '🔄 继续使用此技能', description: '保持上下文，继续执行' },
-                  { value: 'new', label: '📝 新参数执行', description: '使用新参数重新执行' },
-                  { value: 'chat', label: '💬 返回对话模式', description: '保持活动技能，返回普通对话' },
-                  { value: 'clear', label: '❌ 清除活动技能', description: '完全清除活动技能' },
+                // 设置为活动技能，进入沉浸式模式
+                activeSkill = skillName;
+                lastSkillExecution = {
+                  name: skillName,
+                  params: { ...params },
+                  result: resultData
+                };
+                updatePrompt();
+                
+                const icon = getSkillIcon(skillName);
+                console.log('');
+                const modeInfo: string[] = [
+                  '',
+                  `${renderer.bold('✨ 已进入技能模式')}`,
+                  `${icon} ${renderer.bold(skillName)}`,
+                  '',
+                  renderer.dim('  直接输入内容即可继续处理'),
+                  renderer.dim('  无需任何命令前缀'),
+                  '',
+                  renderer.dim('  快捷命令:'),
+                  `    ${renderer.primary('/exit')} - 退出技能模式`,
+                  `    ${renderer.primary('/skills other')} - 切换到其他技能`,
+                  '',
                 ];
-                
-                const continueChoice = await select('接下来做什么?', continueOptions, {
-                  pageSize: 4,
-                  theme: getSelectorTheme(renderer)
-                });
-                
-                if (continueChoice === 'continue') {
-                  skillRetryArgs = skillName;
-                  skillRetry = true;
-                } else if (continueChoice === 'new') {
-                  args = skillName;
-                  skillRetry = true;
-                } else if (continueChoice === 'chat') {
-                  renderer.systemMessage('已返回对话模式，活动技能保持激活', 'info');
-                  renderer.systemMessage('直接输入内容会使用活动技能处理', 'info');
-                } else if (continueChoice === 'clear') {
-                  activeSkill = null;
-                  lastSkillExecution = null;
-                  updatePrompt();
-                  renderer.systemMessage('已清除活动技能，返回普通对话模式', 'info');
-                }
+                renderer.box(modeInfo, '🎯 沉浸式技能模式');
               } else {
                 console.log('');
                 console.log(renderer.bold('❌ 执行失败'));
@@ -2405,6 +2992,7 @@ export async function main(): Promise<void> {
               try {
                 renderer.startLoading('Thinking...', '🧠');
                 const response = await agentInstance.chat({
+                  model: config.model,
                   messages: messages.map(m => ({
                     role: m.role,
                     content: m.content,
@@ -2571,9 +3159,51 @@ export async function main(): Promise<void> {
 
       // 命令处理
       if (trimmed.startsWith('/')) {
-        const parts = trimmed.slice(1).split(' ');
+        let command = '';
+        let args = '';
+        
+        // 支持 OpenClaw 风格的 /skill:name 格式
+        if (trimmed.startsWith('/skill:')) {
+          const skillPart = trimmed.slice(7);
+          const firstSpace = skillPart.indexOf(' ');
+          command = 'skill';
+          args = firstSpace > 0 
+            ? `${skillPart.slice(0, firstSpace)} ${skillPart.slice(firstSpace + 1)}` 
+            : skillPart;
+        } 
+        // 支持直接 /name 格式调用技能
+        else {
+          const parts = trimmed.slice(1).split(' ');
+          const potentialSkillName = parts[0].toLowerCase();
+          
+          // 检查是否是现有技能名（而不是内置命令）
+          const isBuiltinCommand = COMMANDS.some(cmd => 
+            cmd.name === potentialSkillName || 
+            cmd.alias?.includes(potentialSkillName)
+          );
+          
+          if (!isBuiltinCommand) {
+            const skillsList = agentInstance.skills.list();
+            const skillExists = skillsList.some(s => s.name.toLowerCase() === potentialSkillName);
+            
+            if (skillExists) {
+              // 如果是技能名，当作 skill 命令处理
+              command = 'skill';
+              args = parts.join(' ');
+            } else {
+              // 否则当作普通命令处理
+              command = potentialSkillName;
+              args = parts.slice(1).join(' ');
+            }
+          } else {
+            // 是内置命令，正常处理
+            command = potentialSkillName;
+            args = parts.slice(1).join(' ');
+          }
+        }
+        
         try {
-          await handleCommand(parts[0].toLowerCase(), parts.slice(1).join(' '));
+          await handleCommand(command, args);
         } catch (cmdError) {
           renderer.errorBox('命令执行错误', cmdError instanceof Error ? cmdError.message : String(cmdError));
         }
@@ -2582,19 +3212,33 @@ export async function main(): Promise<void> {
         return;
       }
 
-      // 如果有活动技能，检查是否是特殊快捷命令
+      // 如果有活动技能，所有输入都使用该技能处理（沉浸式模式）
       if (activeSkill) {
         const lowerTrimmed = trimmed.toLowerCase();
         
-        // 快捷命令：/clear, /exit, /normal, /reset
-        if (lowerTrimmed === '/clear' || 
-            lowerTrimmed === '/exit' || 
-            lowerTrimmed === '/normal' || 
-            lowerTrimmed === '/reset') {
+        // 快捷命令：退出技能模式
+        if (lowerTrimmed === '/exit' || 
+            lowerTrimmed === '/quit' ||
+            lowerTrimmed === '/back' ||
+            lowerTrimmed === '/return') {
           activeSkill = null;
           lastSkillExecution = null;
           updatePrompt();
-          renderer.systemMessage('已清除活动技能，返回普通对话模式', 'success');
+          renderer.systemMessage('已退出技能模式，返回普通对话', 'success');
+          showHint();
+          setTimeout(ensureReadlineReady, 10);
+          return;
+        }
+        
+        // 快捷命令：清除并返回
+        if (lowerTrimmed === '/clear' || 
+            lowerTrimmed === '/reset' || 
+            lowerTrimmed === '/normal') {
+          activeSkill = null;
+          lastSkillExecution = null;
+          updatePrompt();
+          renderer.systemMessage('已清除活动技能，返回普通对话', 'success');
+          showHint();
           setTimeout(ensureReadlineReady, 10);
           return;
         }
@@ -2606,9 +3250,56 @@ export async function main(): Promise<void> {
           return;
         }
         
-        // 正常使用活动技能处理输入
+        // 快捷命令：/skill 切换到其他技能
+        if (lowerTrimmed.startsWith('/skill ') || lowerTrimmed.startsWith('/skill:')) {
+          const skillCmd = lowerTrimmed.startsWith('/skill:') 
+            ? trimmed.slice(7) 
+            : trimmed.slice(7);
+          
+          const targetSkillName = skillCmd.trim().split(' ')[0];
+          const targetSkill = await agentInstance.skills.getByName(targetSkillName);
+          
+          if (targetSkill) {
+            activeSkill = targetSkill.name;
+            lastSkillExecution = null;
+            updatePrompt();
+            const icon = getSkillIcon(activeSkill);
+            renderer.successBox('技能已切换', `${icon} 现在使用: ${activeSkill}\n直接输入内容即可处理`);
+            setTimeout(ensureReadlineReady, 10);
+            return;
+          } else {
+            renderer.systemMessage(`技能未找到: ${targetSkillName}`, 'error');
+            setTimeout(ensureReadlineReady, 10);
+            return;
+          }
+        }
+        
+        // 快捷命令：/help 查看帮助
+        if (lowerTrimmed === '/help' || lowerTrimmed === '/?') {
+          const icon = getSkillIcon(activeSkill);
+          const helpInfo: string[] = [
+            '',
+            `${icon} ${renderer.bold('技能模式')}: ${activeSkill}`,
+            '',
+            renderer.dim('  所有输入都会自动使用此技能处理'),
+            '',
+            renderer.dim('  快捷命令:'),
+            `    ${renderer.primary('/exit')} ${renderer.dim('/ /quit')} - 退出技能模式`,
+            `    ${renderer.primary('/clear')} ${renderer.dim('/ /reset')} - 清除并返回`,
+            `    ${renderer.primary('/skill <name>')} - 切换到其他技能`,
+            `    ${renderer.primary('/active')} - 查看当前状态`,
+            '',
+            renderer.dim('  💡 直接输入内容即可处理，无需任何命令'),
+            '',
+          ];
+          renderer.box(helpInfo, '📖 帮助');
+          setTimeout(ensureReadlineReady, 10);
+          return;
+        }
+        
+        // 默认：所有输入都使用活动技能处理
         const icon = getSkillIcon(activeSkill);
-        renderer.systemMessage(`${icon} 使用活动技能: ${activeSkill}`, 'info');
+        renderer.systemMessage(`${icon} ${activeSkill}: 处理中...`, 'info');
         
         try {
           await handleCommand('skill', `${activeSkill} ${trimmed}`);
@@ -2618,6 +3309,63 @@ export async function main(): Promise<void> {
         
         setTimeout(ensureReadlineReady, 10);
         return;
+      }
+
+      // 智能技能自动识别
+      if (autoSkillRecognition && !trimmed.startsWith('/')) {
+        const recognition = skillRecognizer.recognize(trimmed);
+        
+        if (recognition.bestMatch && recognition.bestMatch.confidence >= 0.5) {
+          const match = recognition.bestMatch;
+          const skillName = match.skill.name;
+          
+          // 检查是否有已注册的技能
+          const registeredSkill = await agentInstance.skills.getByName(skillName);
+          
+          if (registeredSkill) {
+            // 自动识别到技能，显示提示
+            renderer.systemMessage(`🎯 自动识别到技能: ${skillName}`, 'info');
+            
+            if (recognition.needsClarification && recognition.alternatives.length > 0) {
+              renderer.systemMessage(`💡 也可能是: ${recognition.alternatives.map(a => a.skill.name).join(', ')}`, 'info');
+            }
+
+            // 提取参数
+            const extractedParams = match.extractedParams;
+            const paramKeys = Object.keys(extractedParams);
+            
+            if (paramKeys.length > 0) {
+              const paramsStr = paramKeys.map(k => `${k}=${JSON.stringify(extractedParams[k])}`).join(' ');
+              renderer.systemMessage(`📝 已提取参数: ${paramsStr}`, 'info');
+            }
+
+            // 执行技能
+            try {
+              const skillInput = paramKeys.length > 0 
+                ? `${skillName} ${paramKeys.map(k => `${k}=${extractedParams[k]}`).join(' ')}`
+                : skillName;
+              
+              await handleCommand('skill', skillInput);
+            } catch (cmdError) {
+              renderer.errorBox('技能执行错误', cmdError instanceof Error ? cmdError.message : String(cmdError));
+            }
+            
+            setTimeout(ensureReadlineReady, 10);
+            return;
+          } else if (match.skill.meta?.category) {
+            // 没有注册的技能，但有匹配的模式 - 提供智能建议
+            renderer.systemMessage(`💡 检测到可能需要 "${skillName}" 功能`, 'info');
+            
+            if (recognition.alternatives.length > 0) {
+              const altNames = recognition.alternatives.map(a => a.skill.name).filter(n => n !== skillName);
+              if (altNames.length > 0) {
+                renderer.systemMessage(`   相关技能: ${altNames.join(', ')}`, 'info');
+              }
+            }
+            
+            // 继续普通对话处理
+          }
+        }
       }
 
       // 添加用户消息
@@ -2632,10 +3380,56 @@ export async function main(): Promise<void> {
           let fullContent = '';
           let promptTokens = 0;
           let completionTokens = 0;
+          let thinkingStep = 0;
+          let lastThinkingLine = 0;
+
+          // 监听思考事件
+          const thinkingHandler = (event: AgentEvent) => {
+            if (event.type === 'thinking:started') {
+              thinkingStep = 0;
+            } else if (event.type === 'thinking:step') {
+              thinkingStep++;
+              const payload = event.payload as { step?: number; thought?: string; action?: string };
+              const stepNum = payload.step || thinkingStep;
+              const thought = payload.thought || payload.action || '';
+              
+              // 清除之前的思考行并显示新的
+              if (lastThinkingLine > 0) {
+                process.stdout.write(`\r${ANSI.cursorUpN(lastThinkingLine)}${ANSI.clearScreenBelow}`);
+              }
+              
+              const truncatedThought = thought.length > 50 ? thought.slice(0, 47) + '...' : thought;
+              const thinkingLines = [
+                '',
+                `${dim('┌─')} ${colorize('🧠 思考', COLORS.primary)} ${dim(`[${stepNum}]`)} ${dim('─'.repeat(20))}`,
+              ];
+              
+              if (truncatedThought) {
+                thinkingLines.push(`${dim('│')} ${truncatedThought}`);
+              }
+              
+              thinkingLines.push(`${dim('└')}${dim('─'.repeat(30))}`);
+              
+              process.stdout.write(thinkingLines.join('\n') + '\n');
+              lastThinkingLine = thinkingLines.length;
+            } else if (event.type === 'thinking:complete') {
+              // 清除思考过程显示
+              if (lastThinkingLine > 0) {
+                process.stdout.write(`\r${ANSI.cursorUpN(lastThinkingLine)}${ANSI.clearScreenBelow}`);
+                lastThinkingLine = 0;
+              }
+            }
+          };
+          
+          // 注册事件监听
+          agentInstance.on('thinking:started', thinkingHandler);
+          agentInstance.on('thinking:step', thinkingHandler);
+          agentInstance.on('thinking:complete', thinkingHandler);
 
           process.stdout.write(renderer.primary('\n🤖 '));
 
           const stream = agentInstance.chatStream({
+            model: config.model,
             messages: messages.map(m => ({
               role: m.role,
               content: m.content,
@@ -2655,6 +3449,11 @@ export async function main(): Promise<void> {
               completionTokens = chunk.usage.completionTokens;
             }
           }
+
+          // 移除事件监听
+          agentInstance.off('thinking:started', thinkingHandler);
+          agentInstance.off('thinking:step', thinkingHandler);
+          agentInstance.off('thinking:complete', thinkingHandler);
 
           process.stdout.write('\n');
 
@@ -2707,6 +3506,7 @@ export async function main(): Promise<void> {
           renderer.startLoading('Thinking...', '🧠');
 
           const response = await agentInstance.chat({
+            model: config.model,
             messages: messages.map(m => ({
               role: m.role,
               content: m.content,

@@ -54,17 +54,22 @@ export interface SandboxContext {
 
 export const DEFAULT_SANDBOX_CONFIG: SandboxConfig = {
   backend: 'isolated-vm',
-  timeout: 5000,
-  memoryLimit: 64,
-  cpuLimit: 1000,
-  allowedGlobals: ['console', 'Math', 'JSON', 'Date', 'Array', 'Object', 'String', 'Number', 'Boolean', 'Promise', 'Set', 'Map', 'Error'],
-  blockedGlobals: ['process', 'require', 'module', 'exports', 'global', 'window', 'document', 'fetch', 'XMLHttpRequest', 'WebSocket', 'eval', 'Function'],
+  timeout: 300000, // 增加到 5 分钟，支持长时间 LLM 调用
+  memoryLimit: 512, // 增加到 512MB
+  cpuLimit: 600000, // 增加到 10 分钟，支持复杂操作
+  allowedGlobals: ['console', 'Math', 'JSON', 'Date', 'Array', 'Object', 'String', 'Number', 'Boolean', 'Promise', 'Set', 'Map', 'Error', 'RegExp', 'Symbol', 'BigInt', 'Proxy', 'Reflect'],
+  blockedGlobals: ['process', 'require', 'module', 'exports', 'global', 'globalThis', 'window', 'document', 'eval', 'Function'],
   allowNetwork: false,
   allowFileSystem: false,
   allowProcess: false,
   customGlobals: {},
   onViolation: (violation) => {
-    console.error('Security violation:', violation);
+    // 只记录严重违规，减少噪音
+    if (violation.type === 'memory' || violation.type === 'cpu') {
+      console.warn('[Sandbox] Resource limit warning:', violation.type, violation.message);
+    } else {
+      console.error('[Sandbox] Security violation:', violation.type, violation.message);
+    }
   },
 };
 

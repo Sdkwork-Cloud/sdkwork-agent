@@ -205,4 +205,26 @@ export type {
   BoundaryResult,
 } from './error-boundary.js';
 
+export {
+  BaseRegistry,
+  createRegistry,
+  type RegistryItem,
+  type RegistryOptions,
+} from './registry.js';
+
+export {
+  SchemaValidator,
+  createValidator,
+  validators,
+  string,
+  number,
+  boolean,
+  array,
+  object,
+  type Schema,
+  type SchemaField,
+  type ValidationRule,
+  type ValidationResult,
+} from './schema-validator.js';
+
 // Re-exports are handled above with export type

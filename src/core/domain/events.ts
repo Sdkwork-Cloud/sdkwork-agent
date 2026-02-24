@@ -41,6 +41,7 @@ export type AgentEventType =
   | 'skill:invoked'
   | 'skill:completed'
   | 'skill:failed'
+  | 'skill:progress'
   // 记忆事件
   | 'memory:stored'
   | 'memory:retrieved'

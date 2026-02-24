@@ -1,10 +1,10 @@
 /**
  * ReAct Thinking Engine - ReAct 思考引擎
  *
- * 支持并行工具调用、自我反思、失败恢复
+ * 支持并行工具调用、自我反思、失败恢复、动态Skill选择
  *
  * @module ReActEngine
- * @version 5.0.0
+ * @version 6.0.0
  */
 
 import type {
@@ -27,6 +27,32 @@ import {
   removeExecutionContext,
   type ExecutionLimits,
 } from '../../execution/execution-context.js';
+import { DynamicSkillSelector, createDynamicSelector } from '../../skills/core/dynamic-selector.js';
+import { 
+  SkillToolAdapter, 
+  createSkillToolAdapter,
+  type SkillToolDefinition 
+} from '../../skills/skill-tool-adapter.js';
+
+export interface ReActConfig {
+  maxSteps?: number;
+  timeout?: number;
+  enableReflection?: boolean;
+  reflectionInterval?: number;
+  maxReflections?: number;
+  systemPrompt?: string;
+  temperature?: number;
+  /** 是否启用并行工具调用 */
+  enableParallelTools?: boolean;
+  /** 执行限制 */
+  executionLimits?: Partial<ExecutionLimits>;
+  /** 启用动态Skill选择 */
+  enableDynamicSkillSelection?: boolean;
+  /** Skill选择置信度阈值 */
+  skillSelectionThreshold?: number;
+  /** 最大选择的Skill数量 */
+  maxSelectedSkills?: number;
+}
 
 /**
  * 提取文本内容
@@ -41,20 +67,6 @@ function extractTextContent(content: string | MessageContentPart[]): string {
     .join('');
 }
 
-export interface ReActConfig {
-  maxSteps?: number;
-  timeout?: number;
-  enableReflection?: boolean;
-  reflectionInterval?: number;
-  maxReflections?: number;
-  systemPrompt?: string;
-  temperature?: number;
-  /** 是否启用并行工具调用 */
-  enableParallelTools?: boolean;
-  /** 执行限制 */
-  executionLimits?: Partial<ExecutionLimits>;
-}
-
 export interface ReActState {
   currentStep: number;
   steps: ThinkingStep[];
@@ -64,6 +76,15 @@ export interface ReActState {
   isComplete: boolean;
   answer?: string;
   executionContext?: ExecutionContextManager;
+  /** 当前选择的Skill列表 */
+  selectedSkills: string[];
+  /** Skill选择结果 */
+  skillSelectionResult?: {
+    selectedSkills: string[];
+    confidence: number;
+    reasoning: string;
+    shouldLoad: boolean;
+  };
 }
 
 export class ReActEngine {
@@ -71,6 +92,10 @@ export class ReActEngine {
   private state: ReActState;
   private eventBus: EventBus;
   private abortController: AbortController;
+  private skillSelector?: DynamicSkillSelector;
+  private skillToolAdapter: SkillToolAdapter;
+  private _cachedToolsDescription?: string;
+  private _toolsCacheKey?: string;
 
   constructor(
     private llm: LLMService,
@@ -82,11 +107,11 @@ export class ReActEngine {
     eventBus?: EventBus
   ) {
     const defaultLimits: ExecutionLimits = {
-      maxDepth: 10,
-      maxSteps: 50,
-      maxSameActionRepeat: 3,
-      timeout: 60000,
-      maxTotalTime: 300000,
+      maxDepth: 20, // 增加到 20 层
+      maxSteps: 100, // 增加到 100 步
+      maxSameActionRepeat: 10, // 增加到 10 次
+      timeout: 300000, // 增加到 5 分钟
+      maxTotalTime: 600000, // 增加到 10 分钟
     };
 
     const executionLimits: ExecutionLimits = {
@@ -97,17 +122,20 @@ export class ReActEngine {
       maxTotalTime: config.executionLimits?.maxTotalTime ?? defaultLimits.maxTotalTime,
     };
 
-    const { executionLimits: _, ...restConfig } = config;
+    const { executionLimits: _executionLimits, ...restConfig } = config;
 
     this.config = {
-      maxSteps: 10,
-      timeout: 60000,
+      maxSteps: 20, // 增加到 20 步
+      timeout: 300000, // 增加到 5 分钟
       enableReflection: true,
       reflectionInterval: 3,
-      maxReflections: 3,
+      maxReflections: 5, // 增加到 5 次
       systemPrompt: this.getDefaultSystemPrompt(),
       temperature: 0.7,
       enableParallelTools: false,
+      enableDynamicSkillSelection: true,
+      skillSelectionThreshold: 0.6,
+      maxSelectedSkills: 3,
       executionLimits,
       ...restConfig,
     };
@@ -119,10 +147,22 @@ export class ReActEngine {
       toolsUsed: new Set(),
       startTime: Date.now(),
       isComplete: false,
+      selectedSkills: [],
     };
 
     this.eventBus = eventBus || createEventBus();
-    this.abortController = new AbortController();
+    this.abortController = new AbortController(); // 每次构造时重置
+    this.skillToolAdapter = createSkillToolAdapter({ prefix: 'skill_' });
+
+    if (this.config.enableDynamicSkillSelection) {
+      this.skillSelector = createDynamicSelector({
+        confidenceThreshold: this.config.skillSelectionThreshold,
+        maxSelectedSkills: this.config.maxSelectedSkills,
+        logger: this.logger,
+        enablePreload: true,
+        preloadThreshold: 0.7,
+      });
+    }
   }
 
   async think(
@@ -133,7 +173,17 @@ export class ReActEngine {
       sessionId?: string;
     }
   ): Promise<ThinkingResult> {
-    this.reset();
+    // 重置状态和 AbortController（每次 think 调用时重置）
+    this.abortController = new AbortController();
+    this.state = {
+      currentStep: 0,
+      steps: [],
+      reflections: [],
+      toolsUsed: new Set(),
+      startTime: Date.now(),
+      isComplete: false,
+      selectedSkills: [],
+    };
 
     // 创建执行上下文
     this.state.executionContext = createExecutionContext({
@@ -160,10 +210,20 @@ export class ReActEngine {
         this.state.executionContext?.abort('timeout', `Execution timeout after ${this.config.timeout}ms`);
       }, this.config.timeout);
 
+      // 特殊意图处理：技能列表查询
+      if (this.isSkillListQuery(input)) {
+        return this.handleSkillListQuery();
+      }
+
       const relevantMemories = await this.retrieveRelevantMemories(input);
       const memoryContext = relevantMemories.length > 0
         ? `\n\nRelevant past experiences:\n${relevantMemories.map(m => `- ${m.content}`).join('\n')}`
         : '';
+
+      // 动态Skill选择 (Claude Code / Codex / OpenCode 风格)
+      if (this.skillSelector && this.config.enableDynamicSkillSelection) {
+        await this.performDynamicSkillSelection(input, context);
+      }
 
       for (let step = 1; step <= this.config.maxSteps; step++) {
         // 检查执行上下文是否已中止
@@ -390,6 +450,7 @@ export class ReActEngine {
   }
 
   reset(): void {
+    this.abortController = new AbortController(); // 重置 AbortController
     this.state = {
       currentStep: 0,
       steps: [],
@@ -398,6 +459,8 @@ export class ReActEngine {
       startTime: Date.now(),
       isComplete: false,
       executionContext: undefined,
+      selectedSkills: [],
+      skillSelectionResult: undefined,
     };
     this.abortController = new AbortController();
   }
@@ -405,6 +468,142 @@ export class ReActEngine {
   // ============================================================================
   // Private Methods
   // ============================================================================
+
+  /**
+   * 动态Skill选择 - 实现Claude Code / Codex / OpenCode风格
+   * 
+   * 根据用户输入和上下文，智能选择需要激活的Skill
+   * 支持渐进式披露，只加载必要的Skill
+   */
+  private async performDynamicSkillSelection(
+    input: string,
+    context: { agentId: AgentId; executionId: ExecutionId; sessionId?: string }
+  ): Promise<void> {
+    if (!this.skillSelector) return;
+
+    try {
+      const skills = this.skills.list();
+      
+      // 智能Skill选择算法 (Claude Code / Codex / OpenCode 风格)
+      const inputLower = input.toLowerCase();
+      const skillMatches: { name: string; score: number; reason: string }[] = [];
+
+      for (const skill of skills) {
+        let score = 0;
+        const reasons: string[] = [];
+        const skillNameLower = skill.name.toLowerCase();
+        const skillNameWords = skillNameLower.split('-');
+        const descLower = skill.description.toLowerCase();
+        
+        // 1. 精确名称匹配 (最高优先级)
+        if (skillNameLower === inputLower) {
+          score += 1.0;
+          reasons.push('exact name match');
+        }
+        // 2. 名称完整包含
+        else if (inputLower.includes(skillNameLower)) {
+          score += 0.8;
+          reasons.push('name contained in input');
+        }
+        // 3. 输入完整包含名称
+        else if (skillNameLower.includes(inputLower)) {
+          score += 0.7;
+          reasons.push('input contained in name');
+        }
+        // 4. 名称单词匹配
+        else {
+          for (const word of skillNameWords) {
+            if (word.length > 2) {
+              // 精确匹配
+              if (inputLower.split(/\s+/).includes(word)) {
+                score += 0.4;
+                reasons.push(`name word "${word}" match`);
+              }
+              // 模糊匹配 (包含)
+              else if (inputLower.includes(word)) {
+                score += 0.25;
+                reasons.push(`name word "${word}" partial match`);
+              }
+            }
+          }
+        }
+        
+        // 5. 描述关键词匹配
+        const inputWords = inputLower.split(/\s+/);
+        const descWords = descLower.split(/\s+/);
+        for (const word of descWords) {
+          if (word.length > 3) {
+            if (inputWords.includes(word)) {
+              score += 0.15;
+              reasons.push(`description word "${word}" match`);
+            }
+          }
+        }
+
+        // 6. 元数据匹配 (标签/分类)
+        if (skill.metadata) {
+          const tags = skill.metadata.tags || [];
+          for (const tag of tags) {
+            if (inputLower.includes(tag.toLowerCase())) {
+              score += 0.2;
+              reasons.push(`tag "${tag}" match`);
+            }
+          }
+          if (skill.metadata.category && inputLower.includes(skill.metadata.category.toLowerCase())) {
+            score += 0.15;
+            reasons.push(`category match`);
+          }
+        }
+
+        if (score > 0) {
+          skillMatches.push({ 
+            name: skill.name, 
+            score: Math.min(score, 1.0),
+            reason: reasons.join(', ')
+          });
+        }
+      }
+
+      // 按分数排序并选择前N个
+      skillMatches.sort((a, b) => b.score - a.score);
+      const selectedSkills = skillMatches
+        .filter(m => m.score >= this.config.skillSelectionThreshold)
+        .slice(0, this.config.maxSelectedSkills)
+        .map(m => m.name);
+
+      this.state.selectedSkills = selectedSkills;
+      this.state.skillSelectionResult = {
+        selectedSkills,
+        confidence: selectedSkills.length > 0 ? skillMatches[0]?.score || 0 : 0,
+        reasoning: selectedSkills.length > 0 
+          ? skillMatches[0]?.reason || `Selected ${selectedSkills.length} skills based on semantic matching`
+          : 'No skills matched the input',
+        shouldLoad: selectedSkills.length > 0,
+      };
+
+      this.logger.info('[ReAct] Dynamic skill selection completed', {
+        selectedSkills: this.state.selectedSkills,
+        confidence: this.state.skillSelectionResult.confidence,
+        reasoning: this.state.skillSelectionResult.reasoning,
+      });
+
+      // 发射Skill选择事件 (使用通用事件类型)
+      this.eventBus.publish(
+        'thinking:step' as any,
+        { 
+          type: 'skill_selection',
+          selectedSkills: this.state.selectedSkills,
+          confidence: this.state.skillSelectionResult.confidence,
+          reasoning: this.state.skillSelectionResult.reasoning,
+        },
+        { agentId: context.agentId, executionId: context.executionId }
+      );
+    } catch (error) {
+      this.logger.warn('[ReAct] Dynamic skill selection failed, continuing without it', {
+        error: (error as Error).message,
+      });
+    }
+  }
 
   private async retrieveRelevantMemories(input: string): Promise<Array<{ content: string; importance: number }>> {
     try {
@@ -488,71 +687,110 @@ export class ReActEngine {
       return `Error: Execution blocked - ${reason?.message || 'Unknown reason'}`;
     }
 
+    const maxRetries = 3;
+    let lastError: Error | undefined;
+
     try {
-      switch (action.type) {
-        case 'tool': {
-          this.state.toolsUsed.add(action.name);
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          switch (action.type) {
+            case 'tool': {
+              this.state.toolsUsed.add(action.name);
 
-          const toolResult = await this.tools.execute(
-            action.name,
-            action.parameters,
-            {
-              executionId: context.executionId,
-              agentId: context.agentId,
-              sessionId: context.sessionId,
-              toolId: action.name,
-              toolName: action.name,
-              logger: this.logger,
-              signal: this.abortController.signal,
-              executionContext: this.state.executionContext,
+              const toolResult = await this.tools.execute(
+                action.name,
+                action.parameters,
+                {
+                  executionId: context.executionId,
+                  agentId: context.agentId,
+                  sessionId: context.sessionId,
+                  toolId: action.name,
+                  toolName: action.name,
+                  logger: this.logger,
+                  signal: this.abortController.signal,
+                  executionContext: this.state.executionContext,
+                }
+              );
+
+              return JSON.stringify(toolResult.data || toolResult);
             }
-          );
 
-          return JSON.stringify(toolResult.data || toolResult);
-        }
+            case 'skill': {
+              const skill = this.skills.getByName?.(action.name) || this.skills.get?.(action.name);
+              if (!skill) {
+                return `Error: Skill '${action.name}' not found`;
+              }
 
-        case 'skill': {
-          const skill = this.skills.getByName?.(action.name) || this.skills.get?.(action.name);
-          if (!skill) {
-            return `Error: Skill '${action.name}' not found`;
+              this.state.toolsUsed.add(action.name);
+
+              // 检查是否在动态选择的 Skills 中 (Claude Code / Codex / OpenCode 风格)
+              const isDynamicSelected = this.state.selectedSkills.includes(action.name);
+              
+              if (isDynamicSelected) {
+                this.logger.info(`[ReAct] Executing dynamically selected skill: ${action.name}`);
+              } else if (this.state.selectedSkills.length > 0) {
+                this.logger.warn(`[ReAct] Skill '${action.name}' was not in dynamically selected list, executing anyway`);
+              }
+
+              const skillResult = await skill.execute(action.parameters, {
+                executionId: context.executionId,
+                agentId: context.agentId,
+                sessionId: context.sessionId,
+                input: action.parameters,
+                logger: this.logger,
+                llm: this.llm,
+                memory: this.memory,
+                tools: this.tools,
+                signal: this.abortController.signal,
+                executionContext: this.state.executionContext,
+              });
+
+              return JSON.stringify(skillResult.data || skillResult);
+            }
+
+            case 'think': {
+              return `Thought: ${action.parameters.thought || action.name}`;
+            }
+
+            case 'reflect': {
+              return `Reflection: ${action.parameters.reflection || ''}`;
+            }
+
+            default:
+              return `Unknown action type: ${action.type}`;
           }
-
-          this.state.toolsUsed.add(action.name);
-
-          const skillResult = await skill.execute(action.parameters, {
-            executionId: context.executionId,
-            agentId: context.agentId,
-            sessionId: context.sessionId,
-            input: action.parameters,
-            logger: this.logger,
-            llm: this.llm,
-            memory: this.memory,
-            tools: this.tools,
-            signal: this.abortController.signal,
-            executionContext: this.state.executionContext,
-          });
-
-          return JSON.stringify(skillResult.data || skillResult);
+        } catch (error) {
+          lastError = error as Error;
+          
+          // 检查是否可重试
+          if (this.isRetryableError(error) && attempt < maxRetries) {
+            this.logger.warn(`[ReAct] Retrying action ${action.name}, attempt ${attempt}/${maxRetries}`);
+            await this._sleep(1000 * attempt); // 指数退避
+            continue;
+          }
+          break;
         }
-
-        case 'think': {
-          return `Thought: ${action.parameters.thought || action.name}`;
-        }
-
-        case 'reflect': {
-          return `Reflection: ${action.parameters.reflection || ''}`;
-        }
-
-        default:
-          return `Unknown action type: ${action.type}`;
       }
-    } catch (error) {
-      this.logger.error(`[ReAct] Action failed: ${action.type}:${action.name}`, {}, error as Error);
-      return `Error: ${(error as Error).message}`;
+
+      this.logger.error(`[ReAct] Action failed after ${maxRetries} attempts: ${action.type}:${action.name}`, {}, lastError!);
+      return `Error after ${maxRetries} attempts: ${lastError?.message}`;
     } finally {
       // 退出执行层级
       this.state.executionContext?.exitAction(action.type, action.name);
     }
+  }
+
+  private isRetryableError(error: unknown): boolean {
+    const message = (error as Error).message.toLowerCase();
+    return message.includes('timeout') || 
+           message.includes('rate limit') ||
+           message.includes('network') ||
+           message.includes('econnreset') ||
+           message.includes('econnrefused');
+  }
+
+  private _sleep(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 
   private async reflect(
@@ -592,38 +830,27 @@ Provide a brief reflection:`;
   }
 
   private buildThoughtPrompt(input: string, step: number, memoryContext: string = ''): string {
-    const history = this.formatHistory();
     const tools = this.formatTools();
+    const history = this.formatHistory();
 
-    return `Task: ${input}${memoryContext}
+    return `Task: ${input}
 
-Available Tools:
 ${tools}
 
-Previous Actions:
+History:
 ${history}
 
-Step ${step}: Analyze the current situation and think about what to do next.
-Provide your thought process:`;
+${memoryContext ? `Context:\n${memoryContext}\n\n` : ''}Step ${step}: Think and act.`;
   }
 
   private buildActionPrompt(thought: string, _step: number): string {
     const tools = this.formatTools();
 
-    return `Your Thought: ${thought}
+    return `Thought: ${thought}
 
-Available Tools:
 ${tools}
 
-Choose actions (you can select multiple for parallel execution):
-1. tool:tool_name(param1=value1) - Execute a tool
-2. skill:skill_name(param1=value1) - Execute a skill
-3. finish:answer - Complete the task with the answer
-4. think:thought - Continue thinking
-
-For multiple parallel actions, list them separated by newlines.
-
-Your action(s):`;
+Action:`;
   }
 
   private parseActions(response: string): Action[] {
@@ -662,6 +889,31 @@ Your action(s):`;
       }
     } catch {
       // 不是完整 JSON，继续文本解析
+    }
+
+    // 解析 XML 格式: <skill name="xxx" param1="value1" />
+    // 或 <tool name="xxx" param1="value1" />
+    // 或 <action type="skill" name="xxx" param1="value1" />
+    const xmlMatch = line.match(/<(skill|tool|action)\s+([^>]+)\s*\/?>/i);
+    if (xmlMatch) {
+      const tagType = xmlMatch[1].toLowerCase();
+      const attrStr = xmlMatch[2];
+      const attrs = this.parseXmlAttributes(attrStr);
+      
+      if (tagType === 'action') {
+        const actionType = ((attrs.type as string) || 'think') as Action['type'];
+        const name = (attrs.name as string) || 'default';
+        const parameters = { ...attrs };
+        delete parameters.type;
+        delete parameters.name;
+        return { type: actionType, name, parameters };
+      }
+      
+      return {
+        type: tagType as 'skill' | 'tool',
+        name: (attrs.name as string) || '',
+        parameters: { ...attrs, name: undefined },
+      };
     }
 
     // 解析 finish:{"answer": "..."} 格式
@@ -742,6 +994,23 @@ Your action(s):`;
     return null;
   }
 
+  private parseXmlAttributes(attrStr: string): Record<string, unknown> {
+    const attrs: Record<string, unknown> = {};
+    const attrPattern = /(\w+)\s*=\s*"([^"]*)"/g;
+    let match;
+    while ((match = attrPattern.exec(attrStr)) !== null) {
+      const key = match[1];
+      let value: string | number | boolean = match[2];
+      
+      if (value === 'true') value = true;
+      else if (value === 'false') value = false;
+      else if (!isNaN(Number(value)) && value !== '') value = Number(value);
+      
+      attrs[key] = value;
+    }
+    return attrs;
+  }
+
   private parseParameters(paramStr: string): Record<string, unknown> {
     const params: Record<string, unknown> = {};
     if (!paramStr.trim()) return params;
@@ -776,32 +1045,46 @@ Your action(s):`;
   }
 
   private formatTools(): string {
+    // 生成缓存键
+    const toolsCount = this.tools.list?.()?.length || 0;
+    const skillsCount = this.skills.list?.()?.length || 0;
+    const selectedSkillsKey = this.state.selectedSkills.join(',');
+    const cacheKey = `${toolsCount}-${skillsCount}-${selectedSkillsKey}`;
+
+    // 检查缓存
+    if (this._toolsCacheKey === cacheKey && this._cachedToolsDescription) {
+      return this._cachedToolsDescription;
+    }
+
     const tools = this.tools.list?.() || [];
     const skills = this.skills.list?.() || [];
+    const selectedSkillNames = this.state.selectedSkills;
 
     let result = 'Tools:\n';
     tools.forEach((t) => {
       result += `- ${t.name}: ${t.description}\n`;
-      if (t.parameters && 'shape' in t.parameters) {
-        const shape = (t.parameters as { shape?: () => Record<string, unknown> }).shape?.();
-        if (shape) {
-          result += `  Parameters: ${JSON.stringify(Object.keys(shape))}\n`;
-        }
-      }
     });
 
-    result += '\nSkills:\n';
-    skills.forEach((s) => {
-      result += `- ${s.name}: ${s.description}\n`;
-      if (s.inputSchema && 'shape' in s.inputSchema) {
-        const shape = (s.inputSchema as { shape?: () => Record<string, unknown> }).shape?.();
-        if (shape) {
-          result += `  Parameters: ${JSON.stringify(Object.keys(shape))}\n`;
-        }
-      }
-    });
+    // 只输出一次 Skills 列表，标记选中状态
+    if (skills.length > 0) {
+      result += '\nSkills:\n';
+      skills.forEach((s) => {
+        const isSelected = selectedSkillNames.includes(s.name);
+        const marker = isSelected ? '*' : '-';
+        result += `${marker} ${s.name}: ${s.description}\n`;
+      });
+    }
+
+    // 缓存结果
+    this._cachedToolsDescription = result;
+    this._toolsCacheKey = cacheKey;
 
     return result;
+  }
+
+  getToolDefinitionsForLLM(): SkillToolDefinition[] {
+    const skills = this.skills.list?.() || [];
+    return this.skillToolAdapter.skillsToToolDefinitions(skills);
   }
 
   private synthesizePartialAnswer(): string {
@@ -809,6 +1092,52 @@ Your action(s):`;
 
     const lastStep = this.state.steps[this.state.steps.length - 1];
     return `Partial result after ${this.state.steps.length} steps: ${lastStep.observation}`;
+  }
+
+  private isSkillListQuery(input: string): boolean {
+    const patterns = [
+      /有[什么哪些][技能skill]/i,
+      /列出[所有]?[技能skill]/i,
+      /[显示查看]?技能列表/i,
+      /你[能会]做?什么/i,
+      /你[的]?能力[是有哪些]/i,
+      /what\s+skills/i,
+      /list\s+skills/i,
+      /available\s+skills/i,
+      /what\s+can\s+you\s+do/i,
+      /^help$/i,
+      /^帮助$/i,
+    ];
+    
+    return patterns.some(p => p.test(input.trim()));
+  }
+
+  private handleSkillListQuery(): ThinkingResult {
+    const skills = this.skills.list?.() || [];
+    const tools = this.tools.list?.() || [];
+    
+    const skillList = skills.map(s => {
+      const desc = s.description?.slice(0, 60) || 'No description';
+      return `  • ${s.name}: ${desc}${s.description && s.description.length > 60 ? '...' : ''}`;
+    }).join('\n');
+    
+    const toolList = tools.map(t => {
+      const desc = t.description?.slice(0, 40) || 'No description';
+      return `  • ${t.name}: ${desc}`;
+    }).join('\n');
+    
+    const answer = `## 📋 可用技能列表
+
+### Skills (${skills.length}个)
+${skillList || '  (暂无可用技能)'}
+
+### Tools (${tools.length}个)
+${toolList || '  (暂无可用工具)'}
+
+---
+💡 提示：直接告诉我您想做什么，我会自动选择合适的技能来帮助您。`;
+
+    return this.buildResult(true, answer);
   }
 
   private buildResult(success: boolean, answer: string, error?: string): ThinkingResult {
@@ -821,34 +1150,24 @@ Your action(s):`;
       toolsUsed: Array.from(this.state.toolsUsed),
       reflections: this.state.reflections,
       error,
+      selectedSkills: this.state.selectedSkills,
+      skillSelectionConfidence: this.state.skillSelectionResult?.confidence,
+      skillSelectionReasoning: this.state.skillSelectionResult?.reasoning,
     };
   }
 
   private getDefaultSystemPrompt(): string {
-    return `You are an AI assistant that solves problems through reasoning and acting.
-You follow the ReAct pattern: Thought → Action → Observation.
+    return `You are a ReAct agent. Think step-by-step, use tools/skills, then respond.
 
-Guidelines:
-1. Think step by step about the problem
-2. Choose appropriate actions (tools/skills) to gather information
-3. You can execute multiple independent tools in parallel
-4. Observe the results and adapt your strategy
-5. When you have enough information, provide the final answer
-6. Be concise but thorough in your reasoning
+Actions:
+- <tool name="name" param="value" />
+- <skill name="name" param="value" />
+- <action type="finish" answer="result" />
 
-Output Format for Actions:
-- For tools: tool:tool_name({"param1": "value1", "param2": "value2"})
-- For skills: skill:skill_name({"param1": "value1"})
-- To finish: finish:{"answer": "your final answer"}
-- To think more: think:{"thought": "your reasoning"}
-
-Examples:
-User: What is the weather in Tokyo?
-Thought: I need to check the current weather in Tokyo.
-Action: tool:weather({"city": "Tokyo"})
-Observation: Temperature: 22°C, Clear sky
-Thought: I have the weather information.
-Action: finish:{"answer": "The current weather in Tokyo is 22°C with clear skies."}`;
+Rules:
+1. Use exact names, provide all params
+2. Execute independent actions in parallel
+3. Wait for results before proceeding`;
   }
 }
 

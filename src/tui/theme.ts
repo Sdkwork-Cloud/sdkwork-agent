@@ -42,6 +42,10 @@ export interface Palette {
   success: string;
   warning: string;
   info: string;
+  jsonNull: string;
+  jsonNumber: string;
+  jsonString: string;
+  jsonKey: string;
 }
 
 export const PALETTES: Record<string, Palette> = {
@@ -72,6 +76,10 @@ export const PALETTES: Record<string, Palette> = {
     success: '#22C55E',
     warning: '#F59E0B',
     info: '#3B82F6',
+    jsonNull: '#94A3B8',
+    jsonNumber: '#22D3EE',
+    jsonString: '#A5F3FC',
+    jsonKey: '#60A5FA',
   },
   openclaw: {
     name: 'OpenClaw',
@@ -100,6 +108,10 @@ export const PALETTES: Record<string, Palette> = {
     success: '#7DD3A5',
     warning: '#F6C453',
     info: '#8CC8FF',
+    jsonNull: '#7B7F87',
+    jsonNumber: '#22D3EE',
+    jsonString: '#A5F3FC',
+    jsonKey: '#60A5FA',
   },
   opencode: {
     name: 'OpenCode',
@@ -128,6 +140,10 @@ export const PALETTES: Record<string, Palette> = {
     success: '#7dd3a5',
     warning: '#f6c453',
     info: '#8cc8ff',
+    jsonNull: '#6272a4',
+    jsonNumber: '#bd93f9',
+    jsonString: '#f1fa8c',
+    jsonKey: '#50fa7b',
   },
   dracula: {
     name: 'Dracula',
@@ -156,6 +172,10 @@ export const PALETTES: Record<string, Palette> = {
     success: '#50fa7b',
     warning: '#ffb86c',
     info: '#8be9fd',
+    jsonNull: '#6272a4',
+    jsonNumber: '#bd93f9',
+    jsonString: '#f1fa8c',
+    jsonKey: '#50fa7b',
   },
   solarized: {
     name: 'Solarized',
@@ -184,6 +204,10 @@ export const PALETTES: Record<string, Palette> = {
     success: '#859900',
     warning: '#b58900',
     info: '#268bd2',
+    jsonNull: '#657b83',
+    jsonNumber: '#2aa198',
+    jsonString: '#2aa198',
+    jsonKey: '#268bd2',
   },
   monokai: {
     name: 'Monokai',
@@ -212,6 +236,10 @@ export const PALETTES: Record<string, Palette> = {
     success: '#a6e22e',
     warning: '#f92672',
     info: '#66d9ef',
+    jsonNull: '#75715e',
+    jsonNumber: '#f92672',
+    jsonString: '#e6db74',
+    jsonKey: '#a6e22e',
   },
 };
 
@@ -294,6 +322,10 @@ export interface Theme {
   quote: (text: string) => string;
   code: (text: string) => string;
   codeBlock: (text: string) => string;
+  null: (text: string) => string;
+  number: (text: string) => string;
+  string: (text: string) => string;
+  key: (text: string) => string;
 }
 
 export function createTheme(palette: Palette = DEFAULT_PALETTE): Theme {
@@ -334,6 +366,10 @@ export function createTheme(palette: Palette = DEFAULT_PALETTE): Theme {
     quote: fg(palette.quote),
     code: fg(palette.code),
     codeBlock: bg(palette.codeBlock),
+    null: fg(palette.jsonNull),
+    number: fg(palette.jsonNumber),
+    string: fg(palette.jsonString),
+    key: fg(palette.jsonKey),
   };
 }
 

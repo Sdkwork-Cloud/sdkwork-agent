@@ -119,7 +119,10 @@ export class Agent {
         maxSteps: config.maxThinkingSteps || 10,
         enableReflection: config.enableReflection ?? true,
         systemPrompt: config.systemPrompt,
-        enableParallelTools: true,
+        enableParallelTools: config.enableParallelTools ?? true,
+        enableDynamicSkillSelection: config.enableDynamicSkillSelection ?? true,
+        skillSelectionThreshold: config.skillSelectionThreshold ?? 0.6,
+        maxSelectedSkills: config.maxSelectedSkills ?? 3,
       },
       eventBus: this.eventBus,
     });
@@ -351,6 +354,10 @@ export class Agent {
     this.setState(AgentState.THINKING);
 
     try {
+      // Skill预加载 (Claude Code / Codex / OpenCode 风格)
+      // 在思考前预加载可能需要的Skills
+      await this.preloadSkills(input);
+
       const result = await this.thinkingEngine.think(input, {
         agentId: this.id,
         executionId: context.executionId,
@@ -362,6 +369,56 @@ export class Agent {
     } catch (error) {
       this.setState(AgentState.ERROR);
       throw error;
+    }
+  }
+
+  /**
+   * 预加载Skills - 在思考前预加载可能需要的Skills
+   * 
+   * 实现渐进式披露：只预加载高置信度的Skills
+   */
+  private async preloadSkills(input: string): Promise<void> {
+    try {
+      const skills = this.skillRegistry.list();
+      if (skills.length === 0) return;
+
+      const inputLower = input.toLowerCase();
+      const skillMatches: { name: string; score: number }[] = [];
+
+      for (const skill of skills) {
+        let score = 0;
+        const skillNameLower = skill.name.toLowerCase();
+        
+        // 名称精确匹配
+        if (inputLower.includes(skillNameLower)) {
+          score += 0.8;
+        } else {
+          // 名称单词匹配
+          const nameWords = skillNameLower.split('-');
+          for (const word of nameWords) {
+            if (word.length > 2 && inputLower.includes(word)) {
+              score += 0.4;
+            }
+          }
+        }
+
+        if (score > 0.5) {  // 预加载阈值更高
+          skillMatches.push({ name: skill.name, score });
+        }
+      }
+
+      // 预加载前2个最高置信度的Skills
+      skillMatches.sort((a, b) => b.score - a.score);
+      const toPreload = skillMatches.slice(0, 2);
+
+      for (const match of toPreload) {
+        const skill = this.skillRegistry.getByName(match.name);
+        if (skill) {
+          this.logger.info(`[Agent:${this.name}] Preloading skill: ${match.name}`);
+        }
+      }
+    } catch (error) {
+      this.logger.warn(`[Agent:${this.name}] Skill preload failed`, { error: (error as Error).message });
     }
   }
 
@@ -589,6 +646,10 @@ export function createAgent(config: {
   thinkingStrategy?: ThinkingStrategy;
   maxThinkingSteps?: number;
   enableReflection?: boolean;
+  enableDynamicSkillSelection?: boolean;
+  skillSelectionThreshold?: number;
+  maxSelectedSkills?: number;
+  enableParallelTools?: boolean;
   llm: LLMService;
   skillRegistry?: SkillRegistryImpl;
   toolRegistry?: ToolRegistry;

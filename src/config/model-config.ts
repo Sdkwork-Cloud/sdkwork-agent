@@ -70,6 +70,8 @@ export interface ProviderConfig {
   displayName: string;
   /** 默认基础 URL */
   defaultBaseUrl?: string;
+  /** 默认模型 ID */
+  defaultModel?: string;
   /** 支持的模型 */
   models: ModelDefinition[];
   /** 是否需要 API Key */
@@ -282,7 +284,7 @@ export const PREDEFINED_PROVIDERS: Record<ModelProvider, ProviderConfig> = {
   anthropic: {
     name: 'anthropic',
     displayName: 'Anthropic Claude',
-    defaultBaseUrl: 'https://api.anthropic.com',
+    defaultBaseUrl: 'https://api.anthropic.com/v1',
     requiresApiKey: true,
     apiKeyUrl: 'https://console.anthropic.com/settings/keys',
     docsUrl: 'https://docs.anthropic.com',
@@ -701,7 +703,7 @@ export const PREDEFINED_PROVIDERS: Record<ModelProvider, ProviderConfig> = {
   qwen: {
     name: 'qwen',
     displayName: 'Qwen (通义千问)',
-    defaultBaseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+    defaultBaseUrl: 'https://dashscope.aliyuncs.com/api/v1',
     requiresApiKey: true,
     apiKeyUrl: 'https://dashscope.console.aliyun.com/apiKey',
     docsUrl: 'https://help.aliyun.com/dashscope',
@@ -979,10 +981,26 @@ export const PREDEFINED_PROVIDERS: Record<ModelProvider, ProviderConfig> = {
     name: 'doubao',
     displayName: 'Doubao (豆包)',
     defaultBaseUrl: 'https://ark.cn-beijing.volces.com/api/v3',
+    defaultModel: 'doubao-seed-2-0-pro-260215',
     requiresApiKey: true,
     apiKeyUrl: 'https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey',
     docsUrl: 'https://www.volcengine.com/docs/82379',
     models: [
+      {
+        id: 'doubao-seed-2-0-pro-260215',
+        name: 'Doubao Seed 2.0 Pro',
+        provider: 'doubao',
+        contextWindow: 1048576,
+        maxOutputTokens: 65536,
+        supportsTools: true,
+        supportsVision: false,
+        supportsStreaming: true,
+        supportsJsonMode: true,
+        inputPrice: 12,
+        outputPrice: 120,
+        description: '豆包旗舰级 Agent 通用模型 - 复杂任务规划与执行能力',
+        recommendedFor: ['professional tasks', 'chinese optimized', 'complex reasoning'],
+      },
       {
         id: 'doubao-1.8-pro-32k',
         name: 'Doubao 1.8 Pro 32K',
@@ -1094,7 +1112,7 @@ export const PREDEFINED_PROVIDERS: Record<ModelProvider, ProviderConfig> = {
   minimax: {
     name: 'minimax',
     displayName: 'MiniMax',
-    defaultBaseUrl: 'https://api.minimax.chat/v1',
+    defaultBaseUrl: 'https://api.minimaxi.com/v1',
     requiresApiKey: true,
     apiKeyUrl: 'https://platform.minimaxi.com/user-center/basic-information/interface-key',
     docsUrl: 'https://platform.minimaxi.com/document/announcement',

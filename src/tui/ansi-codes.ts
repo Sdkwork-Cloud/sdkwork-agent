@@ -48,6 +48,7 @@ export const ANSI = {
   
   clearScreen: '\x1b[2J',
   clearScreenDown: '\x1b[0J',
+  clearScreenBelow: '\x1b[0J',
   clearLine: '\x1b[2K',
   clearLineRight: '\x1b[0K',
   clearLineLeft: '\x1b[1K',

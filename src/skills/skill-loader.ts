@@ -172,6 +172,32 @@ class LazySkillCache {
       totalAccessCount: entries.reduce((sum, e) => sum + e.accessCount, 0),
     };
   }
+
+  /**
+   * 清空缓存
+   */
+  clear(): void {
+    this.entries.clear();
+    this.nameToId.clear();
+    this.loadedSkills.clear();
+  }
+
+  /**
+   * 按来源清空缓存
+   */
+  clearBySource(source: SkillSource): void {
+    const toDelete: string[] = [];
+    for (const [id, entry] of this.entries) {
+      if (entry.source === source) {
+        toDelete.push(id);
+        this.nameToId.delete(entry.name);
+        this.loadedSkills.delete(id);
+      }
+    }
+    for (const id of toDelete) {
+      this.entries.delete(id);
+    }
+  }
 }
 
 const lazyCache = new LazySkillCache();
@@ -705,6 +731,7 @@ function convertToDomainSkill(frontmatter: SkillFrontmatter, skillPath: string, 
       author: frontmatter.author || 'unknown',
       path: skillPath,
     },
+    content: fullContent,
   };
 }
 
@@ -756,10 +783,20 @@ function generateSkillCode(
     code += `  prompt += "Examples:\\n${escapedExamples}\\n\\n";\n\n`;
   }
   
-  code += `  prompt += "Please execute this skill and provide the result.";\n\n`;
-  code += `  // Call LLM\n`;
-  code += `  const result = await $llm(prompt);\n`;
-  code += `  return result;\n`;
+  code += `  prompt += "Please execute this skill and provide the result.\\n\\n";\n`;
+  code += `  console.log("⚡ 正在调用 LLM...");\n`;
+  code += `  let fullResponse = '';\n`;
+  code += `  let chunkCount = 0;\n`;
+  code += `  for await (const chunk of $llm.stream(prompt)) {\n`;
+  code += `    fullResponse += chunk;\n`;
+  code += `    chunkCount++;\n`;
+  code += `    if (chunkCount % 3 === 0) {\n`;
+  code += `      console.log("💭 思考中... " + fullResponse.length + " 字符");\n`;
+  code += `    }\n`;
+  code += `  }\n`;
+  code += `  console.log("\\n📤 LLM 响应:");\n`;
+  code += `  console.log(fullResponse);\n`;
+  code += `  return fullResponse;\n`;
   code += `}\n\n`;
   code += `return execute();\n`;
   
@@ -1250,6 +1287,15 @@ export function getLazyLoadStats(): {
  */
 export function clearLazyCache(): void {
   logger.info('Clearing lazy skill cache');
+  lazyCache.clear();
+}
+
+/**
+ * 按来源清空懒加载缓存
+ */
+export function clearLazyCacheBySource(source: SkillSource): void {
+  logger.info(`Clearing lazy skill cache for source: ${source}`);
+  lazyCache.clearBySource(source);
 }
 
 /**

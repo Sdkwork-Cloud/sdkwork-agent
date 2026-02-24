@@ -97,6 +97,14 @@ export interface AgentConfig {
   maxThinkingSteps?: number;
   /** 是否启用自我反思 */
   enableReflection?: boolean;
+  /** 是否启用动态Skill选择 (Claude Code / Codex / OpenCode 风格) */
+  enableDynamicSkillSelection?: boolean;
+  /** Skill选择置信度阈值 */
+  skillSelectionThreshold?: number;
+  /** 最大选择的Skill数量 */
+  maxSelectedSkills?: number;
+  /** 是否启用并行工具调用 */
+  enableParallelTools?: boolean;
   /** LLM 配置 */
   llm: LLMConfig;
   /** 内存配置 */
@@ -629,4 +637,10 @@ export interface ThinkingResult {
   toolsUsed: string[];
   reflections?: string[];
   error?: string;
+  /** 动态选择的Skills */
+  selectedSkills?: string[];
+  /** Skill选择置信度 */
+  skillSelectionConfidence?: number;
+  /** Skill选择理由 */
+  skillSelectionReasoning?: string;
 }

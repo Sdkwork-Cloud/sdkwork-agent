@@ -25,19 +25,49 @@ export interface NodeSandboxConfig extends SandboxConfig {
  */
 export const DEFAULT_NODE_SANDBOX_CONFIG: NodeSandboxConfig = {
   backend: 'isolated-vm',
-  timeout: 5000,
-  memoryLimit: 64,
-  cpuLimit: 1000,
-  allowedGlobals: ['console', 'Math', 'JSON', 'Date', 'Array', 'Object', 'String', 'Number', 'Boolean', 'Promise', 'Set', 'Map', 'Error', 'RegExp', 'Date', 'parseInt', 'parseFloat', 'isNaN', 'isFinite'],
-  blockedGlobals: ['process', 'require', 'module', 'exports', 'global', 'globalThis', '__dirname', '__filename', 'Buffer'],
+  timeout: 300000, // 增加到 5 分钟，支持长时间 LLM 调用
+  memoryLimit: 512, // 增加到 512MB
+  cpuLimit: 600000, // 增加到 10 分钟，支持复杂操作
+  allowedGlobals: ['console', 'Math', 'JSON', 'Date', 'Array', 'Object', 'String', 'Number', 'Boolean', 'Promise', 'Set', 'Map', 'Error', 'RegExp', 'Symbol', 'BigInt', 'Proxy', 'Reflect', 'parseInt', 'parseFloat', 'isNaN', 'isFinite'],
+  blockedGlobals: ['process', 'require', 'module', 'exports', 'global', 'globalThis', 'window', 'document', 'eval', 'Function'],
   allowNetwork: false,
   allowFileSystem: false,
   allowProcess: false,
-  customGlobals: {},
-  onViolation: (v) => console.error('Security violation:', v),
+  customGlobals: {
+    console: {
+      log: (...args: unknown[]) => {
+        const output = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
+        console.log(output);
+      },
+      info: (...args: unknown[]) => {
+        console.log('[INFO]', ...args);
+      },
+      warn: (...args: unknown[]) => {
+        console.log('[WARN]', ...args);
+      },
+      error: (...args: unknown[]) => {
+        console.log('[ERROR]', ...args);
+      },
+    },
+    process: {
+      stdout: {
+        write: (str: string) => {
+          console.log(str);
+        }
+      }
+    },
+  },
+  onViolation: (v) => {
+    // 只记录严重违规，减少噪音
+    if (v.type === 'memory' || v.type === 'cpu') {
+      console.warn('[Sandbox] Resource limit:', v.type, v.message);
+    } else {
+      console.error('[Sandbox] Security violation:', v.type, v.message);
+    }
+  },
   useContextIsolation: true,
   cacheCompiledCode: true,
-  maxCallStackSize: 1000,
+  maxCallStackSize: 2000, // 增加调用栈深度
 };
 
 /**

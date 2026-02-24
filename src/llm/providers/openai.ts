@@ -89,7 +89,7 @@ export class OpenAIProvider implements LLMProvider {
     this._apiKey = config.apiKey || '';
     this._baseUrl = config.baseUrl || 'https://api.openai.com/v1';
     this._defaultParams = config.defaultParams || {};
-    this._timeout = config.timeout || 60000;
+    this._timeout = config.timeout || 300000; // 增加到 5 分钟
     this._organization = config.organization;
     this._project = config.project;
   }

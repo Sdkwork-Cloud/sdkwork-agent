@@ -24,6 +24,7 @@ import type {
   SkillInjectedAPI,
   SkillLogger,
   SkillMemoryAPI,
+  SkillRegistry,
 } from '../domain/skill.js';
 import type { ToolRegistry } from '../domain/tool.js';
 import type { LLMProvider } from '../../llm/provider.js';
@@ -50,6 +51,8 @@ export interface SkillExecutorConfig {
   llm: LLMProvider;
   /** Tool Registry */
   toolRegistry: ToolRegistry;
+  /** Skill Registry (用于嵌套调用) */
+  skillRegistry?: SkillRegistry;
   /** 内存存储 */
   memory?: SkillMemoryAPI;
   /** 事件发射器 */
@@ -84,6 +87,7 @@ export interface SkillExecutorConfig {
 export class SkillExecutorImpl {
   private readonly llm: LLMProvider;
   private readonly toolRegistry: ToolRegistry;
+  private readonly skillRegistry?: SkillRegistry;
   private readonly memory?: SkillMemoryAPI;
   private readonly eventEmitter: AgentEventEmitter;
   private readonly timeout: number;
@@ -98,11 +102,12 @@ export class SkillExecutorImpl {
   constructor(config: SkillExecutorConfig) {
     this.llm = config.llm;
     this.toolRegistry = config.toolRegistry;
+    this.skillRegistry = config.skillRegistry;
     this.memory = config.memory;
     this.eventEmitter = config.eventEmitter ?? new AgentEventEmitter();
-    this.timeout = config.timeout ?? 30000;
+    this.timeout = config.timeout ?? 60000; // 增加到 60 秒，支持复杂 LLM 调用
     this.maxMemory = config.maxMemory ?? 64;
-    this.cpuLimit = config.cpuLimit ?? 5000;
+    this.cpuLimit = config.cpuLimit ?? 300000; // 增加到 300 秒 (10倍)，支持长时间 LLM 调用
     this.enableSandbox = config.enableSandbox ?? true;
     this.sandboxConfig = config.sandboxConfig;
     this.logger = createLogger({ name: 'SkillExecutor' });
@@ -124,13 +129,24 @@ export class SkillExecutorImpl {
   }
 
   /**
-   * 执行 Skill
+   * 执行 Skill（支持渐进式披露）
+   * 
+   * 渐进式披露能力：
+   * 1. 执行前发射 skill:executing 事件
+   * 2. 执行中通过 $progress() API 报告进度
+   * 3. 执行后发射 skill:completed 事件
+   * 4. 支持 abortController 中止执行
    * 
    * @example
    * const result = await executor.execute({
    *   skillId: 'my-skill',
    *   input: { query: 'hello' },
    *   context: { agentId: 'agent-1', sessionId: 'session-1' }
+   * });
+   * 
+   * // 监听进度
+   * executor.on('skill:progress', (data) => {
+   *   console.log(`进度: ${data.progress}% - ${data.message}`);
    * });
    */
   async execute(params: {
@@ -239,6 +255,44 @@ export class SkillExecutorImpl {
       controller.abort();
       this.abortControllers.delete(executionId);
     }
+  }
+
+  /**
+   * 流式调用 LLM
+   */
+  private async * streamLLM(
+    prompt: string,
+    options: unknown,
+    context: SkillExecutionContext,
+    emitProgress: (progress: number, message: string, data?: Record<string, unknown>) => void
+  ): AsyncGenerator<string, void, unknown> {
+    emitProgress(10, '🤔 流式思考中...');
+    
+    if (context.signal?.aborted) {
+      throw new Error('Skill execution aborted');
+    }
+
+    const stream = this.llm.stream({
+      messages: [{ role: 'user', content: prompt }],
+      ...((options as Record<string, unknown>) ?? {}),
+    });
+
+    let fullContent = '';
+    let chunkCount = 0;
+    
+    for await (const chunk of stream) {
+      const delta = chunk.delta?.content;
+      if (delta) {
+        fullContent += delta;
+        chunkCount++;
+        if (chunkCount % 5 === 0 || delta.length > 50) {
+          emitProgress(30 + Math.min(50, chunkCount), `💭 思考中... ${fullContent.length} 字符`);
+        }
+        yield delta;
+      }
+    }
+
+    emitProgress(80, '✨ 流式响应完成');
   }
 
   /**
@@ -490,48 +544,74 @@ export class SkillExecutorImpl {
   }
 
   private buildInjectedAPI(_skill: Skill, context: SkillExecutionContext): SkillInjectedAPI {
+    const self = this;
+    const emitProgress = (progress: number, message: string, data?: Record<string, unknown>) => {
+      self.eventEmitter.emit('skill:progress', {
+        executionId: context.executionId,
+        skillId: _skill.id,
+        progress: Math.min(100, Math.max(0, progress)),
+        message,
+        data,
+      });
+    };
+
     return {
       $context: context,
       $input: context.input,
       $references: context.references,
 
-      $llm: async (prompt: string, options?: unknown) => {
-        if (context.signal?.aborted) {
-          throw new Error('Skill execution aborted');
+      $llm: Object.assign(
+        async (prompt: string, options?: unknown): Promise<string> => {
+          emitProgress(10, '🤔 思考中...');
+          
+          if (context.signal?.aborted) {
+            throw new Error('Skill execution aborted');
+          }
+
+          const response = await self.llm.complete({
+            messages: [{ role: 'user', content: prompt }],
+            ...((options as Record<string, unknown>) ?? {}),
+          });
+
+          emitProgress(80, '✨ 响应完成');
+          return response.content ?? '';
+        },
+        {
+          stream: (prompt: string, options?: unknown): AsyncGenerator<string, void, unknown> => {
+            return this.streamLLM(prompt, options, context, emitProgress);
+          }
         }
-
-        const response = await this.llm.complete({
-          messages: [{ role: 'user', content: prompt }],
-          ...((options as Record<string, unknown>) ?? {}),
-        });
-
-        return response.content ?? '';
-      },
+      ),
 
       $memory: {
         get: async (key: string) => {
+          emitProgress(5, '读取内存...');
           return this.memory?.get(key);
         },
         set: async (key: string, value: unknown) => {
+          emitProgress(5, '写入内存...');
           await this.memory?.set(key, value);
         },
         delete: async (key: string) => {
+          emitProgress(5, '删除内存...');
           await this.memory?.delete(key);
         },
         search: async (query: string, limit?: number) => {
+          emitProgress(5, '搜索内存...');
           return this.memory?.search(query, limit) ?? [];
         },
         clear: async () => {
-          // Memory clear implementation
+          emitProgress(5, '清除内存...');
         },
       },
 
       $tool: async (name: string, input: unknown) => {
+        emitProgress(20, `执行工具: ${name}...`);
+        
         if (context.signal?.aborted) {
           throw new Error('Skill execution aborted');
         }
 
-        // 使用注入的 toolRegistry
         const toolResult = await this.toolRegistry.execute(name, input, {
           executionId: context.executionId,
           agentId: context.agentId,
@@ -543,6 +623,7 @@ export class SkillExecutorImpl {
         });
 
         context.logger.info(`Tool executed: ${name}`, { input, result: toolResult });
+        emitProgress(40, `工具 ${name} 执行完成`);
         return toolResult;
       },
 
@@ -551,9 +632,47 @@ export class SkillExecutorImpl {
           throw new Error('Skill execution aborted');
         }
 
-        // 递归调用需要 SkillRegistry，这里简化处理
+        emitProgress(30, `调用嵌套技能: ${name}...`);
         context.logger.info(`Nested skill call: ${name}`, { input });
-        throw new Error(`Nested skill execution not implemented: ${name}`);
+
+        if (!this.skillRegistry) {
+          throw new Error('Skill registry not configured for nested calls');
+        }
+
+        try {
+          const skill = await this.skillRegistry.getByName(name);
+          if (!skill) {
+            throw new Error(`Skill not found: ${name}`);
+          }
+
+          const result = await (this.execute as (params: {
+            skill: typeof skill;
+            input: unknown;
+            context: {
+              agentId: string;
+              sessionId?: string;
+              parentExecutionId?: string;
+            };
+          }) => Promise<SkillResult>)({
+            skill,
+            input,
+            context: {
+              agentId: context.agentId,
+              sessionId: context.sessionId,
+              parentExecutionId: context.executionId,
+            },
+          });
+
+          emitProgress(60, `嵌套技能 ${name} 执行完成`);
+          return result;
+        } catch (error) {
+          context.logger.error(`Nested skill execution failed: ${name}`, { error });
+          throw error;
+        }
+      },
+
+      $progress: (progress: number, message?: string, data?: Record<string, unknown>) => {
+        emitProgress(progress, message || '处理中...', data);
       },
 
       $log: context.logger,

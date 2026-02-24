@@ -237,6 +237,7 @@ export class AgentImpl extends EventEmitter implements Agent {
         this._skillExecutor = new SkillExecutorImpl({
           llm: this._llm,
           toolRegistry: this.tools,
+          skillRegistry: this.skills,
           memory: this._memory ? createMemoryAdapter(this._memory) : undefined,
         });
       },
@@ -332,8 +333,17 @@ export class AgentImpl extends EventEmitter implements Agent {
   }
 
   setLLM(config: AgentConfig['llm']): void {
+    console.log('[DEBUG] AgentImpl.setLLM - received config:', JSON.stringify(config));
     this._llm = this._initLLM(config);
+    console.log('[DEBUG] AgentImpl.setLLM - LLM initialized');
     this._config.llm = config;
+    console.log('[DEBUG] AgentImpl.setLLM - config updated');
+    
+    // 如果 Agent 处于 ERROR 状态，清除错误状态
+    if (this._state === AgentState.ERROR) {
+      console.log('[DEBUG] AgentImpl.setLLM - Agent was in ERROR state, setting to READY');
+      this._setState(AgentState.READY);
+    }
   }
 
   get skills(): import('../domain/skill').SkillRegistry {
